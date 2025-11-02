@@ -1,0 +1,118 @@
+syntax = "proto3";
+package zopp;
+
+service ZoppService {
+  // Auth
+  rpc Join(JoinRequest) returns (JoinResponse);
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Workspaces
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (Workspace);
+  rpc ListWorkspaces(Empty) returns (WorkspaceList);
+
+  // Invites
+  rpc CreateInvite(CreateInviteRequest) returns (InviteToken);
+  rpc ListInvites(Empty) returns (InviteList);
+  rpc RevokeInvite(RevokeInviteRequest) returns (Empty);
+
+  // Principals
+  rpc GetPrincipal(GetPrincipalRequest) returns (Principal);
+  rpc RenamePrincipal(RenamePrincipalRequest) returns (Empty);
+  rpc ListPrincipals(Empty) returns (PrincipalList);
+}
+
+message Empty {}
+
+// Auth messages
+message JoinRequest {
+  string invite_token = 1;
+  string email = 2;
+  string principal_name = 3;
+  bytes public_key = 4;
+}
+
+message JoinResponse {
+  string user_id = 1;
+  string principal_id = 2;
+  repeated Workspace workspaces = 3;
+}
+
+message RegisterRequest {
+  string email = 1;
+  string principal_name = 2;
+  bytes public_key = 3;
+}
+
+message RegisterResponse {
+  string user_id = 1;
+  string principal_id = 2;
+}
+
+message LoginRequest {
+  string email = 1;
+  string principal_name = 2;
+  int64 timestamp = 3;
+  bytes signature = 4;  // Sign(private_key, timestamp)
+}
+
+message LoginResponse {
+  string user_id = 1;
+  string principal_id = 2;
+}
+
+// Workspace messages
+message CreateWorkspaceRequest {
+  string name = 1;
+}
+
+message Workspace {
+  string id = 1;
+  string name = 2;
+}
+
+message WorkspaceList {
+  repeated Workspace workspaces = 1;
+}
+
+// Invite messages
+message CreateInviteRequest {
+  repeated string workspace_ids = 1;
+  int64 expires_at = 2;
+}
+
+message InviteToken {
+  string id = 1;
+  string token = 2;
+  repeated string workspace_ids = 3;
+  int64 created_at = 4;
+  int64 expires_at = 5;
+}
+
+message InviteList {
+  repeated InviteToken invites = 1;
+}
+
+message RevokeInviteRequest {
+  string invite_id = 1;
+}
+
+// Principal messages
+message GetPrincipalRequest {
+  string principal_id = 1;
+}
+
+message Principal {
+  string id = 1;
+  string name = 2;
+  bytes public_key = 3;
+}
+
+message RenamePrincipalRequest {
+  string principal_id = 1;
+  string new_name = 2;
+}
+
+message PrincipalList {
+  repeated Principal principals = 1;
+}

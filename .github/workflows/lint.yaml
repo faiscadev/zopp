@@ -19,6 +19,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: rustfmt
         run: cargo fmt --all -- --check
 

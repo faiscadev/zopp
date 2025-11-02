@@ -1,8 +1,10 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
 use uuid::Uuid;
 use zopp_storage::{
-    EnvName, ProjectName, SecretRow, Store, StoreError, Transaction, WorkspaceId, WorkspaceParams,
+    CreateEnvParams, CreateInviteParams, CreatePrincipalParams, CreateProjectParams,
+    CreateUserParams, CreateWorkspaceParams, EnvName, Invite, InviteId, Principal, PrincipalId,
+    ProjectName, SecretRow, Store, StoreError, Transaction, User, UserId, Workspace, WorkspaceId,
 };
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
@@ -67,25 +69,502 @@ impl Store for SqliteStore {
         Ok(SqliteTxn)
     }
 
-    // ───────────────────────────── Workspaces ─────────────────────────────
+    // ───────────────────────────── Users ─────────────────────────────
 
-    async fn create_workspace(&self, p: &WorkspaceParams) -> Result<WorkspaceId, StoreError> {
-        let ws_id = Uuid::now_v7();
-        let ws_id_str = ws_id.to_string();
-        let m_cost = p.m_cost_kib as i64;
-        let t_cost = p.t_cost as i64;
-        let p_cost = p.p_cost as i64;
-        let created_at = Utc::now().timestamp();
+    async fn create_user(
+        &self,
+        params: &CreateUserParams,
+    ) -> Result<(UserId, Option<PrincipalId>), StoreError> {
+        let user_id = Uuid::now_v7();
+        let user_id_str = user_id.to_string();
+
+        // Use transaction if we need to create principal or add to workspaces
+        let needs_tx = params.principal.is_some() || !params.workspace_ids.is_empty();
+
+        if needs_tx {
+            let mut tx = self
+                .pool
+                .begin()
+                .await
+                .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+            // Create user
+            sqlx::query!(
+                "INSERT INTO users(id, email) VALUES(?, ?)",
+                user_id_str,
+                params.email
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                let s = e.to_string();
+                if s.contains("UNIQUE") {
+                    StoreError::AlreadyExists
+                } else {
+                    StoreError::Backend(s)
+                }
+            })?;
+
+            // Create principal if provided
+            let principal_id = if let Some(principal_data) = &params.principal {
+                let principal_id = Uuid::now_v7();
+                let principal_id_str = principal_id.to_string();
+
+                sqlx::query!(
+                    "INSERT INTO principals(id, user_id, name, public_key) VALUES(?, ?, ?, ?)",
+                    principal_id_str,
+                    user_id_str,
+                    principal_data.name,
+                    principal_data.public_key
+                )
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+                Some(PrincipalId(principal_id))
+            } else {
+                None
+            };
+
+            // Add user to workspaces (user-level membership)
+            for workspace_id in &params.workspace_ids {
+                let ws_id = workspace_id.0.to_string();
+                sqlx::query!(
+                    "INSERT INTO workspace_members(workspace_id, user_id) VALUES(?, ?)",
+                    ws_id,
+                    user_id_str
+                )
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| StoreError::Backend(e.to_string()))?;
+            }
+
+            tx.commit()
+                .await
+                .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+            Ok((UserId(user_id), principal_id))
+        } else {
+            // Simple case: just create user
+            sqlx::query!(
+                "INSERT INTO users(id, email) VALUES(?, ?)",
+                user_id_str,
+                params.email
+            )
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                let s = e.to_string();
+                if s.contains("UNIQUE") {
+                    StoreError::AlreadyExists
+                } else {
+                    StoreError::Backend(s)
+                }
+            })?;
+
+            Ok((UserId(user_id), None))
+        }
+    }
+
+    async fn get_user_by_email(&self, email: &str) -> Result<User, StoreError> {
+        let row = sqlx::query!(
+            r#"SELECT id, email,
+               created_at as "created_at: DateTime<Utc>",
+               updated_at as "updated_at: DateTime<Utc>"
+               FROM users WHERE email = ?"#,
+            email
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        match row {
+            None => Err(StoreError::NotFound),
+            Some(row) => {
+                let id =
+                    Uuid::try_parse(&row.id).map_err(|e| StoreError::Backend(e.to_string()))?;
+                Ok(User {
+                    id: UserId(id),
+                    email: row.email,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                })
+            }
+        }
+    }
+
+    async fn get_user_by_id(&self, user_id: &UserId) -> Result<User, StoreError> {
+        let user_id_str = user_id.0.to_string();
+        let row = sqlx::query!(
+            r#"SELECT id, email,
+               created_at as "created_at: DateTime<Utc>",
+               updated_at as "updated_at: DateTime<Utc>"
+               FROM users WHERE id = ?"#,
+            user_id_str
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        match row {
+            None => Err(StoreError::NotFound),
+            Some(row) => {
+                let id =
+                    Uuid::try_parse(&row.id).map_err(|e| StoreError::Backend(e.to_string()))?;
+                Ok(User {
+                    id: UserId(id),
+                    email: row.email,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                })
+            }
+        }
+    }
+
+    // ───────────────────────────── Principals ─────────────────────────────
+
+    async fn create_principal(
+        &self,
+        params: &CreatePrincipalParams,
+    ) -> Result<PrincipalId, StoreError> {
+        let principal_id = Uuid::now_v7();
+        let principal_id_str = principal_id.to_string();
+        let user_id_str = params.user_id.as_ref().map(|id| id.0.to_string());
 
         sqlx::query!(
-            "INSERT INTO workspaces(id,kdf_salt,kdf_m_cost_kib,kdf_t_cost,kdf_p_cost,created_at)
-             VALUES(?,?,?,?,?,?)",
+            "INSERT INTO principals(id, user_id, name, public_key) VALUES(?, ?, ?, ?)",
+            principal_id_str,
+            user_id_str,
+            params.name,
+            params.public_key
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            let s = e.to_string();
+            if s.contains("UNIQUE") {
+                StoreError::AlreadyExists
+            } else {
+                StoreError::Backend(s)
+            }
+        })?;
+        Ok(PrincipalId(principal_id))
+    }
+
+    async fn get_principal(&self, principal_id: &PrincipalId) -> Result<Principal, StoreError> {
+        let principal_id_str = principal_id.0.to_string();
+        let row = sqlx::query!(
+            r#"SELECT id, user_id, name, public_key,
+               created_at as "created_at: DateTime<Utc>",
+               updated_at as "updated_at: DateTime<Utc>"
+               FROM principals WHERE id = ?"#,
+            principal_id_str
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        match row {
+            None => Err(StoreError::NotFound),
+            Some(row) => {
+                let id =
+                    Uuid::try_parse(&row.id).map_err(|e| StoreError::Backend(e.to_string()))?;
+                let user_id = row
+                    .user_id
+                    .as_ref()
+                    .map(|id| Uuid::try_parse(id).map(UserId))
+                    .transpose()
+                    .map_err(|e| StoreError::Backend(e.to_string()))?;
+                Ok(Principal {
+                    id: PrincipalId(id),
+                    user_id,
+                    name: row.name,
+                    public_key: row.public_key,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                })
+            }
+        }
+    }
+
+    async fn rename_principal(
+        &self,
+        principal_id: &PrincipalId,
+        new_name: &str,
+    ) -> Result<(), StoreError> {
+        let principal_id_str = principal_id.0.to_string();
+        let result = sqlx::query!(
+            "UPDATE principals SET name = ? WHERE id = ?",
+            new_name,
+            principal_id_str
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            Err(StoreError::NotFound)
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn list_principals(&self, user_id: &UserId) -> Result<Vec<Principal>, StoreError> {
+        let user_id_str = user_id.0.to_string();
+        let rows = sqlx::query!(
+            r#"SELECT id, user_id, name, public_key,
+               created_at as "created_at: DateTime<Utc>",
+               updated_at as "updated_at: DateTime<Utc>"
+               FROM principals WHERE user_id = ?"#,
+            user_id_str
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        let mut principals = Vec::with_capacity(rows.len());
+        for row in rows {
+            let id = Uuid::try_parse(&row.id).map_err(|e| StoreError::Backend(e.to_string()))?;
+            let user_id = row
+                .user_id
+                .as_ref()
+                .map(|id| Uuid::try_parse(id).map(UserId))
+                .transpose()
+                .map_err(|e| StoreError::Backend(e.to_string()))?;
+            principals.push(Principal {
+                id: PrincipalId(id),
+                user_id,
+                name: row.name,
+                public_key: row.public_key,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+            });
+        }
+        Ok(principals)
+    }
+
+    // ───────────────────────────── Invites ─────────────────────────────
+
+    async fn create_invite(&self, params: &CreateInviteParams) -> Result<Invite, StoreError> {
+        let invite_id = Uuid::now_v7();
+        let invite_id_str = invite_id.to_string();
+
+        // Generate cryptographically secure random token (32 bytes = 256 bits)
+        use rand_core::RngCore;
+        let mut token_bytes = [0u8; 32];
+        rand_core::OsRng.fill_bytes(&mut token_bytes);
+        let token = hex::encode(token_bytes);
+
+        let created_by_user_id_str = params
+            .created_by_user_id
+            .as_ref()
+            .map(|id| id.0.to_string());
+
+        sqlx::query!(
+            "INSERT INTO invites(id, token, expires_at, created_by_user_id) VALUES(?, ?, ?, ?)",
+            invite_id_str,
+            token,
+            params.expires_at,
+            created_by_user_id_str
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        // Insert workspace associations
+        for ws_id in &params.workspace_ids {
+            let ws_id_str = ws_id.0.to_string();
+            sqlx::query!(
+                "INSERT INTO invite_workspaces(invite_id, workspace_id) VALUES(?, ?)",
+                invite_id_str,
+                ws_id_str
+            )
+            .execute(&self.pool)
+            .await
+            .map_err(|e| StoreError::Backend(e.to_string()))?;
+        }
+
+        // Fetch the created invite to get the database-set timestamps
+        let row = sqlx::query!(
+            r#"SELECT created_at as "created_at: DateTime<Utc>",
+               updated_at as "updated_at: DateTime<Utc>"
+               FROM invites WHERE id = ?"#,
+            invite_id_str
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        Ok(Invite {
+            id: InviteId(invite_id),
+            token,
+            workspace_ids: params.workspace_ids.clone(),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            expires_at: params.expires_at,
+            created_by_user_id: params.created_by_user_id.clone(),
+        })
+    }
+
+    async fn get_invite_by_token(&self, token: &str) -> Result<Invite, StoreError> {
+        let row = sqlx::query!(
+            r#"SELECT id, token,
+               created_at as "created_at: DateTime<Utc>",
+               updated_at as "updated_at: DateTime<Utc>",
+               expires_at as "expires_at: DateTime<Utc>",
+               created_by_user_id, revoked
+               FROM invites WHERE token = ?"#,
+            token
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        match row {
+            None => Err(StoreError::NotFound),
+            Some(row) => {
+                if row.revoked != 0 {
+                    return Err(StoreError::NotFound); // Treat revoked as not found
+                }
+
+                let id =
+                    Uuid::try_parse(&row.id).map_err(|e| StoreError::Backend(e.to_string()))?;
+                let created_by_user_id = row
+                    .created_by_user_id
+                    .as_ref()
+                    .map(|id| Uuid::try_parse(id).map(UserId))
+                    .transpose()
+                    .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+                // Get workspace IDs
+                let invite_id_str = row.id;
+                let ws_rows = sqlx::query!(
+                    "SELECT workspace_id FROM invite_workspaces WHERE invite_id = ?",
+                    invite_id_str
+                )
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+                let mut workspace_ids = Vec::new();
+                for ws_row in ws_rows {
+                    let ws_id = Uuid::try_parse(&ws_row.workspace_id)
+                        .map_err(|e| StoreError::Backend(e.to_string()))?;
+                    workspace_ids.push(WorkspaceId(ws_id));
+                }
+
+                Ok(Invite {
+                    id: InviteId(id),
+                    token: row.token,
+                    workspace_ids,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                    expires_at: row.expires_at,
+                    created_by_user_id,
+                })
+            }
+        }
+    }
+
+    async fn list_invites(&self, user_id: Option<&UserId>) -> Result<Vec<Invite>, StoreError> {
+        let user_id_str = user_id.map(|id| id.0.to_string());
+
+        // Query for either user-created invites or server invites (where created_by_user_id IS NULL)
+        let rows = sqlx::query!(
+            r#"SELECT id, token,
+               created_at as "created_at: DateTime<Utc>",
+               updated_at as "updated_at: DateTime<Utc>",
+               expires_at as "expires_at: DateTime<Utc>",
+               created_by_user_id, revoked
+               FROM invites
+               WHERE revoked = 0 AND (
+                   (? IS NOT NULL AND created_by_user_id = ?) OR
+                   (? IS NULL AND created_by_user_id IS NULL)
+               )"#,
+            user_id_str,
+            user_id_str,
+            user_id_str
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        let mut invites = Vec::new();
+        for row in rows {
+            let id = Uuid::try_parse(&row.id).map_err(|e| StoreError::Backend(e.to_string()))?;
+            let created_by_user_id = row
+                .created_by_user_id
+                .as_ref()
+                .map(|id| Uuid::try_parse(id).map(UserId))
+                .transpose()
+                .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+            // Get workspace IDs
+            let ws_rows = sqlx::query!(
+                "SELECT workspace_id FROM invite_workspaces WHERE invite_id = ?",
+                row.id
+            )
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+            let mut workspace_ids = Vec::new();
+            for ws_row in ws_rows {
+                let ws_id = Uuid::try_parse(&ws_row.workspace_id)
+                    .map_err(|e| StoreError::Backend(e.to_string()))?;
+                workspace_ids.push(WorkspaceId(ws_id));
+            }
+
+            invites.push(Invite {
+                id: InviteId(id),
+                token: row.token,
+                workspace_ids,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+                expires_at: row.expires_at,
+                created_by_user_id,
+            });
+        }
+        Ok(invites)
+    }
+
+    async fn revoke_invite(&self, invite_id: &InviteId) -> Result<(), StoreError> {
+        let invite_id_str = invite_id.0.to_string();
+        let result = sqlx::query!("UPDATE invites SET revoked = 1 WHERE id = ?", invite_id_str)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            Err(StoreError::NotFound)
+        } else {
+            Ok(())
+        }
+    }
+
+    // ───────────────────────────── Workspaces ─────────────────────────────
+
+    async fn create_workspace(
+        &self,
+        params: &CreateWorkspaceParams,
+    ) -> Result<WorkspaceId, StoreError> {
+        let ws_id = Uuid::now_v7();
+        let ws_id_str = ws_id.to_string();
+        let owner_user_id_str = params.owner_user_id.0.to_string();
+        let m_cost = params.m_cost_kib as i64;
+        let t_cost = params.t_cost as i64;
+        let p_cost = params.p_cost as i64;
+
+        sqlx::query!(
+            "INSERT INTO workspaces(id, name, owner_user_id, kdf_salt, kdf_m_cost_kib, kdf_t_cost, kdf_p_cost)
+             VALUES(?, ?, ?, ?, ?, ?, ?)",
             ws_id_str,
-            p.kdf_salt,
+            params.name,
+            owner_user_id_str,
+            params.kdf_salt,
             m_cost,
             t_cost,
-            p_cost,
-            created_at
+            p_cost
         )
         .execute(&self.pool)
         .await
@@ -93,23 +572,50 @@ impl Store for SqliteStore {
         Ok(WorkspaceId(ws_id))
     }
 
-    async fn list_workspaces(&self) -> Result<Vec<WorkspaceId>, StoreError> {
-        let rows = sqlx::query!("SELECT id FROM workspaces")
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| StoreError::Backend(e.to_string()))?;
-        let mut out = Vec::with_capacity(rows.len());
+    async fn list_workspaces(&self, user_id: &UserId) -> Result<Vec<Workspace>, StoreError> {
+        let user_id_str = user_id.0.to_string();
+
+        // Get all workspaces where user is a member
+        let rows = sqlx::query!(
+            r#"SELECT w.id, w.name, w.owner_user_id, w.kdf_salt, w.kdf_m_cost_kib, w.kdf_t_cost, w.kdf_p_cost,
+               w.created_at as "created_at: DateTime<Utc>",
+               w.updated_at as "updated_at: DateTime<Utc>"
+               FROM workspaces w
+               JOIN workspace_members wm ON w.id = wm.workspace_id
+               WHERE wm.user_id = ?"#,
+            user_id_str
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        let mut workspaces = Vec::new();
         for row in rows {
             let id = Uuid::try_parse(&row.id).map_err(|e| StoreError::Backend(e.to_string()))?;
-            out.push(WorkspaceId(id));
+            let owner_user_id = Uuid::try_parse(&row.owner_user_id)
+                .map_err(|e| StoreError::Backend(e.to_string()))?;
+            workspaces.push(Workspace {
+                id: WorkspaceId(id),
+                name: row.name,
+                owner_user_id: UserId(owner_user_id),
+                kdf_salt: row.kdf_salt,
+                m_cost_kib: row.kdf_m_cost_kib as u32,
+                t_cost: row.kdf_t_cost as u32,
+                p_cost: row.kdf_p_cost as u32,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+            });
         }
-        Ok(out)
+        Ok(workspaces)
     }
 
-    async fn get_workspace(&self, ws: &WorkspaceId) -> Result<WorkspaceParams, StoreError> {
+    async fn get_workspace(&self, ws: &WorkspaceId) -> Result<Workspace, StoreError> {
         let ws_id = ws.0.to_string();
         let row = sqlx::query!(
-            "SELECT kdf_salt, kdf_m_cost_kib, kdf_t_cost, kdf_p_cost FROM workspaces WHERE id = ?",
+            r#"SELECT id, name, owner_user_id, kdf_salt, kdf_m_cost_kib, kdf_t_cost, kdf_p_cost,
+               created_at as "created_at: DateTime<Utc>",
+               updated_at as "updated_at: DateTime<Utc>"
+               FROM workspaces WHERE id = ?"#,
             ws_id
         )
         .fetch_optional(&self.pool)
@@ -118,21 +624,80 @@ impl Store for SqliteStore {
 
         match row {
             None => Err(StoreError::NotFound),
-            Some(row) => Ok(WorkspaceParams {
-                kdf_salt: row.kdf_salt,
-                m_cost_kib: row.kdf_m_cost_kib as u32,
-                t_cost: row.kdf_t_cost as u32,
-                p_cost: row.kdf_p_cost as u32,
-            }),
+            Some(row) => {
+                let id =
+                    Uuid::try_parse(&row.id).map_err(|e| StoreError::Backend(e.to_string()))?;
+                let owner_user_id = Uuid::try_parse(&row.owner_user_id)
+                    .map_err(|e| StoreError::Backend(e.to_string()))?;
+                Ok(Workspace {
+                    id: WorkspaceId(id),
+                    name: row.name,
+                    owner_user_id: UserId(owner_user_id),
+                    kdf_salt: row.kdf_salt,
+                    m_cost_kib: row.kdf_m_cost_kib as u32,
+                    t_cost: row.kdf_t_cost as u32,
+                    p_cost: row.kdf_p_cost as u32,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                })
+            }
         }
+    }
+
+    async fn add_principal_to_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        principal_id: &PrincipalId,
+    ) -> Result<(), StoreError> {
+        let ws_id = workspace_id.0.to_string();
+        let p_id = principal_id.0.to_string();
+
+        sqlx::query!(
+            "INSERT INTO workspace_principals(workspace_id, principal_id) VALUES(?, ?)",
+            ws_id,
+            p_id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::Database(ref db_err) if db_err.is_unique_violation() => {
+                StoreError::AlreadyExists
+            }
+            _ => StoreError::Backend(e.to_string()),
+        })?;
+        Ok(())
+    }
+
+    async fn add_user_to_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        user_id: &UserId,
+    ) -> Result<(), StoreError> {
+        let ws_id = workspace_id.0.to_string();
+        let u_id = user_id.0.to_string();
+
+        sqlx::query!(
+            "INSERT INTO workspace_members(workspace_id, user_id) VALUES(?, ?)",
+            ws_id,
+            u_id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::Database(ref db_err) if db_err.is_unique_violation() => {
+                StoreError::AlreadyExists
+            }
+            _ => StoreError::Backend(e.to_string()),
+        })?;
+        Ok(())
     }
 
     // ───────────────────────────── Projects ───────────────────────────────
 
-    async fn create_project(&self, ws: &WorkspaceId, name: &ProjectName) -> Result<(), StoreError> {
+    async fn create_project(&self, params: &CreateProjectParams) -> Result<(), StoreError> {
         let id = Uuid::now_v7().to_string();
-        let ws_id = ws.0.to_string();
-        let proj_name = &name.0;
+        let ws_id = params.workspace_id.0.to_string();
+        let proj_name = &params.name.0;
 
         sqlx::query!(
             "INSERT INTO projects(id, workspace_id, name) VALUES(?, ?, ?)",
@@ -155,17 +720,10 @@ impl Store for SqliteStore {
 
     // ──────────────────────────── Environments ────────────────────────────
 
-    async fn create_env(
-        &self,
-        ws: &WorkspaceId,
-        project: &ProjectName,
-        env: &EnvName,
-        dek_wrapped: &[u8],
-        dek_nonce: &[u8],
-    ) -> Result<(), StoreError> {
+    async fn create_env(&self, params: &CreateEnvParams) -> Result<(), StoreError> {
         // find project id inside this workspace
-        let ws_id = ws.0.to_string();
-        let proj_name = &project.0;
+        let ws_id = params.workspace_id.0.to_string();
+        let proj_name = &params.project_name.0;
 
         let proj_row = sqlx::query!(
             "SELECT id FROM projects WHERE workspace_id = ? AND name = ?",
@@ -182,7 +740,7 @@ impl Store for SqliteStore {
         };
 
         let env_id = Uuid::now_v7().to_string();
-        let env_name = &env.0;
+        let env_name = &params.env_name.0;
 
         sqlx::query!(
             "INSERT INTO environments(id, workspace_id, project_id, name, dek_wrapped, dek_nonce)
@@ -191,8 +749,8 @@ impl Store for SqliteStore {
             ws_id,
             proj_id,
             env_name,
-            dek_wrapped,
-            dek_nonce
+            params.dek_wrapped,
+            params.dek_nonce
         )
         .execute(&self.pool)
         .await
@@ -274,22 +832,18 @@ impl Store for SqliteStore {
         };
 
         let secret_id = Uuid::now_v7().to_string();
-        let created_at = Utc::now().timestamp();
 
         sqlx::query!(
-            "INSERT INTO secrets(id, workspace_id, env_id, key_name, nonce, ciphertext, created_at)
-             VALUES(?, ?, ?, ?, ?, ?, ?)
+            "INSERT INTO secrets(id, workspace_id, env_id, key_name, nonce, ciphertext)
+             VALUES(?, ?, ?, ?, ?, ?)
              ON CONFLICT(workspace_id, env_id, key_name)
-             DO UPDATE SET nonce = excluded.nonce,
-                           ciphertext = excluded.ciphertext,
-                           created_at = excluded.created_at",
+             DO UPDATE SET nonce = excluded.nonce, ciphertext = excluded.ciphertext",
             secret_id,
             ws_id,
             env_id,
             key,
             nonce,
-            ciphertext,
-            created_at
+            ciphertext
         )
         .execute(&self.pool)
         .await
@@ -375,10 +929,12 @@ impl Store for SqliteStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zopp_storage::{EnvName, ProjectName, StoreError, WorkspaceParams};
+    use zopp_storage::{CreateWorkspaceParams, EnvName, ProjectName, StoreError, UserId};
 
-    fn params() -> WorkspaceParams {
-        WorkspaceParams {
+    fn workspace_params(owner_user_id: UserId) -> CreateWorkspaceParams {
+        CreateWorkspaceParams {
+            name: "test-workspace".to_string(),
+            owner_user_id,
             kdf_salt: b"abcdef0123456789".to_vec(),
             m_cost_kib: 1024,
             t_cost: 2,
@@ -389,22 +945,58 @@ mod tests {
     #[tokio::test]
     async fn workspace_params_roundtrip() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws = s.create_workspace(&params()).await.unwrap();
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+        let ws = s
+            .create_workspace(&workspace_params(user_id))
+            .await
+            .unwrap();
         let got = s.get_workspace(&ws).await.unwrap();
-        assert_eq!(got.kdf_salt, params().kdf_salt);
-        assert_eq!(got.m_cost_kib, params().m_cost_kib);
-        assert_eq!(got.t_cost, params().t_cost);
-        assert_eq!(got.p_cost, params().p_cost);
+        assert_eq!(
+            got.kdf_salt,
+            workspace_params(got.owner_user_id.clone()).kdf_salt
+        );
+        assert_eq!(got.m_cost_kib, 1024);
+        assert_eq!(got.t_cost, 2);
+        assert_eq!(got.p_cost, 1);
     }
 
     #[tokio::test]
     async fn duplicate_project_maps_to_alreadyexists() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws = s.create_workspace(&params()).await.unwrap();
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+        let ws = s
+            .create_workspace(&workspace_params(user_id))
+            .await
+            .unwrap();
         let name = ProjectName("app".into());
 
-        s.create_project(&ws, &name).await.unwrap();
-        let err = s.create_project(&ws, &name).await.unwrap_err();
+        s.create_project(&CreateProjectParams {
+            workspace_id: ws.clone(),
+            name: name.clone(),
+        })
+        .await
+        .unwrap();
+        let err = s
+            .create_project(&CreateProjectParams {
+                workspace_id: ws,
+                name,
+            })
+            .await
+            .unwrap_err();
 
         matches!(err, StoreError::AlreadyExists);
     }
@@ -412,17 +1004,57 @@ mod tests {
     #[tokio::test]
     async fn workspace_scoping_isolation() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws1 = s.create_workspace(&params()).await.unwrap();
-        let ws2 = s.create_workspace(&params()).await.unwrap();
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+        let ws1 = s
+            .create_workspace(&workspace_params(user_id.clone()))
+            .await
+            .unwrap();
+        let ws2 = s
+            .create_workspace(&workspace_params(user_id))
+            .await
+            .unwrap();
 
         let p = ProjectName("app".into());
         let e = EnvName("prod".into());
 
-        s.create_project(&ws1, &p).await.unwrap();
-        s.create_env(&ws1, &p, &e, &[1], &[9; 24]).await.unwrap();
+        s.create_project(&CreateProjectParams {
+            workspace_id: ws1.clone(),
+            name: p.clone(),
+        })
+        .await
+        .unwrap();
+        s.create_env(&CreateEnvParams {
+            workspace_id: ws1.clone(),
+            project_name: p.clone(),
+            env_name: e.clone(),
+            dek_wrapped: vec![1],
+            dek_nonce: vec![9; 24],
+        })
+        .await
+        .unwrap();
 
-        s.create_project(&ws2, &p).await.unwrap();
-        s.create_env(&ws2, &p, &e, &[2], &[9; 24]).await.unwrap();
+        s.create_project(&CreateProjectParams {
+            workspace_id: ws2.clone(),
+            name: p.clone(),
+        })
+        .await
+        .unwrap();
+        s.create_env(&CreateEnvParams {
+            workspace_id: ws2.clone(),
+            project_name: p.clone(),
+            env_name: e.clone(),
+            dek_wrapped: vec![2],
+            dek_nonce: vec![9; 24],
+        })
+        .await
+        .unwrap();
 
         // only insert secret into ws1
         s.upsert_secret(&ws1, &p, &e, "TOKEN", &[7; 24], &[1; 8])
@@ -437,12 +1069,36 @@ mod tests {
     #[tokio::test]
     async fn list_secret_keys_returns_sorted() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws = s.create_workspace(&params()).await.unwrap();
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+        let ws = s
+            .create_workspace(&workspace_params(user_id))
+            .await
+            .unwrap();
 
         let p = ProjectName("app".into());
         let e = EnvName("prod".into());
-        s.create_project(&ws, &p).await.unwrap();
-        s.create_env(&ws, &p, &e, &[1], &[9; 24]).await.unwrap();
+        s.create_project(&CreateProjectParams {
+            workspace_id: ws.clone(),
+            name: p.clone(),
+        })
+        .await
+        .unwrap();
+        s.create_env(&CreateEnvParams {
+            workspace_id: ws.clone(),
+            project_name: p.clone(),
+            env_name: e.clone(),
+            dek_wrapped: vec![1],
+            dek_nonce: vec![9; 24],
+        })
+        .await
+        .unwrap();
 
         s.upsert_secret(&ws, &p, &e, "z_last", &[7; 24], &[1])
             .await
@@ -461,17 +1117,28 @@ mod tests {
     #[tokio::test]
     async fn create_env_requires_existing_project() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws = s.create_workspace(&params()).await.unwrap();
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+        let ws = s
+            .create_workspace(&workspace_params(user_id))
+            .await
+            .unwrap();
 
         // No project "app" yet → creating env should fail with NotFound
         let err = s
-            .create_env(
-                &ws,
-                &ProjectName("app".into()),
-                &EnvName("prod".into()),
-                &[1],
-                &[9; 24],
-            )
+            .create_env(&CreateEnvParams {
+                workspace_id: ws,
+                project_name: ProjectName("app".into()),
+                env_name: EnvName("prod".into()),
+                dek_wrapped: vec![1],
+                dek_nonce: vec![9; 24],
+            })
             .await
             .unwrap_err();
         matches!(err, StoreError::NotFound);
@@ -480,25 +1147,82 @@ mod tests {
     #[tokio::test]
     async fn duplicate_env_maps_to_alreadyexists() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws = s.create_workspace(&params()).await.unwrap();
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+        let ws = s
+            .create_workspace(&workspace_params(user_id))
+            .await
+            .unwrap();
         let p = ProjectName("app".into());
         let e = EnvName("prod".into());
 
-        s.create_project(&ws, &p).await.unwrap();
-        s.create_env(&ws, &p, &e, &[1], &[9; 24]).await.unwrap();
-        let err = s.create_env(&ws, &p, &e, &[1], &[9; 24]).await.unwrap_err();
+        s.create_project(&CreateProjectParams {
+            workspace_id: ws.clone(),
+            name: p.clone(),
+        })
+        .await
+        .unwrap();
+        s.create_env(&CreateEnvParams {
+            workspace_id: ws.clone(),
+            project_name: p.clone(),
+            env_name: e.clone(),
+            dek_wrapped: vec![1],
+            dek_nonce: vec![9; 24],
+        })
+        .await
+        .unwrap();
+        let err = s
+            .create_env(&CreateEnvParams {
+                workspace_id: ws,
+                project_name: p,
+                env_name: e,
+                dek_wrapped: vec![1],
+                dek_nonce: vec![9; 24],
+            })
+            .await
+            .unwrap_err();
         matches!(err, StoreError::AlreadyExists);
     }
 
     #[tokio::test]
     async fn upsert_secret_overwrites_value_and_nonce() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws = s.create_workspace(&params()).await.unwrap();
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+        let ws = s
+            .create_workspace(&workspace_params(user_id))
+            .await
+            .unwrap();
 
         let p = ProjectName("app".into());
         let e = EnvName("prod".into());
-        s.create_project(&ws, &p).await.unwrap();
-        s.create_env(&ws, &p, &e, &[1], &[9; 24]).await.unwrap();
+        s.create_project(&CreateProjectParams {
+            workspace_id: ws.clone(),
+            name: p.clone(),
+        })
+        .await
+        .unwrap();
+        s.create_env(&CreateEnvParams {
+            workspace_id: ws.clone(),
+            project_name: p.clone(),
+            env_name: e.clone(),
+            dek_wrapped: vec![1],
+            dek_nonce: vec![9; 24],
+        })
+        .await
+        .unwrap();
 
         s.upsert_secret(&ws, &p, &e, "API", &[1; 24], &[10; 4])
             .await
@@ -519,21 +1243,57 @@ mod tests {
     #[tokio::test]
     async fn get_env_wrap_scoped_by_workspace() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws1 = s.create_workspace(&params()).await.unwrap();
-        let ws2 = s.create_workspace(&params()).await.unwrap();
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+        let ws1 = s
+            .create_workspace(&workspace_params(user_id.clone()))
+            .await
+            .unwrap();
+        let ws2 = s
+            .create_workspace(&workspace_params(user_id))
+            .await
+            .unwrap();
 
         let p = ProjectName("app".into());
         let e = EnvName("prod".into());
 
-        s.create_project(&ws1, &p).await.unwrap();
-        s.create_env(&ws1, &p, &e, b"wrap1", &[9; 24])
-            .await
-            .unwrap();
+        s.create_project(&CreateProjectParams {
+            workspace_id: ws1.clone(),
+            name: p.clone(),
+        })
+        .await
+        .unwrap();
+        s.create_env(&CreateEnvParams {
+            workspace_id: ws1.clone(),
+            project_name: p.clone(),
+            env_name: e.clone(),
+            dek_wrapped: b"wrap1".to_vec(),
+            dek_nonce: vec![9; 24],
+        })
+        .await
+        .unwrap();
 
-        s.create_project(&ws2, &p).await.unwrap();
-        s.create_env(&ws2, &p, &e, b"wrap2", &[8; 24])
-            .await
-            .unwrap();
+        s.create_project(&CreateProjectParams {
+            workspace_id: ws2.clone(),
+            name: p.clone(),
+        })
+        .await
+        .unwrap();
+        s.create_env(&CreateEnvParams {
+            workspace_id: ws2.clone(),
+            project_name: p.clone(),
+            env_name: e.clone(),
+            dek_wrapped: b"wrap2".to_vec(),
+            dek_nonce: vec![8; 24],
+        })
+        .await
+        .unwrap();
 
         let (w1, n1) = s.get_env_wrap(&ws1, &p, &e).await.unwrap();
         let (w2, n2) = s.get_env_wrap(&ws2, &p, &e).await.unwrap();
@@ -545,26 +1305,80 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn list_workspaces_includes_new_workspace() {
+    async fn update_changes_updated_at_but_not_created_at() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws = s.create_workspace(&params()).await.unwrap();
-        let all = s.list_workspaces().await.unwrap();
-        assert!(all.iter().any(|id| id == &ws));
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+
+        // Create a principal
+        let principal_id = s
+            .create_principal(&CreatePrincipalParams {
+                user_id: Some(user_id.clone()),
+                name: "old-name".to_string(),
+                public_key: vec![1, 2, 3],
+            })
+            .await
+            .unwrap();
+
+        let initial = s.get_principal(&principal_id).await.unwrap();
+
+        // Sleep to ensure time passes (SQLite timestamps have millisecond precision)
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Update the principal
+        s.rename_principal(&principal_id, "new-name").await.unwrap();
+
+        let after_update = s.get_principal(&principal_id).await.unwrap();
+
+        // created_at should never change
+        assert_eq!(initial.created_at, after_update.created_at);
+        // updated_at should be newer after an update
+        assert!(after_update.updated_at > initial.updated_at);
+        // The actual update should have worked
+        assert_eq!(after_update.name, "new-name");
     }
 
     #[tokio::test]
     async fn unicode_keys_and_names_roundtrip() {
         let s = SqliteStore::open_in_memory().await.unwrap();
-        let ws = s.create_workspace(&params()).await.unwrap();
+        let (user_id, _) = s
+            .create_user(&CreateUserParams {
+                email: "test@example.com".to_string(),
+                principal: None,
+                workspace_ids: vec![],
+            })
+            .await
+            .unwrap();
+        let ws = s
+            .create_workspace(&workspace_params(user_id))
+            .await
+            .unwrap();
 
         let p = ProjectName("🚀-プロジェクト".into());
         let e = EnvName("生产".into());
         let k = "🔑-секрет";
 
-        s.create_project(&ws, &p).await.unwrap();
-        s.create_env(&ws, &p, &e, &[1, 2, 3], &[9; 24])
-            .await
-            .unwrap();
+        s.create_project(&CreateProjectParams {
+            workspace_id: ws.clone(),
+            name: p.clone(),
+        })
+        .await
+        .unwrap();
+        s.create_env(&CreateEnvParams {
+            workspace_id: ws.clone(),
+            project_name: p.clone(),
+            env_name: e.clone(),
+            dek_wrapped: vec![1, 2, 3],
+            dek_nonce: vec![9; 24],
+        })
+        .await
+        .unwrap();
         s.upsert_secret(&ws, &p, &e, k, &[7; 24], &[1, 2, 3, 4])
             .await
             .unwrap();

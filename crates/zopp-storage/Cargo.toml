@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 async-trait = "0.1.89"
+chrono = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
 
