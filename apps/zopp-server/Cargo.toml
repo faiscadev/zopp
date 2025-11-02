@@ -1,0 +1,23 @@
+[package]
+name = "zopp-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tonic = { workspace = true }
+tokio = { workspace = true }
+prost = { workspace = true }
+zopp-proto = { path = "../../crates/zopp-proto" }
+zopp-storage = { path = "../../crates/zopp-storage" }
+zopp-store-sqlite = { path = "../../crates/zopp-store-sqlite" }
+zopp-crypto = { path = "../../crates/zopp-crypto" }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+rand_core = { workspace = true }
+chrono = { workspace = true }
+ed25519-dalek = { workspace = true }
+clap = { workspace = true }
+dirs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }

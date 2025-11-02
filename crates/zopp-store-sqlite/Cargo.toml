@@ -7,7 +7,9 @@ edition = "2024"
 async-trait = "0.1"
 chrono = { workspace = true }
 dirs = { workspace = true }
-sqlx = { workspace = true, features = ["sqlite", "runtime-tokio-native-tls", "migrate", "macros"] }
+hex = "0.4"
+rand_core = { version = "0.6", features = ["getrandom"] }
+sqlx = { workspace = true, features = ["sqlite", "runtime-tokio-native-tls", "migrate", "macros", "chrono"] }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }

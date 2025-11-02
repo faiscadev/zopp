@@ -1,5 +1,7 @@
 use chacha20poly1305::{KeyInit, aead::Aead};
+use rand_core::RngCore;
 use thiserror::Error;
+use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroizing;
 
 #[derive(zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
@@ -44,7 +46,7 @@ impl Dek {
 /// Generate new DEK for an environment
 pub fn generate_dek() -> Dek {
     let mut key = Zeroizing::new([0u8; 32]);
-    rand::fill(key.as_mut());
+    rand_core::OsRng.fill_bytes(key.as_mut());
     Dek(key)
 }
 
@@ -67,7 +69,7 @@ pub fn encrypt(
     let cipher = chacha20poly1305::XChaCha20Poly1305::new(&key);
 
     let mut nonce_bytes = [0u8; 24];
-    rand::fill(&mut nonce_bytes);
+    rand_core::OsRng.fill_bytes(&mut nonce_bytes);
 
     let nonce = chacha20poly1305::XNonce::from(nonce_bytes);
     let ct = cipher
@@ -110,6 +112,117 @@ pub fn decrypt(
             },
         )
         .map_err(DecryptError::AeadFailed)?;
+
+    Ok(Zeroizing::new(pt))
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// X25519 keypairs for principals (devices)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Principal keypair (X25519)
+pub struct Keypair {
+    secret: StaticSecret,
+    public: PublicKey,
+}
+
+impl Keypair {
+    /// Generate a new random X25519 keypair
+    pub fn generate() -> Self {
+        let secret = StaticSecret::random_from_rng(rand_core::OsRng);
+        let public = PublicKey::from(&secret);
+        Self { secret, public }
+    }
+
+    /// Get the public key
+    pub fn public_key(&self) -> &PublicKey {
+        &self.public
+    }
+
+    /// Get the public key as bytes (for storage)
+    pub fn public_key_bytes(&self) -> [u8; 32] {
+        *self.public.as_bytes()
+    }
+
+    /// Derive shared secret with another principal's public key (ECDH)
+    pub fn shared_secret(&self, their_public: &PublicKey) -> SharedSecret {
+        let secret_bytes = self.secret.diffie_hellman(their_public);
+        SharedSecret(Zeroizing::new(*secret_bytes.as_bytes()))
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for Keypair {}
+
+/// Shared secret derived from ECDH
+#[derive(zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
+pub struct SharedSecret(Zeroizing<[u8; 32]>);
+
+impl SharedSecret {
+    fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+/// Construct a public key from bytes (e.g., from database)
+pub fn public_key_from_bytes(bytes: &[u8]) -> Result<PublicKey, &'static str> {
+    if bytes.len() != 32 {
+        return Err("public key must be 32 bytes");
+    }
+    let mut array = [0u8; 32];
+    array.copy_from_slice(bytes);
+    Ok(PublicKey::from(array))
+}
+
+#[derive(Debug, Error)]
+pub enum WrapError {
+    #[error("AEAD encryption failed")]
+    AeadFailed(chacha20poly1305::aead::Error),
+}
+
+/// Wrap a key (e.g., KEK or DEK) using a shared secret
+pub fn wrap_key(
+    key: &[u8],
+    shared_secret: &SharedSecret,
+    aad: &[u8],
+) -> Result<(Nonce, Ciphertext), WrapError> {
+    let cipher_key = chacha20poly1305::Key::from(*shared_secret.as_bytes());
+    let cipher = chacha20poly1305::XChaCha20Poly1305::new(&cipher_key);
+
+    let mut nonce_bytes = [0u8; 24];
+    rand_core::OsRng.fill_bytes(&mut nonce_bytes);
+
+    let nonce = chacha20poly1305::XNonce::from(nonce_bytes);
+    let ct = cipher
+        .encrypt(&nonce, chacha20poly1305::aead::Payload { msg: key, aad })
+        .map_err(WrapError::AeadFailed)?;
+
+    Ok((Nonce(nonce_bytes), Ciphertext(ct)))
+}
+
+#[derive(Debug, Error)]
+pub enum UnwrapError {
+    #[error("AEAD decryption failed")]
+    AeadFailed(chacha20poly1305::aead::Error),
+}
+
+/// Unwrap a key using a shared secret
+pub fn unwrap_key(
+    wrapped: &[u8],
+    nonce: &Nonce,
+    shared_secret: &SharedSecret,
+    aad: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, UnwrapError> {
+    let cipher_key = chacha20poly1305::Key::from(*shared_secret.as_bytes());
+    let cipher = chacha20poly1305::XChaCha20Poly1305::new(&cipher_key);
+
+    let nonce = chacha20poly1305::XNonce::from(nonce.0);
+
+    let pt = cipher
+        .decrypt(
+            &nonce,
+            chacha20poly1305::aead::Payload { msg: wrapped, aad },
+        )
+        .map_err(UnwrapError::AeadFailed)?;
 
     Ok(Zeroizing::new(pt))
 }
@@ -196,5 +309,104 @@ mod tests {
         fn assert_zeroize<T: zeroize::Zeroize>() {}
         assert_zeroize::<Dek>();
         assert_zeroize::<MasterKey>();
+        assert_zeroize::<SharedSecret>();
+    }
+
+    // ───────────────────────────── X25519 Tests ─────────────────────────────
+
+    #[test]
+    fn keypair_generation() {
+        let kp = Keypair::generate();
+        let pk_bytes = kp.public_key_bytes();
+        assert_eq!(pk_bytes.len(), 32);
+    }
+
+    #[test]
+    fn public_key_roundtrip() {
+        let kp = Keypair::generate();
+        let bytes = kp.public_key_bytes();
+        let pk = public_key_from_bytes(&bytes).unwrap();
+        assert_eq!(pk.as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn public_key_from_bytes_validates_length() {
+        assert!(public_key_from_bytes(&[0u8; 31]).is_err());
+        assert!(public_key_from_bytes(&[0u8; 33]).is_err());
+        assert!(public_key_from_bytes(&[0u8; 32]).is_ok());
+    }
+
+    #[test]
+    fn ecdh_shared_secret_is_symmetric() {
+        let alice = Keypair::generate();
+        let bob = Keypair::generate();
+
+        let alice_shared = alice.shared_secret(bob.public_key());
+        let bob_shared = bob.shared_secret(alice.public_key());
+
+        // Both parties should derive the same shared secret
+        assert_eq!(alice_shared.as_bytes(), bob_shared.as_bytes());
+    }
+
+    #[test]
+    fn key_wrap_unwrap_roundtrip() {
+        let alice = Keypair::generate();
+        let bob = Keypair::generate();
+
+        // Alice wraps a key for Bob
+        let kek = b"workspace-key-encryption-key-32b";
+        let shared = alice.shared_secret(bob.public_key());
+        let aad = b"workspace:uuid-here";
+        let (nonce, wrapped) = wrap_key(kek, &shared, aad).unwrap();
+
+        // Bob unwraps the key
+        let bob_shared = bob.shared_secret(alice.public_key());
+        let unwrapped = unwrap_key(&wrapped.0, &nonce, &bob_shared, aad).unwrap();
+
+        assert_eq!(&unwrapped[..], kek);
+    }
+
+    #[test]
+    fn key_unwrap_fails_with_wrong_key() {
+        let alice = Keypair::generate();
+        let bob = Keypair::generate();
+        let eve = Keypair::generate();
+
+        let kek = b"secret-key";
+        let shared = alice.shared_secret(bob.public_key());
+        let (nonce, wrapped) = wrap_key(kek, &shared, b"aad").unwrap();
+
+        // Eve shouldn't be able to unwrap
+        let eve_shared = eve.shared_secret(alice.public_key());
+        assert!(unwrap_key(&wrapped.0, &nonce, &eve_shared, b"aad").is_err());
+    }
+
+    #[test]
+    fn key_unwrap_fails_with_tampered_ciphertext() {
+        let alice = Keypair::generate();
+        let bob = Keypair::generate();
+
+        let kek = b"secret-key";
+        let shared = alice.shared_secret(bob.public_key());
+        let (nonce, mut wrapped) = wrap_key(kek, &shared, b"aad").unwrap();
+
+        // Tamper with ciphertext
+        wrapped.0[0] ^= 0x01;
+
+        let bob_shared = bob.shared_secret(alice.public_key());
+        assert!(unwrap_key(&wrapped.0, &nonce, &bob_shared, b"aad").is_err());
+    }
+
+    #[test]
+    fn key_unwrap_fails_with_wrong_aad() {
+        let alice = Keypair::generate();
+        let bob = Keypair::generate();
+
+        let kek = b"secret-key";
+        let shared = alice.shared_secret(bob.public_key());
+        let (nonce, wrapped) = wrap_key(kek, &shared, b"good-aad").unwrap();
+
+        let bob_shared = bob.shared_secret(alice.public_key());
+        assert!(unwrap_key(&wrapped.0, &nonce, &bob_shared, b"bad-aad").is_err());
     }
 }
