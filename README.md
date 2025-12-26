@@ -25,6 +25,44 @@ zopp is the open-source, self-hostable, CLI-first secrets manager that keeps you
 
 ---
 
+## Quick Start
+
+### 1. Configure defaults (optional but recommended)
+
+Create a `zopp.toml` in your project directory:
+
+```toml
+[defaults]
+workspace = "acme"
+project = "api"
+environment = "development"
+```
+
+Supports `zopp.toml`, `zopp.yaml`, `zopp.yml`, or `zopp.json`.
+
+### 2. Manage secrets
+
+```bash
+# Set a secret (uses zopp.toml defaults)
+zopp secret set DATABASE_URL "postgresql://..."
+
+# Get a secret
+zopp secret get DATABASE_URL
+
+# Override environment
+zopp secret set API_KEY "prod-key" -e production
+
+# Export to .env file
+zopp secret export -o .env
+
+# Inject secrets into a command
+zopp run -- npm start
+```
+
+See [DEMO.md](./DEMO.md) for the complete workflow.
+
+---
+
 ## Build
 
 ```bash

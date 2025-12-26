@@ -144,12 +144,15 @@ All requests require Ed25519 signature authentication via gRPC metadata.
 The CLI uses `clap` with subcommands:
 - `zopp join <token> <email>` - Bootstrap first user or accept workspace invite
 - `zopp workspace create <name>` - Create new workspace (generates KEK)
-- `zopp environment create <name> --workspace <ws> --project <proj>` - Create environment (generates DEK)
-- `zopp secret set <key> <value> -w <ws> -p <proj> -e <env>` - Encrypt & store secret
-- `zopp secret get <key> -w <ws> -p <proj> -e <env>` - Fetch & decrypt secret
-- `zopp secret export -w <ws> -p <proj> -e <env> -o <file>` - Export secrets to `.env` format
-- `zopp secret import -w <ws> -p <proj> -e <env> -i <file>` - Import secrets from `.env` format
-- `zopp invite create --workspace <ws> --expires-hours <n>` - Create workspace invite
+- `zopp environment create <name>` - Create environment (generates DEK; uses zopp.toml defaults)
+- `zopp secret set <key> <value>` - Encrypt & store secret (uses zopp.toml defaults)
+- `zopp secret get <key>` - Fetch & decrypt secret (uses zopp.toml defaults)
+- `zopp secret export -o <file>` - Export secrets to `.env` format (uses zopp.toml defaults)
+- `zopp secret import -i <file>` - Import secrets from `.env` format (uses zopp.toml defaults)
+- `zopp run -- <command>` - Inject secrets into command environment (uses zopp.toml defaults)
+- `zopp invite create` - Create workspace invite (uses zopp.toml defaults)
+
+All `-w`, `-p`, `-e` flags are optional when `zopp.toml` (or `.yaml`/`.json`) is present in the directory tree.
 
 Config stored in `~/.zopp/config.json` with principal credentials.
 
