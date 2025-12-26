@@ -7,10 +7,10 @@ zopp is the open-source, self-hostable, CLI-first secrets manager that keeps you
 
 ## Status
 
-[![Lint](https://github.com/vieiralucas/zopp/actions/workflows/lint.yaml/badge.svg)](https://github.com/vieiralucas/zopp/actions/workflows/lint.yaml)
-[![Build](https://github.com/vieiralucas/zopp/actions/workflows/build.yaml/badge.svg)](https://github.com/vieiralucas/zopp/actions/workflows/build.yaml)
-[![Test](https://github.com/vieiralucas/zopp/actions/workflows/test.yaml/badge.svg)](https://github.com/vieiralucas/zopp/actions/workflows/test.yaml)
-[![Security Audit](https://github.com/vieiralucas/zopp/actions/workflows/audit.yaml/badge.svg)](https://github.com/vieiralucas/zopp/actions/workflows/audit.yaml)
+[![Lint](https://github.com/sisypha/zopp/actions/workflows/lint.yaml/badge.svg)](https://github.com/sisypha/zopp/actions/workflows/lint.yaml)
+[![Build](https://github.com/sisypha/zopp/actions/workflows/build.yaml/badge.svg)](https://github.com/sisypha/zopp/actions/workflows/build.yaml)
+[![Test](https://github.com/sisypha/zopp/actions/workflows/test.yaml/badge.svg)](https://github.com/sisypha/zopp/actions/workflows/test.yaml)
+[![Security Audit](https://github.com/sisypha/zopp/actions/workflows/audit.yaml/badge.svg)](https://github.com/sisypha/zopp/actions/workflows/audit.yaml)
 
 
 ---
