@@ -41,7 +41,8 @@ fn find_project_config() -> Option<ProjectConfig> {
         for (filename, format) in candidates {
             let config_path = current_dir.join(filename);
             if let Ok(content) = std::fs::read_to_string(&config_path) {
-                let config_result: Result<ProjectConfig, Box<dyn std::error::Error>> = match format {
+                let config_result: Result<ProjectConfig, Box<dyn std::error::Error>> = match format
+                {
                     "toml" => toml::from_str::<ProjectConfig>(&content).map_err(|e| e.into()),
                     "yaml" => serde_yaml::from_str::<ProjectConfig>(&content).map_err(|e| e.into()),
                     "json" => serde_json::from_str::<ProjectConfig>(&content).map_err(|e| e.into()),

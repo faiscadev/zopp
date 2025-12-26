@@ -387,7 +387,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
 
-    println!("🏃 Step 16: Alice injects secrets from production and runs command (using -e override)...");
+    println!(
+        "🏃 Step 16: Alice injects secrets from production and runs command (using -e override)..."
+    );
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
