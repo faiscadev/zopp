@@ -173,6 +173,11 @@ enum Command {
         #[command(subcommand)]
         invite_cmd: InviteCommand,
     },
+    /// Sync secrets to external systems
+    Sync {
+        #[command(subcommand)]
+        sync_cmd: SyncCommand,
+    },
     /// Run a command with secrets injected as environment variables
     Run {
         /// Workspace name (defaults from zopp.toml)
@@ -421,6 +426,44 @@ enum InviteCommand {
     Revoke {
         /// Invite code (e.g. inv_abc123...)
         invite_code: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum SyncCommand {
+    /// Sync secrets to Kubernetes
+    K8s {
+        /// Kubernetes namespace
+        #[arg(long)]
+        namespace: String,
+
+        /// Kubernetes Secret name to create/update
+        #[arg(long)]
+        secret: String,
+
+        /// Workspace name (defaults from zopp.toml)
+        #[arg(long, short = 'w')]
+        workspace: Option<String>,
+
+        /// Project name (defaults from zopp.toml)
+        #[arg(long, short = 'p')]
+        project: Option<String>,
+
+        /// Environment name (defaults from zopp.toml)
+        #[arg(long, short = 'e')]
+        environment: Option<String>,
+
+        /// Path to kubeconfig file (default: ~/.kube/config)
+        #[arg(long)]
+        kubeconfig: Option<PathBuf>,
+
+        /// Kubernetes context to use
+        #[arg(long)]
+        context: Option<String>,
+
+        /// Force sync even if Secret exists and not managed by zopp
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -2019,6 +2062,198 @@ async fn cmd_invite_revoke(
     Ok(())
 }
 
+// ────────────────────────────────────── Sync Commands ──────────────────────────────────────
+
+async fn cmd_sync_k8s(
+    server: &str,
+    workspace_name: &str,
+    project_name: &str,
+    environment_name: &str,
+    namespace: &str,
+    secret_name: &str,
+    kubeconfig_path: Option<&std::path::Path>,
+    context: Option<&str>,
+    force: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use k8s_openapi::api::core::v1::Secret;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use kube::{api::PostParams, Api, Client, Config};
+    use std::collections::BTreeMap;
+
+    // 1. Fetch all secrets from zopp
+    let config = load_config()?;
+    let principal = get_current_principal(&config)?;
+    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
+
+    // Unwrap KEK and DEK
+    let kek = unwrap_workspace_kek(&mut client, principal, workspace_name).await?;
+    let dek_bytes = unwrap_environment_dek(
+        &mut client,
+        principal,
+        workspace_name,
+        project_name,
+        environment_name,
+        &kek,
+    )
+    .await?;
+    let dek = zopp_crypto::Dek::from_bytes(&dek_bytes)?;
+
+    // List all secrets
+    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let mut request = tonic::Request::new(zopp_proto::ListSecretsRequest {
+        workspace_name: workspace_name.to_string(),
+        project_name: project_name.to_string(),
+        environment_name: environment_name.to_string(),
+    });
+    request
+        .metadata_mut()
+        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
+    request
+        .metadata_mut()
+        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
+    request.metadata_mut().insert(
+        "signature",
+        MetadataValue::try_from(hex::encode(&signature))?,
+    );
+    let secrets_response = client.list_secrets(request).await?.into_inner();
+
+    // Decrypt all secrets into a map
+    let mut secret_data = BTreeMap::new();
+    for secret in secrets_response.secrets {
+        let mut nonce_array = [0u8; 24];
+        nonce_array.copy_from_slice(&secret.nonce);
+        let nonce = zopp_crypto::Nonce(nonce_array);
+        let aad = format!(
+            "secret:{}:{}:{}:{}",
+            workspace_name, project_name, environment_name, secret.key
+        )
+        .into_bytes();
+        let plaintext = zopp_crypto::decrypt(&secret.ciphertext, &nonce, &dek, &aad)?;
+        let plaintext_str = String::from_utf8(plaintext.to_vec())
+            .map_err(|_| "Secret value is not valid UTF-8")?;
+
+        // Store plaintext (k8s will base64 encode internally)
+        secret_data.insert(secret.key.clone(), plaintext_str);
+    }
+
+    println!("✓ Fetched {} secrets from zopp", secret_data.len());
+
+    // 2. Connect to Kubernetes
+    let k8s_config = if kubeconfig_path.is_some() {
+        Config::from_kubeconfig(&kube::config::KubeConfigOptions {
+            context: context.map(String::from),
+            ..Default::default()
+        })
+        .await?
+    } else {
+        match Config::from_kubeconfig(&kube::config::KubeConfigOptions {
+            context: context.map(String::from),
+            ..Default::default()
+        })
+        .await
+        {
+            Ok(cfg) => cfg,
+            Err(_) => Config::incluster()?,
+        }
+    };
+
+    let k8s_client = Client::try_from(k8s_config)?;
+    let secrets_api: Api<Secret> = Api::namespaced(k8s_client, namespace);
+
+    // 3. Check if Secret exists
+    match secrets_api.get(secret_name).await {
+        Ok(existing_secret) => {
+            // Secret exists, check if managed by zopp
+            let managed_by = existing_secret
+                .metadata
+                .labels
+                .as_ref()
+                .and_then(|labels| labels.get("app.kubernetes.io/managed-by"))
+                .map(|s| s.as_str());
+
+            if managed_by != Some("zopp") && !force {
+                return Err(format!(
+                    "Secret '{}' in namespace '{}' exists but is not managed by zopp. Use --force to take ownership.",
+                    secret_name, namespace
+                )
+                .into());
+            }
+
+            println!("✓ Secret exists, updating...");
+        }
+        Err(kube::Error::Api(api_err)) if api_err.code == 404 => {
+            println!("✓ Secret does not exist, will create...");
+        }
+        Err(e) => return Err(e.into()),
+    }
+
+    // 4. Build Secret object
+    let synced_at = chrono::Utc::now().to_rfc3339();
+    let mut labels = BTreeMap::new();
+    labels.insert(
+        "app.kubernetes.io/managed-by".to_string(),
+        "zopp".to_string(),
+    );
+
+    let mut annotations = BTreeMap::new();
+    annotations.insert(
+        "zopp.io/workspace".to_string(),
+        workspace_name.to_string(),
+    );
+    annotations.insert("zopp.io/project".to_string(), project_name.to_string());
+    annotations.insert(
+        "zopp.io/environment".to_string(),
+        environment_name.to_string(),
+    );
+    annotations.insert("zopp.io/synced-at".to_string(), synced_at.clone());
+    annotations.insert(
+        "zopp.io/synced-by".to_string(),
+        config.email.clone(),
+    );
+
+    let secret = Secret {
+        metadata: ObjectMeta {
+            name: Some(secret_name.to_string()),
+            namespace: Some(namespace.to_string()),
+            labels: Some(labels),
+            annotations: Some(annotations),
+            ..Default::default()
+        },
+        string_data: Some(secret_data),
+        ..Default::default()
+    };
+
+    // 5. Apply Secret to k8s
+    match secrets_api.get(secret_name).await {
+        Ok(_) => {
+            // Update existing
+            secrets_api
+                .replace(secret_name, &PostParams::default(), &secret)
+                .await?;
+            println!(
+                "✓ Updated Secret '{}/{}' with {} secrets",
+                namespace,
+                secret_name,
+                secret.string_data.as_ref().unwrap().len()
+            );
+        }
+        Err(_) => {
+            // Create new
+            secrets_api.create(&PostParams::default(), &secret).await?;
+            println!(
+                "✓ Created Secret '{}/{}' with {} secrets",
+                namespace,
+                secret_name,
+                secret.string_data.as_ref().unwrap().len()
+            );
+        }
+    }
+
+    println!("✓ Synced at: {}", synced_at);
+
+    Ok(())
+}
+
 // ────────────────────────────────────── Main ──────────────────────────────────────
 
 #[tokio::main]
@@ -2207,6 +2442,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             InviteCommand::Revoke { invite_code } => {
                 cmd_invite_revoke(&cli.server, &invite_code).await?;
+            }
+        },
+        Command::Sync { sync_cmd } => match sync_cmd {
+            SyncCommand::K8s {
+                namespace,
+                secret,
+                workspace,
+                project,
+                environment,
+                kubeconfig,
+                context,
+                force,
+            } => {
+                let (workspace, project, environment) =
+                    resolve_context(workspace.as_ref(), project.as_ref(), environment.as_ref())?;
+                cmd_sync_k8s(
+                    &cli.server,
+                    &workspace,
+                    &project,
+                    &environment,
+                    &namespace,
+                    &secret,
+                    kubeconfig.as_deref(),
+                    context.as_deref(),
+                    force,
+                )
+                .await?;
             }
         },
         Command::Run {
