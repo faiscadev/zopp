@@ -1,30 +1,14 @@
 # Zopp E2E Test
 
-End-to-end test that validates the complete zero-knowledge encryption flow from DEMO.md.
+End-to-end test that validates the complete zero-knowledge encryption flow.
 
 ## What it tests
 
-**Steps 0-7: Server and User Setup**
-1. Server starts and listens on port 50051
-2. Admin creates server invite for Alice
-3. Alice joins server, creates workspace/project/environment
-4. Alice creates workspace invite for Bob
-5. Bob joins server using workspace invite
-
-**Steps 8-11: Cross-User Secret Sharing**
-6. Bob writes secret to production environment
-7. Alice reads Bob's secret (E2E encrypted)
-8. Alice writes secret to production environment
-9. Bob reads Alice's secret (E2E encrypted)
-
-**Steps 12-15: Import/Export Workflow**
-10. Alice exports secrets to `.env` file
-11. Bob creates staging environment
-12. Bob imports secrets from `.env` file
-13. Verify imported secrets match originals
-
-**Step 16: Secret Injection**
-14. Alice runs command with secrets injected as environment variables
+This test executes the entire workflow from DEMO.md (Steps 0-15), verifying:
+- Server and user setup (invites, registration, workspace creation)
+- Cross-user secret sharing with zero-knowledge encryption
+- `.env` file import/export
+- Secret injection via `run` command
 
 ## Running the test
 
