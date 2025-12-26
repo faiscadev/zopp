@@ -330,8 +330,99 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     verify_k8s_secret("zopp-test-secrets", &updated_secrets).await?;
 
-    // Step 11: Test --force flag
-    println!("⚠️  Step 11: Testing --force flag...");
+    // Step 11: Test dry-run
+    println!("🔍 Step 11: Testing --dry-run flag...");
+
+    // Change another secret
+    let output = Command::new(&zopp_bin)
+        .env("HOME", &alice_home)
+        .current_dir(&test_dir)
+        .args(["secret", "set", "API_KEY", "sk-new-key-456"])
+        .output()?;
+
+    if !output.status.success() {
+        eprintln!(
+            "Secret update failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        cleanup(&mut server, cluster_name)?;
+        return Err("Failed to update secret".into());
+    }
+
+    // Run dry-run sync (should not apply changes)
+    let output = Command::new(&zopp_bin)
+        .env("HOME", &alice_home)
+        .env("KUBECONFIG", &kubeconfig)
+        .current_dir(&test_dir)
+        .args([
+            "sync",
+            "k8s",
+            "--namespace",
+            "default",
+            "--secret",
+            "zopp-test-secrets",
+            "--dry-run",
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        eprintln!(
+            "Dry-run failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        cleanup(&mut server, cluster_name)?;
+        return Err("Failed to run dry-run".into());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !stdout.contains("Dry run") || !stdout.contains("No changes applied") {
+        eprintln!("Dry-run output missing expected text");
+        cleanup(&mut server, cluster_name)?;
+        return Err("Dry-run output invalid".into());
+    }
+    println!("✓ Dry-run executed (no changes applied)\n");
+
+    // Verify Secret was NOT updated (API_KEY should still be old value)
+    let still_old_secrets = vec![
+        ("DATABASE_URL", "postgresql://newhost/newdb"),
+        ("API_KEY", "sk-test-1234567890"), // Old value, not updated
+        ("REDIS_URL", "redis://localhost:6379"),
+    ];
+    verify_k8s_secret("zopp-test-secrets", &still_old_secrets).await?;
+
+    // Step 12: Test diff command
+    println!("🔍 Step 12: Testing diff command...");
+    let output = Command::new(&zopp_bin)
+        .env("HOME", &alice_home)
+        .env("KUBECONFIG", &kubeconfig)
+        .current_dir(&test_dir)
+        .args([
+            "diff",
+            "k8s",
+            "--namespace",
+            "default",
+            "--secret",
+            "zopp-test-secrets",
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        eprintln!("Diff failed: {}", String::from_utf8_lossy(&output.stderr));
+        cleanup(&mut server, cluster_name)?;
+        return Err("Failed to run diff".into());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !stdout.contains("API_KEY") || !stdout.contains("value differs") {
+        eprintln!("Diff output missing expected difference");
+        eprintln!("Output: {}", stdout);
+        cleanup(&mut server, cluster_name)?;
+        return Err("Diff output invalid".into());
+    }
+    println!("✓ Diff detected API_KEY change\n");
+
+    // Step 13: Test --force flag
+    println!("⚠️  Step 13: Testing --force flag...");
 
     // Create a non-zopp Secret
     let output = Command::new("kubectl")
@@ -413,6 +504,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ kind cluster created and cleaned up");
     println!("  ✓ Secrets synced to Kubernetes");
     println!("  ✓ Secret updates propagated correctly");
+    println!("  ✓ Dry-run flag works (no changes applied)");
+    println!("  ✓ Diff command detects differences");
     println!("  ✓ Ownership validation works (--force flag)");
     println!("  ✓ Metadata labels and annotations verified");
 
