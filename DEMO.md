@@ -262,7 +262,7 @@ zopp secret get "PAYFLOW_MERCHANT_ID" \
 - Both can encrypt/decrypt secrets
 - **Server sees ZERO plaintext at any point**
 
-## Step 11: Exporting and Importing Secrets
+## Step 11: Alice Exports Secrets to .env File
 
 Alice can export all secrets in an environment to a `.env` file:
 
@@ -282,13 +282,32 @@ cat production.env
 # PAYFLOW_MERCHANT_ID=mch_9x8v7c6b5n4m3
 ```
 
-Bob can create a new environment and import the secrets:
+**What happened:**
+- Alice's CLI listed all secrets in the production environment
+- Alice's CLI decrypted each secret value using the production DEK
+- Formatted as sorted KEY=value lines and wrote to file
+- **File contains plaintext - keep it secure!**
+
+## Step 12: Bob Creates Staging Environment
 
 ```bash
 # Terminal 4 (Bob) - Create staging environment
 zopp environment create staging --workspace acme --project api
 
-# Import secrets from .env file
+# Output:
+# ✓ Environment 'staging' created
+```
+
+**What happened:**
+- Bob's CLI generated a new random 32-byte DEK for staging
+- Bob's CLI wrapped staging DEK with workspace KEK
+- Server stored the wrapped staging DEK
+- **Staging has different encryption key than production**
+
+## Step 13: Bob Imports Secrets from .env File
+
+```bash
+# Terminal 4 (Bob) - Import secrets from .env file
 zopp secret import \
   --workspace acme \
   --project api \
@@ -300,10 +319,29 @@ zopp secret import \
 ```
 
 **What happened:**
-- Alice decrypted all production secrets and exported them as plaintext `.env` file
-- Bob imported the `.env` file, encrypting each secret with staging's DEK
-- Same secrets, different encryption keys (different environment = different DEK)
-- **Server never saw the plaintext during transfer - only encrypted blobs**
+- Bob's CLI read and parsed the `.env` file (KEY=value format, skips comments)
+- Bob's CLI encrypted each secret with staging's DEK
+- Bob's CLI sent encrypted blobs to server
+- **Same plaintext values, different encryption (different environment = different DEK)**
+
+## Step 14: Verify Imported Secrets
+
+```bash
+# Terminal 4 (Bob) - Read imported secret
+zopp secret get FLUXMAIL_API_TOKEN \
+  --workspace acme \
+  --project api \
+  --environment staging
+
+# Output:
+# fxt_8k2m9p4x7n1q5w3e6r8t0y2u4i6o8p0a
+```
+
+**Import/export roundtrip verified!**
+- Alice exported from production (decrypted with production DEK)
+- Bob imported to staging (encrypted with staging DEK)
+- Bob can read from staging (decrypts with staging DEK)
+- **Server never saw plaintext during the transfer - only encrypted blobs in each environment**
 
 ## Architecture Summary
 
