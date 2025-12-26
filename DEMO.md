@@ -343,6 +343,37 @@ zopp secret get FLUXMAIL_API_TOKEN \
 - Bob can read from staging (decrypts with staging DEK)
 - **Server never saw plaintext during the transfer - only encrypted blobs in each environment**
 
+## Step 15: Run Command with Injected Secrets
+
+Alice can run any command with secrets automatically injected as environment variables:
+
+```bash
+# Terminal 3 (Alice) - Run command with secrets injected
+zopp run -w acme -p api -e production -- printenv FLUXMAIL_API_TOKEN
+
+# Output:
+# fxt_8k2m9p4x7n1q5w3e6r8t0y2u4i6o8p0a
+```
+
+**What happened:**
+- Alice's CLI fetched all secrets from production environment
+- Alice's CLI decrypted each secret client-side
+- Alice's CLI spawned `printenv` with secrets as environment variables
+- The command ran with full access to decrypted secrets
+- **Server never saw plaintext - only encrypted blobs were transmitted**
+
+**Real-world usage:**
+```bash
+# Start your app with all secrets available
+zopp run -w acme -p api -e production -- npm start
+
+# Run database migrations with credentials
+zopp run -w acme -p api -e staging -- python manage.py migrate
+
+# Deploy with secrets injected
+zopp run -w acme -p api -e production -- ./deploy.sh
+```
+
 ## Architecture Summary
 
 ```

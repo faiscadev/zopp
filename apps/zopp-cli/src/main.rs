@@ -69,6 +69,21 @@ enum Command {
         #[command(subcommand)]
         invite_cmd: InviteCommand,
     },
+    /// Run a command with secrets injected as environment variables
+    Run {
+        /// Workspace name
+        #[arg(long, short = 'w')]
+        workspace: String,
+        /// Project name
+        #[arg(long, short = 'p')]
+        project: String,
+        /// Environment name
+        #[arg(long, short = 'e')]
+        environment: String,
+        /// Command and arguments to run
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1646,6 +1661,88 @@ async fn cmd_secret_import(
     Ok(())
 }
 
+async fn cmd_secret_run(
+    server: &str,
+    workspace_name: &str,
+    project_name: &str,
+    environment_name: &str,
+    command: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    if command.is_empty() {
+        return Err("No command specified".into());
+    }
+
+    let config = load_config()?;
+    let principal = get_current_principal(&config)?;
+    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
+
+    // Unwrap KEK and DEK
+    let kek = unwrap_workspace_kek(&mut client, principal, workspace_name).await?;
+    let dek = unwrap_environment_dek(
+        &mut client,
+        principal,
+        workspace_name,
+        project_name,
+        environment_name,
+        &kek,
+    )
+    .await?;
+
+    // List all secrets
+    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let mut request = tonic::Request::new(zopp_proto::ListSecretsRequest {
+        workspace_name: workspace_name.to_string(),
+        project_name: project_name.to_string(),
+        environment_name: environment_name.to_string(),
+    });
+    request
+        .metadata_mut()
+        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
+    request
+        .metadata_mut()
+        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
+    request.metadata_mut().insert(
+        "signature",
+        MetadataValue::try_from(hex::encode(&signature))?,
+    );
+
+    let response = client.list_secrets(request).await?;
+    let secrets = response.into_inner().secrets;
+
+    // Decrypt all secrets
+    let dek_key = zopp_crypto::Dek::from_bytes(&dek)?;
+    let mut env_vars = std::collections::HashMap::new();
+
+    for secret in secrets {
+        let aad = format!(
+            "secret:{}:{}:{}:{}",
+            workspace_name, project_name, environment_name, secret.key
+        )
+        .into_bytes();
+
+        let nonce = zopp_crypto::Nonce(
+            secret
+                .nonce
+                .as_slice()
+                .try_into()
+                .map_err(|_| "Invalid nonce length")?,
+        );
+
+        let plaintext = zopp_crypto::decrypt(&secret.ciphertext, &nonce, &dek_key, &aad)?;
+        let value = String::from_utf8(plaintext.to_vec())?;
+
+        env_vars.insert(secret.key, value);
+    }
+
+    // Execute command with injected environment variables
+    let status = std::process::Command::new(&command[0])
+        .args(&command[1..])
+        .envs(&env_vars)
+        .status()?;
+
+    std::process::exit(status.code().unwrap_or(1));
+}
+
 // ────────────────────────────────────── Invite Commands ──────────────────────────────────────
 
 async fn cmd_invite_create(
@@ -1987,6 +2084,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 cmd_invite_revoke(&cli.server, &invite_code).await?;
             }
         },
+        Command::Run {
+            workspace,
+            project,
+            environment,
+            command,
+        } => {
+            cmd_secret_run(&cli.server, &workspace, &project, &environment, &command).await?;
+        }
     }
 
     Ok(())

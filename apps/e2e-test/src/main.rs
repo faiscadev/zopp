@@ -458,6 +458,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
 
+    println!("🏃 Step 16: Alice injects secrets into production environment and runs command...");
+    let output = Command::new(&zopp_bin)
+        .env("HOME", &alice_home)
+        .args([
+            "run",
+            "-w",
+            "acme",
+            "-p",
+            "api",
+            "-e",
+            "production",
+            "--",
+            "printenv",
+            "FLUXMAIL_API_TOKEN",
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        eprintln!(
+            "Secret injection failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Err("Failed to inject secrets".into());
+    }
+
+    let injected_value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if injected_value == secret_value {
+        println!("✓ Secret injection verified!\n");
+    } else {
+        return Err(format!(
+            "Injected secret mismatch: expected {}, got {}",
+            secret_value, injected_value
+        )
+        .into());
+    }
+
     // Cleanup
     println!("🧹 Cleaning up...");
     let _ = server.kill();
@@ -481,6 +517,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ Bob wrote secret, Alice read it (E2E encryption)");
     println!("  ✓ Alice wrote secret, Bob read it (E2E encryption)");
     println!("  ✓ Secrets exported to .env and imported to new environment");
+    println!("  ✓ Secrets injected into process environment via run command");
     println!("  ✓ Zero-knowledge architecture verified");
 
     Ok(())
