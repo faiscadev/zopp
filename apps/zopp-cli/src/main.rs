@@ -178,6 +178,11 @@ enum Command {
         #[command(subcommand)]
         sync_cmd: SyncCommand,
     },
+    /// Show diff between zopp and external systems
+    Diff {
+        #[command(subcommand)]
+        diff_cmd: DiffCommand,
+    },
     /// Run a command with secrets injected as environment variables
     Run {
         /// Workspace name (defaults from zopp.toml)
@@ -464,6 +469,44 @@ enum SyncCommand {
         /// Force sync even if Secret exists and not managed by zopp
         #[arg(long)]
         force: bool,
+
+        /// Dry run - show what would be synced without applying
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum DiffCommand {
+    /// Show diff between zopp and Kubernetes Secret
+    K8s {
+        /// Kubernetes namespace
+        #[arg(long)]
+        namespace: String,
+
+        /// Kubernetes Secret name
+        #[arg(long)]
+        secret: String,
+
+        /// Workspace name (defaults from zopp.toml)
+        #[arg(long, short = 'w')]
+        workspace: Option<String>,
+
+        /// Project name (defaults from zopp.toml)
+        #[arg(long, short = 'p')]
+        project: Option<String>,
+
+        /// Environment name (defaults from zopp.toml)
+        #[arg(long, short = 'e')]
+        environment: Option<String>,
+
+        /// Path to kubeconfig file (default: ~/.kube/config)
+        #[arg(long)]
+        kubeconfig: Option<PathBuf>,
+
+        /// Kubernetes context to use
+        #[arg(long)]
+        context: Option<String>,
     },
 }
 
@@ -2074,6 +2117,7 @@ async fn cmd_sync_k8s(
     kubeconfig_path: Option<&std::path::Path>,
     context: Option<&str>,
     force: bool,
+    dry_run: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use k8s_openapi::api::core::v1::Secret;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -2223,33 +2267,225 @@ async fn cmd_sync_k8s(
         ..Default::default()
     };
 
-    // 5. Apply Secret to k8s
-    match secrets_api.get(secret_name).await {
-        Ok(_) => {
-            // Update existing
-            secrets_api
-                .replace(secret_name, &PostParams::default(), &secret)
-                .await?;
-            println!(
-                "✓ Updated Secret '{}/{}' with {} secrets",
-                namespace,
-                secret_name,
-                secret.string_data.as_ref().unwrap().len()
-            );
+    // 5. Apply Secret to k8s (or show dry-run)
+    if dry_run {
+        println!("\n🔍 Dry run - showing what would be synced:\n");
+
+        match secrets_api.get(secret_name).await {
+            Ok(existing) => {
+                println!("Would UPDATE existing Secret '{}/{}':", namespace, secret_name);
+
+                let existing_data = existing.data.as_ref();
+                let new_data = secret.string_data.as_ref().unwrap();
+
+                // Show changes
+                for (key, new_value) in new_data {
+                    if let Some(existing_data_map) = existing_data {
+                        if let Some(existing_value) = existing_data_map.get(key) {
+                            let existing_str = String::from_utf8_lossy(&existing_value.0);
+                            if existing_str != *new_value {
+                                println!("  ~ {} (changed)", key);
+                            } else {
+                                println!("  = {} (unchanged)", key);
+                            }
+                        } else {
+                            println!("  + {} (new)", key);
+                        }
+                    } else {
+                        println!("  + {} (new)", key);
+                    }
+                }
+
+                // Show deletions
+                if let Some(existing_data_map) = existing_data {
+                    for key in existing_data_map.keys() {
+                        if !new_data.contains_key(key) {
+                            println!("  - {} (would be removed)", key);
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                println!("Would CREATE new Secret '{}/{}':", namespace, secret_name);
+                for key in secret.string_data.as_ref().unwrap().keys() {
+                    println!("  + {}", key);
+                }
+            }
         }
-        Err(_) => {
-            // Create new
-            secrets_api.create(&PostParams::default(), &secret).await?;
-            println!(
-                "✓ Created Secret '{}/{}' with {} secrets",
-                namespace,
-                secret_name,
-                secret.string_data.as_ref().unwrap().len()
-            );
+
+        println!("\nNo changes applied (dry run)");
+    } else {
+        match secrets_api.get(secret_name).await {
+            Ok(_) => {
+                // Update existing
+                secrets_api
+                    .replace(secret_name, &PostParams::default(), &secret)
+                    .await?;
+                println!(
+                    "✓ Updated Secret '{}/{}' with {} secrets",
+                    namespace,
+                    secret_name,
+                    secret.string_data.as_ref().unwrap().len()
+                );
+            }
+            Err(_) => {
+                // Create new
+                secrets_api.create(&PostParams::default(), &secret).await?;
+                println!(
+                    "✓ Created Secret '{}/{}' with {} secrets",
+                    namespace,
+                    secret_name,
+                    secret.string_data.as_ref().unwrap().len()
+                );
+            }
         }
+
+        println!("✓ Synced at: {}", synced_at);
     }
 
-    println!("✓ Synced at: {}", synced_at);
+    Ok(())
+}
+
+async fn cmd_diff_k8s(
+    server: &str,
+    workspace_name: &str,
+    project_name: &str,
+    environment_name: &str,
+    namespace: &str,
+    secret_name: &str,
+    kubeconfig_path: Option<&std::path::Path>,
+    context: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use k8s_openapi::api::core::v1::Secret;
+    use kube::{Api, Client, Config};
+    use std::collections::BTreeMap;
+
+    // 1. Fetch all secrets from zopp
+    let config = load_config()?;
+    let principal = get_current_principal(&config)?;
+    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
+
+    // Unwrap KEK and DEK
+    let kek = unwrap_workspace_kek(&mut client, principal, workspace_name).await?;
+    let dek_bytes = unwrap_environment_dek(
+        &mut client,
+        principal,
+        workspace_name,
+        project_name,
+        environment_name,
+        &kek,
+    )
+    .await?;
+    let dek = zopp_crypto::Dek::from_bytes(&dek_bytes)?;
+
+    // List all secrets
+    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let mut request = tonic::Request::new(zopp_proto::ListSecretsRequest {
+        workspace_name: workspace_name.to_string(),
+        project_name: project_name.to_string(),
+        environment_name: environment_name.to_string(),
+    });
+    request
+        .metadata_mut()
+        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
+    request
+        .metadata_mut()
+        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
+    request.metadata_mut().insert(
+        "signature",
+        MetadataValue::try_from(hex::encode(&signature))?,
+    );
+    let secrets_response = client.list_secrets(request).await?.into_inner();
+
+    // Decrypt all secrets into a map
+    let mut zopp_secrets = BTreeMap::new();
+    for secret in secrets_response.secrets {
+        let mut nonce_array = [0u8; 24];
+        nonce_array.copy_from_slice(&secret.nonce);
+        let nonce = zopp_crypto::Nonce(nonce_array);
+        let aad = format!(
+            "secret:{}:{}:{}:{}",
+            workspace_name, project_name, environment_name, secret.key
+        )
+        .into_bytes();
+        let plaintext = zopp_crypto::decrypt(&secret.ciphertext, &nonce, &dek, &aad)?;
+        let plaintext_str = String::from_utf8(plaintext.to_vec())
+            .map_err(|_| "Secret value is not valid UTF-8")?;
+
+        zopp_secrets.insert(secret.key.clone(), plaintext_str);
+    }
+
+    // 2. Connect to Kubernetes and fetch existing Secret
+    let k8s_config = if kubeconfig_path.is_some() {
+        Config::from_kubeconfig(&kube::config::KubeConfigOptions {
+            context: context.map(String::from),
+            ..Default::default()
+        })
+        .await?
+    } else {
+        match Config::from_kubeconfig(&kube::config::KubeConfigOptions {
+            context: context.map(String::from),
+            ..Default::default()
+        })
+        .await
+        {
+            Ok(cfg) => cfg,
+            Err(_) => Config::incluster()?,
+        }
+    };
+
+    let k8s_client = Client::try_from(k8s_config)?;
+    let secrets_api: Api<Secret> = Api::namespaced(k8s_client, namespace);
+
+    // 3. Compare and show diff
+    println!("Comparing zopp → k8s Secret '{}/{}':\n", namespace, secret_name);
+
+    match secrets_api.get(secret_name).await {
+        Ok(existing) => {
+            let existing_data = existing.data.as_ref();
+            let mut has_changes = false;
+
+            // Check for new or changed secrets
+            for (key, zopp_value) in &zopp_secrets {
+                if let Some(existing_data_map) = existing_data {
+                    if let Some(existing_value) = existing_data_map.get(key) {
+                        let existing_str = String::from_utf8_lossy(&existing_value.0);
+                        if existing_str != *zopp_value {
+                            println!("  ~ {} (value differs)", key);
+                            has_changes = true;
+                        }
+                    } else {
+                        println!("  + {} (exists in zopp, not in k8s)", key);
+                        has_changes = true;
+                    }
+                } else {
+                    println!("  + {} (exists in zopp, not in k8s)", key);
+                    has_changes = true;
+                }
+            }
+
+            // Check for secrets in k8s but not in zopp
+            if let Some(existing_data_map) = existing_data {
+                for key in existing_data_map.keys() {
+                    if !zopp_secrets.contains_key(key) {
+                        println!("  - {} (exists in k8s, not in zopp)", key);
+                        has_changes = true;
+                    }
+                }
+            }
+
+            if !has_changes {
+                println!("  ✓ No differences - secrets are in sync");
+            }
+        }
+        Err(kube::Error::Api(api_err)) if api_err.code == 404 => {
+            println!("Secret does not exist in k8s. Would create with {} keys:", zopp_secrets.len());
+            for key in zopp_secrets.keys() {
+                println!("  + {}", key);
+            }
+        }
+        Err(e) => return Err(e.into()),
+    }
 
     Ok(())
 }
@@ -2454,6 +2690,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 kubeconfig,
                 context,
                 force,
+                dry_run,
             } => {
                 let (workspace, project, environment) =
                     resolve_context(workspace.as_ref(), project.as_ref(), environment.as_ref())?;
@@ -2467,6 +2704,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     kubeconfig.as_deref(),
                     context.as_deref(),
                     force,
+                    dry_run,
+                )
+                .await?;
+            }
+        },
+        Command::Diff { diff_cmd } => match diff_cmd {
+            DiffCommand::K8s {
+                namespace,
+                secret,
+                workspace,
+                project,
+                environment,
+                kubeconfig,
+                context,
+            } => {
+                let (workspace, project, environment) =
+                    resolve_context(workspace.as_ref(), project.as_ref(), environment.as_ref())?;
+                cmd_diff_k8s(
+                    &cli.server,
+                    &workspace,
+                    &project,
+                    &environment,
+                    &namespace,
+                    &secret,
+                    kubeconfig.as_deref(),
+                    context.as_deref(),
                 )
                 .await?;
             }
