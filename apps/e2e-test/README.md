@@ -23,6 +23,9 @@ End-to-end test that validates the complete zero-knowledge encryption flow from 
 12. Bob imports secrets from `.env` file
 13. Verify imported secrets match originals
 
+**Step 16: Secret Injection**
+14. Alice runs command with secrets injected as environment variables
+
 ## Running the test
 
 ```bash
@@ -44,6 +47,7 @@ cargo run --bin zopp-e2e-test
 ✅ `.env` file export (decrypt all secrets)
 ✅ `.env` file import (parse and encrypt secrets)
 ✅ Import/export roundtrip verification
+✅ Secret injection via `run` command
 ✅ Zero-knowledge: server never sees plaintext keys or secrets
 
 ## Test isolation
