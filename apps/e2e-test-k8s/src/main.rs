@@ -52,19 +52,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cluster_name = "zopp-test";
 
     // Delete cluster if it exists
-    let _ = Command::new("kind")
+    println!("  Deleting existing cluster if present...");
+    let status = Command::new("kind")
         .args(["delete", "cluster", "--name", cluster_name])
-        .output();
+        .status();
 
-    let output = Command::new("kind")
+    if status.is_ok() && status.unwrap().success() {
+        println!("  ✓ Deleted existing cluster");
+    }
+
+    println!("  Creating cluster (this may take 30-60s)...");
+    let status = Command::new("kind")
         .args(["create", "cluster", "--name", cluster_name, "--wait", "60s"])
-        .output()?;
+        .status()?;
 
-    if !output.status.success() {
-        eprintln!(
-            "kind cluster creation failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+    if !status.success() {
+        eprintln!("❌ kind cluster creation failed");
         return Err("Failed to create kind cluster".into());
     }
     println!("✓ kind cluster '{}' created\n", cluster_name);
@@ -505,15 +508,13 @@ fn cleanup(
 }
 
 fn cleanup_kind(cluster_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let output = Command::new("kind")
+    println!("  Deleting kind cluster...");
+    let status = Command::new("kind")
         .args(["delete", "cluster", "--name", cluster_name])
-        .output()?;
+        .status()?;
 
-    if !output.status.success() {
-        eprintln!(
-            "Warning: kind cleanup failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+    if !status.success() {
+        eprintln!("  Warning: kind cleanup failed");
     } else {
         println!("✓ kind cluster deleted");
     }
