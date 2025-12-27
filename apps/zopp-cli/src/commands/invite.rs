@@ -9,19 +9,16 @@ pub async fn cmd_invite_create(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut client, principal) = setup_client(server).await?;
 
-    // 1. Unwrap the workspace KEK
     let kek = unwrap_workspace_kek(&mut client, &principal, workspace_name).await?;
 
-    // 2. Generate random invite secret (32 bytes, displayed as hex with prefix)
     let mut invite_secret = [0u8; 32];
     use rand_core::RngCore;
     rand_core::OsRng.fill_bytes(&mut invite_secret);
     let invite_secret_hex = format!("inv_{}", hex::encode(invite_secret));
 
-    // 3. Hash the secret for server lookup (server never sees plaintext secret)
+    // Server never sees the plaintext secret
     let secret_hash = zopp_crypto::hash_sha256(&invite_secret);
 
-    // 4. Get workspace ID first (needed for AAD)
     let mut ws_request = tonic::Request::new(zopp_proto::Empty {});
     add_auth_metadata(&mut ws_request, &principal)?;
     let workspaces = client.list_workspaces(ws_request).await?.into_inner();
@@ -31,15 +28,12 @@ pub async fn cmd_invite_create(
         .find(|w| w.name == workspace_name)
         .ok_or_else(|| format!("Workspace '{}' not found", workspace_name))?;
 
-    // 5. Encrypt the KEK with the invite secret (using workspace ID in AAD)
     let dek_for_encryption = zopp_crypto::Dek::from_bytes(&invite_secret)?;
     let aad = format!("invite:workspace:{}", workspace.id).into_bytes();
     let (kek_nonce, kek_encrypted) = zopp_crypto::encrypt(&kek, &dek_for_encryption, &aad)?;
 
-    // 6. Calculate expiration time
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(expires_hours);
 
-    // 7. Send invite to server (with hashed secret as token, not plaintext secret)
     let mut request = tonic::Request::new(zopp_proto::CreateInviteRequest {
         workspace_ids: vec![workspace.id.clone()],
         expires_at: expires_at.timestamp(),

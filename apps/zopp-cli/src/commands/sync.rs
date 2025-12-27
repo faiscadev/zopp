@@ -19,7 +19,6 @@ pub async fn cmd_sync_k8s(
     force: bool,
     dry_run: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Fetch all secrets from zopp
     let (mut client, principal) = setup_client(server).await?;
 
     let secret_data = fetch_and_decrypt_secrets(
@@ -33,13 +32,11 @@ pub async fn cmd_sync_k8s(
 
     println!("✓ Fetched {} secrets from zopp", secret_data.len());
 
-    // 2. Connect to Kubernetes
     let k8s_config = load_k8s_config(kubeconfig_path, context).await?;
 
     let k8s_client = Client::try_from(k8s_config)?;
     let secrets_api: Api<Secret> = Api::namespaced(k8s_client, namespace);
 
-    // 3. Check if Secret exists
     match secrets_api.get(secret_name).await {
         Ok(existing_secret) => {
             // Secret exists, check if managed by zopp
@@ -66,7 +63,6 @@ pub async fn cmd_sync_k8s(
         Err(e) => return Err(e.into()),
     }
 
-    // 4. Build Secret object
     let synced_at = chrono::Utc::now().to_rfc3339();
     let mut labels = BTreeMap::new();
     labels.insert(
@@ -96,7 +92,6 @@ pub async fn cmd_sync_k8s(
         ..Default::default()
     };
 
-    // 5. Apply Secret to k8s (or show dry-run)
     if dry_run {
         println!("\n🔍 Dry run - showing what would be synced:\n");
 

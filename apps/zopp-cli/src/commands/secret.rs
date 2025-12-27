@@ -11,10 +11,8 @@ pub async fn cmd_secret_set(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut client, principal) = setup_client(server).await?;
 
-    // 1. Unwrap workspace KEK
     let kek = unwrap_workspace_kek(&mut client, &principal, workspace_name).await?;
 
-    // 2. Unwrap environment DEK
     let dek = unwrap_environment_dek(
         &mut client,
         &principal,
@@ -25,7 +23,6 @@ pub async fn cmd_secret_set(
     )
     .await?;
 
-    // 3. Encrypt the secret value using DEK
     let dek_key = zopp_crypto::Dek::from_bytes(&dek)?;
     let aad = format!(
         "secret:{}:{}:{}:{}",
@@ -70,10 +67,8 @@ pub async fn cmd_secret_get(
 
     let response = client.get_secret(request).await?.into_inner();
 
-    // 1. Unwrap workspace KEK
     let kek = unwrap_workspace_kek(&mut client, &principal, workspace_name).await?;
 
-    // 2. Unwrap environment DEK
     let dek = unwrap_environment_dek(
         &mut client,
         &principal,
@@ -84,7 +79,6 @@ pub async fn cmd_secret_get(
     )
     .await?;
 
-    // 3. Decrypt the secret value
     let dek_key = zopp_crypto::Dek::from_bytes(&dek)?;
     let aad = format!(
         "secret:{}:{}:{}:{}",

@@ -15,7 +15,6 @@ pub async fn cmd_diff_k8s(
     kubeconfig_path: Option<&std::path::Path>,
     context: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Fetch all secrets from zopp
     let (mut client, principal) = setup_client(server).await?;
 
     let zopp_secrets = fetch_and_decrypt_secrets(
@@ -27,13 +26,11 @@ pub async fn cmd_diff_k8s(
     )
     .await?;
 
-    // 2. Connect to Kubernetes and fetch existing Secret
     let k8s_config = load_k8s_config(kubeconfig_path, context).await?;
 
     let k8s_client = Client::try_from(k8s_config)?;
     let secrets_api: Api<Secret> = Api::namespaced(k8s_client, namespace);
 
-    // 3. Compare and show diff
     println!(
         "Comparing zopp → k8s Secret '{}/{}':\n",
         namespace, secret_name
