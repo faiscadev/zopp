@@ -1,8 +1,5 @@
-use crate::config::{get_current_principal, load_config};
 use crate::crypto::{fetch_and_decrypt_secrets, unwrap_environment_dek, unwrap_workspace_kek};
-use crate::grpc::sign_request;
-use tonic::metadata::MetadataValue;
-use zopp_proto::zopp_service_client::ZoppServiceClient;
+use crate::grpc::{add_auth_metadata, setup_client};
 
 pub async fn cmd_secret_set(
     server: &str,
@@ -12,18 +9,15 @@ pub async fn cmd_secret_set(
     key: &str,
     value: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
+    let (mut client, principal) = setup_client(server).await?;
 
     // 1. Unwrap workspace KEK
-    let kek = unwrap_workspace_kek(&mut client, principal, workspace_name).await?;
+    let kek = unwrap_workspace_kek(&mut client, &principal, workspace_name).await?;
 
     // 2. Unwrap environment DEK
     let dek = unwrap_environment_dek(
         &mut client,
-        principal,
+        &principal,
         workspace_name,
         project_name,
         environment_name,
@@ -40,8 +34,6 @@ pub async fn cmd_secret_set(
     .into_bytes();
     let (nonce, ciphertext) = zopp_crypto::encrypt(value.as_bytes(), &dek_key, &aad)?;
 
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
-
     let mut request = tonic::Request::new(zopp_proto::UpsertSecretRequest {
         workspace_name: workspace_name.to_string(),
         project_name: project_name.to_string(),
@@ -50,16 +42,7 @@ pub async fn cmd_secret_set(
         nonce: nonce.0.to_vec(),
         ciphertext: ciphertext.0,
     });
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     client.upsert_secret(request).await?;
 
@@ -75,12 +58,7 @@ pub async fn cmd_secret_get(
     environment_name: &str,
     key: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
-
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let (mut client, principal) = setup_client(server).await?;
 
     let mut request = tonic::Request::new(zopp_proto::GetSecretRequest {
         workspace_name: workspace_name.to_string(),
@@ -88,26 +66,17 @@ pub async fn cmd_secret_get(
         environment_name: environment_name.to_string(),
         key: key.to_string(),
     });
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     let response = client.get_secret(request).await?.into_inner();
 
     // 1. Unwrap workspace KEK
-    let kek = unwrap_workspace_kek(&mut client, principal, workspace_name).await?;
+    let kek = unwrap_workspace_kek(&mut client, &principal, workspace_name).await?;
 
     // 2. Unwrap environment DEK
     let dek = unwrap_environment_dek(
         &mut client,
-        principal,
+        &principal,
         workspace_name,
         project_name,
         environment_name,
@@ -141,28 +110,14 @@ pub async fn cmd_secret_list(
     project_name: &str,
     environment_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
-
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let (mut client, principal) = setup_client(server).await?;
 
     let mut request = tonic::Request::new(zopp_proto::ListSecretsRequest {
         workspace_name: workspace_name.to_string(),
         project_name: project_name.to_string(),
         environment_name: environment_name.to_string(),
     });
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     let response = client.list_secrets(request).await?.into_inner();
 
@@ -185,12 +140,7 @@ pub async fn cmd_secret_delete(
     environment_name: &str,
     key: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
-
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let (mut client, principal) = setup_client(server).await?;
 
     let mut request = tonic::Request::new(zopp_proto::DeleteSecretRequest {
         workspace_name: workspace_name.to_string(),
@@ -198,16 +148,7 @@ pub async fn cmd_secret_delete(
         environment_name: environment_name.to_string(),
         key: key.to_string(),
     });
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     client.delete_secret(request).await?;
 
@@ -223,15 +164,12 @@ pub async fn cmd_secret_export(
     environment_name: &str,
     output: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
+    let (mut client, principal) = setup_client(server).await?;
 
     // Fetch and decrypt all secrets
     let secret_data = fetch_and_decrypt_secrets(
         &mut client,
-        principal,
+        &principal,
         workspace_name,
         project_name,
         environment_name,
@@ -294,15 +232,13 @@ pub async fn cmd_secret_import(
     }
 
     // Import each secret using cmd_secret_set logic
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
+    let (mut client, principal) = setup_client(server).await?;
 
     // Unwrap KEK and DEK once
-    let kek = unwrap_workspace_kek(&mut client, principal, workspace_name).await?;
+    let kek = unwrap_workspace_kek(&mut client, &principal, workspace_name).await?;
     let dek = unwrap_environment_dek(
         &mut client,
-        principal,
+        &principal,
         workspace_name,
         project_name,
         environment_name,
@@ -322,7 +258,6 @@ pub async fn cmd_secret_import(
         let (nonce, ciphertext) = zopp_crypto::encrypt(value.as_bytes(), &dek_key, &aad)?;
 
         // Send to server
-        let (timestamp, signature) = sign_request(&principal.private_key)?;
         let mut request = tonic::Request::new(zopp_proto::UpsertSecretRequest {
             workspace_name: workspace_name.to_string(),
             project_name: project_name.to_string(),
@@ -331,16 +266,7 @@ pub async fn cmd_secret_import(
             nonce: nonce.0.to_vec(),
             ciphertext: ciphertext.0,
         });
-        request
-            .metadata_mut()
-            .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-        request
-            .metadata_mut()
-            .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-        request.metadata_mut().insert(
-            "signature",
-            MetadataValue::try_from(hex::encode(&signature))?,
-        );
+        add_auth_metadata(&mut request, &principal)?;
 
         client.upsert_secret(request).await?;
     }
@@ -361,14 +287,12 @@ pub async fn cmd_secret_run(
         return Err("No command specified".into());
     }
 
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
+    let (mut client, principal) = setup_client(server).await?;
 
     // Fetch and decrypt all secrets
     let env_vars = fetch_and_decrypt_secrets(
         &mut client,
-        principal,
+        &principal,
         workspace_name,
         project_name,
         environment_name,

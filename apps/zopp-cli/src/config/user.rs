@@ -10,7 +10,7 @@ pub struct CliConfig {
     pub current_principal: Option<String>, // Name of current principal
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PrincipalConfig {
     pub id: String,
     pub name: String,

@@ -5,6 +5,7 @@ mod commands;
 mod config;
 mod crypto;
 mod grpc;
+mod k8s;
 
 use cli::{
     Cli, Command, DiffCommand, EnvironmentCommand, InviteCommand, PrincipalCommand, ProjectCommand,

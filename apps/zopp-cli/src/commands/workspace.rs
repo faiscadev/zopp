@@ -1,27 +1,11 @@
-use crate::config::{get_current_principal, load_config};
-use crate::grpc::{connect, sign_request};
-use tonic::metadata::MetadataValue;
+use crate::grpc::{add_auth_metadata, setup_client};
 use zopp_proto::{CreateWorkspaceRequest, Empty};
 
 pub async fn cmd_workspace_list(server: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
-
-    let mut client = connect(server).await?;
+    let (mut client, principal) = setup_client(server).await?;
 
     let mut request = tonic::Request::new(Empty {});
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     let response = client.list_workspaces(request).await?.into_inner();
 
@@ -41,8 +25,7 @@ pub async fn cmd_workspace_create(
     server: &str,
     name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
+    let (mut client, principal) = setup_client(server).await?;
 
     use uuid::Uuid;
     let workspace_id = Uuid::now_v7();
@@ -71,10 +54,6 @@ pub async fn cmd_workspace_create(
     let aad = format!("workspace:{}", workspace_id_str).into_bytes();
     let (nonce, wrapped) = zopp_crypto::wrap_key(&kek, &shared_secret, &aad)?;
 
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
-
-    let mut client = connect(server).await?;
-
     let mut request = tonic::Request::new(CreateWorkspaceRequest {
         id: workspace_id_str.clone(),
         name: name.to_string(),
@@ -82,16 +61,7 @@ pub async fn cmd_workspace_create(
         kek_wrapped: wrapped.0,
         kek_nonce: nonce.0.to_vec(),
     });
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     let response = client.create_workspace(request).await?.into_inner();
 

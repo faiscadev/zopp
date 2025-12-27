@@ -1,8 +1,8 @@
-use crate::config::{get_current_principal, load_config};
 use crate::crypto::fetch_and_decrypt_secrets;
+use crate::grpc::setup_client;
+use crate::k8s::load_k8s_config;
 use k8s_openapi::api::core::v1::Secret;
-use kube::{Api, Client, Config};
-use zopp_proto::zopp_service_client::ZoppServiceClient;
+use kube::{Api, Client};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn cmd_diff_k8s(
@@ -16,13 +16,11 @@ pub async fn cmd_diff_k8s(
     context: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Fetch all secrets from zopp
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
+    let (mut client, principal) = setup_client(server).await?;
 
     let zopp_secrets = fetch_and_decrypt_secrets(
         &mut client,
-        principal,
+        &principal,
         workspace_name,
         project_name,
         environment_name,
@@ -30,23 +28,7 @@ pub async fn cmd_diff_k8s(
     .await?;
 
     // 2. Connect to Kubernetes and fetch existing Secret
-    let k8s_config = if kubeconfig_path.is_some() {
-        Config::from_kubeconfig(&kube::config::KubeConfigOptions {
-            context: context.map(String::from),
-            ..Default::default()
-        })
-        .await?
-    } else {
-        match Config::from_kubeconfig(&kube::config::KubeConfigOptions {
-            context: context.map(String::from),
-            ..Default::default()
-        })
-        .await
-        {
-            Ok(cfg) => cfg,
-            Err(_) => Config::incluster()?,
-        }
-    };
+    let k8s_config = load_k8s_config(kubeconfig_path, context).await?;
 
     let k8s_client = Client::try_from(k8s_config)?;
     let secrets_api: Api<Secret> = Api::namespaced(k8s_client, namespace);

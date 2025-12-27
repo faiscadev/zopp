@@ -1,32 +1,15 @@
-use crate::config::{get_current_principal, load_config};
-use crate::grpc::sign_request;
-use tonic::metadata::MetadataValue;
-use zopp_proto::zopp_service_client::ZoppServiceClient;
+use crate::grpc::{add_auth_metadata, setup_client};
 
 pub async fn cmd_project_list(
     server: &str,
     workspace_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
-
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let (mut client, principal) = setup_client(server).await?;
 
     let mut request = tonic::Request::new(zopp_proto::ListProjectsRequest {
         workspace_name: workspace_name.to_string(),
     });
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     let response = client.list_projects(request).await?.into_inner();
 
@@ -47,27 +30,13 @@ pub async fn cmd_project_create(
     workspace_name: &str,
     name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
-
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let (mut client, principal) = setup_client(server).await?;
 
     let mut request = tonic::Request::new(zopp_proto::CreateProjectRequest {
         workspace_name: workspace_name.to_string(),
         name: name.to_string(),
     });
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     let response = client.create_project(request).await?.into_inner();
 
@@ -84,27 +53,13 @@ pub async fn cmd_project_get(
     workspace_name: &str,
     project_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
-
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let (mut client, principal) = setup_client(server).await?;
 
     let mut request = tonic::Request::new(zopp_proto::GetProjectRequest {
         workspace_name: workspace_name.to_string(),
         project_name: project_name.to_string(),
     });
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     let response = client.get_project(request).await?.into_inner();
 
@@ -132,27 +87,13 @@ pub async fn cmd_project_delete(
     workspace_name: &str,
     project_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
-    let principal = get_current_principal(&config)?;
-
-    let mut client = ZoppServiceClient::connect(server.to_string()).await?;
-
-    let (timestamp, signature) = sign_request(&principal.private_key)?;
+    let (mut client, principal) = setup_client(server).await?;
 
     let mut request = tonic::Request::new(zopp_proto::DeleteProjectRequest {
         workspace_name: workspace_name.to_string(),
         project_name: project_name.to_string(),
     });
-    request
-        .metadata_mut()
-        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
-    request
-        .metadata_mut()
-        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
-    request.metadata_mut().insert(
-        "signature",
-        MetadataValue::try_from(hex::encode(&signature))?,
-    );
+    add_auth_metadata(&mut request, &principal)?;
 
     client.delete_project(request).await?;
 
