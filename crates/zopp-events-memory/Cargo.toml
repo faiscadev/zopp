@@ -1,0 +1,17 @@
+[package]
+name = "zopp-events-memory"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1"
+dashmap = "6.1"
+futures = "0.3"
+tokio = { workspace = true }
+tokio-stream = { version = "0.1", features = ["sync"] }
+zopp-events = { path = "../zopp-events" }
+zopp-storage = { path = "../zopp-storage" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "time"] }
+uuid = { workspace = true }

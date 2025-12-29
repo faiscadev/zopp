@@ -464,6 +464,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "6.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "der"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -696,6 +710,7 @@ checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
 dependencies = [
  "futures-channel",
  "futures-core",
+ "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -747,6 +762,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
 
 [[package]]
+name = "futures-macro"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "futures-sink"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -767,6 +793,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-io",
+ "futures-macro",
  "futures-sink",
  "futures-task",
  "memchr",
@@ -832,6 +859,12 @@ dependencies = [
  "tokio-util",
  "tracing",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 
 [[package]]
 name = "hashbrown"
@@ -2715,6 +2748,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -3700,6 +3734,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "zopp-events"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "thiserror",
+ "zopp-storage",
+]
+
+[[package]]
+name = "zopp-events-memory"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "dashmap",
+ "futures",
+ "tokio",
+ "tokio-stream",
+ "uuid",
+ "zopp-events",
+ "zopp-storage",
+]
+
+[[package]]
 name = "zopp-proto"
 version = "0.1.0"
 dependencies = [
@@ -3717,6 +3775,7 @@ dependencies = [
  "clap",
  "dirs",
  "ed25519-dalek",
+ "futures",
  "hex",
  "prost",
  "rand_core 0.6.4",
@@ -3724,9 +3783,12 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "tonic",
  "uuid",
  "zopp-crypto",
+ "zopp-events",
+ "zopp-events-memory",
  "zopp-proto",
  "zopp-storage",
  "zopp-store-sqlite",
