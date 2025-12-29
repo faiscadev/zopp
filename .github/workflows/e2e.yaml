@@ -33,7 +33,7 @@ jobs:
         run: cargo build --bins
 
       - name: Run E2E test
-        run: cargo run --bin zopp-e2e-test || (pkill -f zopp-server && exit 1)
+        run: cargo test --package zopp-cli cli_e2e_test || (pkill -f zopp-server && exit 1)
 
   e2e-k8s:
     name: e2e-k8s (ubuntu-latest)

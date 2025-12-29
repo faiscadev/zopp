@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "apps/e2e-test",
     "apps/e2e-test-k8s",
     "apps/zopp-cli",
     "apps/zopp-server",
