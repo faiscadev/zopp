@@ -2678,7 +2678,6 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -3689,13 +3688,6 @@ dependencies = [
  "trybuild",
  "x25519-dalek",
  "zeroize",
-]
-
-[[package]]
-name = "zopp-e2e-test"
-version = "0.1.0"
-dependencies = [
- "tokio",
 ]
 
 [[package]]
