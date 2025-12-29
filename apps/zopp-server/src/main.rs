@@ -2,12 +2,16 @@ use chrono::Utc;
 use clap::{Parser, Subcommand};
 #[allow(unused_imports)]
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use futures::StreamExt;
 #[allow(unused_imports)]
 use rand_core::OsRng;
 use std::sync::Arc;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, transport::Server};
 use uuid::Uuid;
 
+use zopp_events::{EventBus, EventType, SecretChangeEvent};
+use zopp_events_memory::MemoryEventBus;
 use zopp_proto::zopp_service_server::{ZoppService, ZoppServiceServer};
 use zopp_proto::{
     CreateInviteRequest, CreateWorkspaceRequest, Empty, GetInviteRequest, GetPrincipalRequest,
@@ -70,11 +74,12 @@ enum InviteCommand {
 
 pub struct ZoppServer {
     store: Arc<SqliteStore>,
+    events: Arc<dyn EventBus>,
 }
 
 impl ZoppServer {
-    pub fn new(store: Arc<SqliteStore>) -> Self {
-        Self { store }
+    pub fn new(store: Arc<SqliteStore>, events: Arc<dyn EventBus>) -> Self {
+        Self { store, events }
     }
 
     async fn verify_signature_and_get_principal(
@@ -1116,12 +1121,20 @@ impl ZoppService for ZoppServer {
                 _ => Status::internal(format!("Failed to get environment: {}", e)),
             })?;
 
-        let _new_version = self.store
+        let new_version = self
+            .store
             .upsert_secret(&env.id, &req.key, &req.nonce, &req.ciphertext)
             .await
             .map_err(|e| Status::internal(format!("Failed to upsert secret: {}", e)))?;
 
-        // TODO: Broadcast SecretChangeEvent to watchers with new_version
+        // Broadcast event to watchers
+        let event = SecretChangeEvent {
+            event_type: EventType::Updated, // Could be Created or Updated, we don't track that
+            key: req.key.clone(),
+            version: new_version,
+            timestamp: Utc::now().timestamp(),
+        };
+        let _ = self.events.publish(&env.id, event).await; // Ignore error if no watchers
 
         Ok(Response::new(Empty {}))
     }
@@ -1304,17 +1317,134 @@ impl ZoppService for ZoppServer {
                 _ => Status::internal(format!("Failed to get environment: {}", e)),
             })?;
 
-        let _new_version = self.store
-            .delete_secret(&env.id, &req.key)
-            .await
-            .map_err(|e| match e {
-                zopp_storage::StoreError::NotFound => Status::not_found("Secret not found"),
-                _ => Status::internal(format!("Failed to delete secret: {}", e)),
-            })?;
+        let new_version =
+            self.store
+                .delete_secret(&env.id, &req.key)
+                .await
+                .map_err(|e| match e {
+                    zopp_storage::StoreError::NotFound => Status::not_found("Secret not found"),
+                    _ => Status::internal(format!("Failed to delete secret: {}", e)),
+                })?;
 
-        // TODO: Broadcast SecretChangeEvent to watchers with new_version
+        // Broadcast event to watchers
+        let event = SecretChangeEvent {
+            event_type: EventType::Deleted,
+            key: req.key.clone(),
+            version: new_version,
+            timestamp: Utc::now().timestamp(),
+        };
+        let _ = self.events.publish(&env.id, event).await; // Ignore error if no watchers
 
         Ok(Response::new(Empty {}))
+    }
+
+    type WatchSecretsStream = ReceiverStream<Result<zopp_proto::WatchSecretsResponse, Status>>;
+
+    async fn watch_secrets(
+        &self,
+        request: Request<zopp_proto::WatchSecretsRequest>,
+    ) -> Result<Response<Self::WatchSecretsStream>, Status> {
+        let (principal_id, timestamp, signature) = extract_signature(&request)?;
+        let principal = self
+            .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
+            .await?;
+        let user_id = principal
+            .user_id
+            .ok_or_else(|| Status::unauthenticated("Service accounts cannot watch secrets"))?;
+
+        let req = request.into_inner();
+
+        // Look up workspace by name
+        let workspace = self
+            .store
+            .get_workspace_by_name(&user_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?;
+
+        // Look up project by name in workspace
+        let project = self
+            .store
+            .get_project_by_name(&workspace.id, &req.project_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => Status::not_found("Project not found"),
+                _ => Status::internal(format!("Failed to get project: {}", e)),
+            })?;
+
+        // Look up environment by name in project
+        let env = self
+            .store
+            .get_environment_by_name(&project.id, &req.environment_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => Status::not_found("Environment not found"),
+                _ => Status::internal(format!("Failed to get environment: {}", e)),
+            })?;
+
+        // Check if client is behind (needs resync)
+        if let Some(client_version) = req.since_version
+            && client_version < env.version
+        {
+            // Client is behind, send ResyncRequired
+            let (tx, rx) = tokio::sync::mpsc::channel(1);
+            let response = zopp_proto::WatchSecretsResponse {
+                response: Some(zopp_proto::watch_secrets_response::Response::Resync(
+                    zopp_proto::ResyncRequired {
+                        current_version: env.version,
+                    },
+                )),
+            };
+            let _ = tx.send(Ok(response)).await;
+            return Ok(Response::new(ReceiverStream::new(rx)));
+        }
+
+        // Subscribe to events
+        let mut event_stream = self
+            .events
+            .subscribe(&env.id)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to subscribe to events: {}", e)))?;
+
+        // Create channel for streaming responses
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
+
+        // Spawn task to forward events to client
+        tokio::spawn(async move {
+            while let Some(event) = event_stream.next().await {
+                let response = zopp_proto::WatchSecretsResponse {
+                    response: Some(zopp_proto::watch_secrets_response::Response::Event(
+                        zopp_proto::SecretChangeEvent {
+                            event_type: match event.event_type {
+                                EventType::Created => {
+                                    zopp_proto::secret_change_event::EventType::Created as i32
+                                }
+                                EventType::Updated => {
+                                    zopp_proto::secret_change_event::EventType::Updated as i32
+                                }
+                                EventType::Deleted => {
+                                    zopp_proto::secret_change_event::EventType::Deleted as i32
+                                }
+                            },
+                            key: event.key,
+                            version: event.version,
+                            timestamp: event.timestamp,
+                        },
+                    )),
+                };
+
+                if tx.send(Ok(response)).await.is_err() {
+                    // Client disconnected
+                    break;
+                }
+            }
+        });
+
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
 
@@ -1443,7 +1573,8 @@ async fn cmd_serve(db_path: &str, addr: &str) -> Result<(), Box<dyn std::error::
         format!("sqlite://{}?mode=rwc", db_path)
     };
     let store = SqliteStore::open(&db_url).await?;
-    let server = ZoppServer::new(Arc::new(store));
+    let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
+    let server = ZoppServer::new(Arc::new(store), events);
 
     println!("ZoppServer listening on {}", addr);
 
@@ -1495,7 +1626,8 @@ mod tests {
     #[tokio::test]
     async fn test_server_invite_joins_user_without_creating_workspace() {
         let store = Arc::new(SqliteStore::open_in_memory().await.unwrap());
-        let server = ZoppServer::new(store.clone());
+        let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
+        let server = ZoppServer::new(store.clone(), events);
 
         // Create a server invite (no workspaces)
         let mut invite_secret = [0u8; 32];
@@ -1556,7 +1688,8 @@ mod tests {
     #[tokio::test]
     async fn test_replay_protection_rejects_old_timestamps() {
         let store = SqliteStore::open_in_memory().await.unwrap();
-        let server = ZoppServer::new(Arc::new(store));
+        let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
+        let server = ZoppServer::new(Arc::new(store), events);
 
         // Create a test keypair
         let signing_key = SigningKey::generate(&mut OsRng);
@@ -1596,7 +1729,8 @@ mod tests {
     #[tokio::test]
     async fn test_replay_protection_rejects_future_timestamps() {
         let store = SqliteStore::open_in_memory().await.unwrap();
-        let server = ZoppServer::new(Arc::new(store));
+        let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
+        let server = ZoppServer::new(Arc::new(store), events);
 
         // Create a test keypair
         let signing_key = SigningKey::generate(&mut OsRng);
@@ -1636,7 +1770,8 @@ mod tests {
     #[tokio::test]
     async fn test_replay_protection_accepts_valid_timestamps() {
         let store = SqliteStore::open_in_memory().await.unwrap();
-        let server = ZoppServer::new(Arc::new(store));
+        let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
+        let server = ZoppServer::new(Arc::new(store), events);
 
         // Create a test keypair
         let signing_key = SigningKey::generate(&mut OsRng);
@@ -1671,7 +1806,8 @@ mod tests {
     #[tokio::test]
     async fn test_replay_protection_rejects_invalid_signature() {
         let store = SqliteStore::open_in_memory().await.unwrap();
-        let server = ZoppServer::new(Arc::new(store));
+        let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
+        let server = ZoppServer::new(Arc::new(store), events);
 
         // Create a test keypair
         let signing_key = SigningKey::generate(&mut OsRng);

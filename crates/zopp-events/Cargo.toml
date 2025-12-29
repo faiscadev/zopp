@@ -1,0 +1,10 @@
+[package]
+name = "zopp-events"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1"
+futures = "0.3"
+thiserror = { workspace = true }
+zopp-storage = { path = "../zopp-storage" }

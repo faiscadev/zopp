@@ -6,11 +6,15 @@ edition = "2024"
 [dependencies]
 tonic = { workspace = true }
 tokio = { workspace = true }
+tokio-stream = { version = "0.1", features = ["sync"] }
 prost = { workspace = true }
+futures = "0.3"
 zopp-proto = { path = "../../crates/zopp-proto" }
 zopp-storage = { path = "../../crates/zopp-storage" }
 zopp-store-sqlite = { path = "../../crates/zopp-store-sqlite" }
 zopp-crypto = { path = "../../crates/zopp-crypto" }
+zopp-events = { path = "../../crates/zopp-events" }
+zopp-events-memory = { path = "../../crates/zopp-events-memory" }
 uuid = { workspace = true }
 thiserror = { workspace = true }
 rand_core = { workspace = true }
