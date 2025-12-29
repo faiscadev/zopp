@@ -28,5 +28,8 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build all binaries first
+        run: cargo build --bins
+
       - name: Cargo test
         run: cargo test --workspace --all-features --locked
