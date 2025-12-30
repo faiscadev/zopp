@@ -86,10 +86,6 @@ impl Store for SqliteStore {
                 .await
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
 
-            // Get existing user or create new one
-            let user_id = Uuid::now_v7();
-            let user_id_str = user_id.to_string();
-
             // First try to get existing user
             let existing_user = sqlx::query!("SELECT id FROM users WHERE email = ?", params.email)
                 .fetch_optional(&mut *tx)
@@ -101,6 +97,8 @@ impl Store for SqliteStore {
                 existing.id
             } else {
                 // Create new user
+                let user_id = Uuid::now_v7();
+                let user_id_str = user_id.to_string();
                 sqlx::query!(
                     "INSERT INTO users(id, email) VALUES(?, ?)",
                     user_id_str,

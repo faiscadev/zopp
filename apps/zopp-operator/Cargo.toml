@@ -19,6 +19,7 @@ tonic = { workspace = true }
 prost = { workspace = true }
 zopp-proto = { path = "../../crates/zopp-proto" }
 zopp-crypto = { path = "../../crates/zopp-crypto" }
+zopp-secrets = { path = "../../crates/zopp-secrets" }
 zopp-config = { path = "../../crates/zopp-config" }
 chrono = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }

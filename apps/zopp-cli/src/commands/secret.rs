@@ -1,5 +1,71 @@
-use crate::crypto::{fetch_and_decrypt_secrets, unwrap_environment_dek, unwrap_workspace_kek};
+use crate::crypto::fetch_and_decrypt_secrets;
 use crate::grpc::{add_auth_metadata, setup_client};
+use tonic::metadata::MetadataValue;
+use zopp_secrets::SecretContext;
+
+/// Helper to create a SecretContext for a given environment
+async fn create_secret_context(
+    client: &mut zopp_proto::zopp_service_client::ZoppServiceClient<tonic::transport::Channel>,
+    principal: &crate::config::PrincipalConfig,
+    workspace_name: &str,
+    project_name: &str,
+    environment_name: &str,
+) -> Result<SecretContext, Box<dyn std::error::Error>> {
+    // Get workspace keys
+    let (timestamp, signature) = crate::grpc::sign_request(&principal.private_key)?;
+    let mut request = tonic::Request::new(zopp_proto::GetWorkspaceKeysRequest {
+        workspace_name: workspace_name.to_string(),
+    });
+    request
+        .metadata_mut()
+        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
+    request
+        .metadata_mut()
+        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
+    request.metadata_mut().insert(
+        "signature",
+        MetadataValue::try_from(hex::encode(&signature))?,
+    );
+    let workspace_keys = client.get_workspace_keys(request).await?.into_inner();
+
+    // Get environment
+    let (timestamp, signature) = crate::grpc::sign_request(&principal.private_key)?;
+    let mut request = tonic::Request::new(zopp_proto::GetEnvironmentRequest {
+        workspace_name: workspace_name.to_string(),
+        project_name: project_name.to_string(),
+        environment_name: environment_name.to_string(),
+    });
+    request
+        .metadata_mut()
+        .insert("principal-id", MetadataValue::try_from(&principal.id)?);
+    request
+        .metadata_mut()
+        .insert("timestamp", MetadataValue::try_from(timestamp.to_string())?);
+    request.metadata_mut().insert(
+        "signature",
+        MetadataValue::try_from(hex::encode(&signature))?,
+    );
+    let environment = client.get_environment(request).await?.into_inner();
+
+    // Extract X25519 private key
+    let x25519_private_key = principal
+        .x25519_private_key
+        .as_ref()
+        .ok_or("Principal missing X25519 private key")?;
+    let x25519_private_bytes = hex::decode(x25519_private_key)?;
+    let mut x25519_array = [0u8; 32];
+    x25519_array.copy_from_slice(&x25519_private_bytes);
+
+    // Create SecretContext
+    Ok(SecretContext::new(
+        x25519_array,
+        workspace_keys,
+        environment,
+        workspace_name.to_string(),
+        project_name.to_string(),
+        environment_name.to_string(),
+    )?)
+}
 
 pub async fn cmd_secret_set(
     server: &str,
@@ -11,33 +77,24 @@ pub async fn cmd_secret_set(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut client, principal) = setup_client(server).await?;
 
-    let kek = unwrap_workspace_kek(&mut client, &principal, workspace_name).await?;
-
-    let dek = unwrap_environment_dek(
+    let ctx = create_secret_context(
         &mut client,
         &principal,
         workspace_name,
         project_name,
         environment_name,
-        &kek,
     )
     .await?;
 
-    let dek_key = zopp_crypto::Dek::from_bytes(&dek)?;
-    let aad = format!(
-        "secret:{}:{}:{}:{}",
-        workspace_name, project_name, environment_name, key
-    )
-    .into_bytes();
-    let (nonce, ciphertext) = zopp_crypto::encrypt(value.as_bytes(), &dek_key, &aad)?;
+    let encrypted = ctx.encrypt_secret(key, value)?;
 
     let mut request = tonic::Request::new(zopp_proto::UpsertSecretRequest {
         workspace_name: workspace_name.to_string(),
         project_name: project_name.to_string(),
         environment_name: environment_name.to_string(),
         key: key.to_string(),
-        nonce: nonce.0.to_vec(),
-        ciphertext: ciphertext.0,
+        nonce: encrypted.nonce,
+        ciphertext: encrypted.ciphertext,
     });
     add_auth_metadata(&mut request, &principal)?;
 
@@ -67,31 +124,16 @@ pub async fn cmd_secret_get(
 
     let response = client.get_secret(request).await?.into_inner();
 
-    let kek = unwrap_workspace_kek(&mut client, &principal, workspace_name).await?;
-
-    let dek = unwrap_environment_dek(
+    let ctx = create_secret_context(
         &mut client,
         &principal,
         workspace_name,
         project_name,
         environment_name,
-        &kek,
     )
     .await?;
 
-    let dek_key = zopp_crypto::Dek::from_bytes(&dek)?;
-    let aad = format!(
-        "secret:{}:{}:{}:{}",
-        workspace_name, project_name, environment_name, key
-    )
-    .into_bytes();
-
-    let mut nonce_array = [0u8; 24];
-    nonce_array.copy_from_slice(&response.nonce);
-    let nonce = zopp_crypto::Nonce(nonce_array);
-
-    let plaintext = zopp_crypto::decrypt(&response.ciphertext, &nonce, &dek_key, &aad)?;
-    let value = String::from_utf8(plaintext.to_vec())?;
+    let value = ctx.decrypt_secret(&response)?;
 
     println!("{}", value);
 
@@ -225,40 +267,28 @@ pub async fn cmd_secret_import(
         return Err("No secrets found in input".into());
     }
 
-    // Import each secret using cmd_secret_set logic
     let (mut client, principal) = setup_client(server).await?;
 
-    // Unwrap KEK and DEK once
-    let kek = unwrap_workspace_kek(&mut client, &principal, workspace_name).await?;
-    let dek = unwrap_environment_dek(
+    // Create SecretContext once
+    let ctx = create_secret_context(
         &mut client,
         &principal,
         workspace_name,
         project_name,
         environment_name,
-        &kek,
     )
     .await?;
 
     for (key, value) in &secrets {
-        // Encrypt secret
-        let dek_key = zopp_crypto::Dek::from_bytes(&dek)?;
-        let aad = format!(
-            "secret:{}:{}:{}:{}",
-            workspace_name, project_name, environment_name, key
-        )
-        .into_bytes();
+        let encrypted = ctx.encrypt_secret(key, value)?;
 
-        let (nonce, ciphertext) = zopp_crypto::encrypt(value.as_bytes(), &dek_key, &aad)?;
-
-        // Send to server
         let mut request = tonic::Request::new(zopp_proto::UpsertSecretRequest {
             workspace_name: workspace_name.to_string(),
             project_name: project_name.to_string(),
             environment_name: environment_name.to_string(),
             key: key.clone(),
-            nonce: nonce.0.to_vec(),
-            ciphertext: ciphertext.0,
+            nonce: encrypted.nonce,
+            ciphertext: encrypted.ciphertext,
         });
         add_auth_metadata(&mut request, &principal)?;
 

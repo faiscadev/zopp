@@ -1445,7 +1445,7 @@ impl ZoppService for ZoppServer {
                 };
 
                 if tx.send(Ok(response)).await.is_err() {
-                    // Client disconnected
+                    // Client disconnected or receiver dropped
                     break;
                 }
             }

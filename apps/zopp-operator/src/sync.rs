@@ -1,4 +1,3 @@
-use crate::kek::get_workspace_kek;
 use crate::OperatorError;
 use k8s_openapi::api::core::v1::Secret;
 use kube::{api::PatchParams, Api, Client};
@@ -291,30 +290,51 @@ async fn unwrap_environment_dek(
         .metadata_mut()
         .insert("signature", hex::encode(&signature).parse().unwrap());
 
-    let response = client.get_environment(request).await?;
-    let env_data = response.into_inner();
+    let environment = client.get_environment(request).await?.into_inner();
 
-    // Get workspace KEK (fetch and unwrap if not cached)
-    let kek_bytes = get_workspace_kek(client, credentials, workspace_name).await?;
-    let kek = zopp_crypto::Dek::from_bytes(&kek_bytes).map_err(|e| e.to_string())?;
+    // Get workspace keys
+    let timestamp = chrono::Utc::now().timestamp();
+    let signature = crate::watch::create_signature(credentials, timestamp);
 
-    let mut nonce_array = [0u8; 24];
-    nonce_array.copy_from_slice(&env_data.dek_nonce);
-    let nonce = zopp_crypto::Nonce(nonce_array);
+    let mut ws_request = tonic::Request::new(zopp_proto::GetWorkspaceKeysRequest {
+        workspace_name: workspace_name.to_string(),
+    });
+    ws_request.metadata_mut().insert(
+        "principal-id",
+        credentials.principal.id.to_string().parse().unwrap(),
+    );
+    ws_request
+        .metadata_mut()
+        .insert("timestamp", timestamp.to_string().parse().unwrap());
+    ws_request
+        .metadata_mut()
+        .insert("signature", hex::encode(&signature).parse().unwrap());
 
-    let aad = format!(
-        "environment:{}:{}:{}",
-        workspace_name, project_name, environment_name
+    let workspace_keys = client.get_workspace_keys(ws_request).await?.into_inner();
+
+    // Extract X25519 private key from principal
+    let x25519_private_key = credentials
+        .principal
+        .x25519_private_key
+        .as_ref()
+        .ok_or_else(|| {
+            OperatorError::Decryption("Principal missing X25519 private key".to_string())
+        })?;
+    let x25519_private_bytes = hex::decode(x25519_private_key)
+        .map_err(|e| OperatorError::Decryption(format!("Invalid X25519 key hex: {}", e)))?;
+    let mut x25519_array = [0u8; 32];
+    x25519_array.copy_from_slice(&x25519_private_bytes);
+
+    // Use zopp-secrets to unwrap the DEK (hides all crypto details)
+    let dek_bytes = zopp_secrets::unwrap_dek(
+        &x25519_array,
+        &workspace_keys,
+        &environment,
+        workspace_name,
+        project_name,
+        environment_name,
     )
-    .into_bytes();
-
-    let unwrapped = zopp_crypto::decrypt(&env_data.dek_wrapped, &nonce, &kek, &aad)
-        .map_err(|e| e.to_string())?;
-
-    let dek_bytes: [u8; 32] = (*unwrapped)
-        .as_slice()
-        .try_into()
-        .map_err(|_| "DEK must be exactly 32 bytes".to_string())?;
+    .map_err(|e| OperatorError::Decryption(e.to_string()))?;
 
     // Cache the DEK for future use
     credentials
@@ -493,26 +513,15 @@ fn decrypt_secret(
     config: &SecretSyncConfig,
     secret: &zopp_proto::Secret,
 ) -> Result<String, String> {
-    // nonce and ciphertext are already bytes (Vec<u8>) from protobuf
-    let nonce_arr: [u8; 24] = secret
-        .nonce
-        .clone()
-        .try_into()
-        .map_err(|_| "invalid nonce length (expected 24 bytes)".to_string())?;
-
-    let dek = zopp_crypto::Dek::from_bytes(dek_bytes).map_err(|e| e.to_string())?;
-    let nonce = zopp_crypto::Nonce(nonce_arr);
-
-    // AAD format must match what was used during encryption
-    let aad = format!(
-        "secret:{}:{}:{}:{}",
-        config.workspace, config.project, config.environment, secret.key
-    );
-
-    let plaintext = zopp_crypto::decrypt(&secret.ciphertext, &nonce, &dek, aad.as_bytes())
-        .map_err(|e| format!("decrypt: {}", e))?;
-
-    String::from_utf8(plaintext.to_vec()).map_err(|e| format!("utf8: {}", e))
+    // Use zopp-secrets to decrypt (hides all crypto details)
+    zopp_secrets::decrypt_secret_with_dek(
+        dek_bytes,
+        secret,
+        &config.workspace,
+        &config.project,
+        &config.environment,
+    )
+    .map_err(|e| e.to_string())
 }
 
 async fn update_k8s_secret(
