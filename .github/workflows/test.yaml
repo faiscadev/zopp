@@ -9,12 +9,23 @@ concurrency:
 
 jobs:
   test:
-    name: test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    name: test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
 
     steps:
       - uses: actions/checkout@v4
@@ -28,23 +39,16 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install kubectl (Linux only)
+      - name: Install kubectl
         uses: azure/setup-kubectl@v4
-        if: runner.os == 'Linux'
 
-      - name: Install kind (Linux only)
+      - name: Install kind
         uses: helm/kind-action@v1
         with:
           install_only: true
-        if: runner.os == 'Linux'
 
       - name: Build all binaries
         run: cargo build --bins --locked
 
-      - name: Unit tests only (macOS/Windows)
-        run: cargo test --workspace --lib --bins --locked
-        if: runner.os != 'Linux'
-
-      - name: All tests including integration (Linux)
+      - name: Run all tests
         run: cargo test --workspace --all-features --locked
-        if: runner.os == 'Linux'

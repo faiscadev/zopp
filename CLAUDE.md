@@ -48,36 +48,66 @@ cargo build --bins && cargo run --bin zopp-e2e-test
 ```
 
 ### Running Server & CLI
+
+#### SQLite (development/default)
 ```bash
 # Terminal 1: Start server (default port 50051)
 cargo run --bin zopp-server serve
 
+# With explicit SQLite path
+cargo run --bin zopp-server serve --db mydata.db
+
 # Terminal 2: Use CLI
 cargo run --bin zopp -- <command>
-
-# Production build
-cargo build --release
-./target/release/zopp-server serve
-./target/release/zopp --help
 ```
 
-### SQLite-Specific: sqlx Offline Mode
-This project uses SQLite with `sqlx` compile-time verification. The `.sqlx/` directory contains prepared query metadata.
+#### PostgreSQL (production)
+```bash
+# Start Postgres (Docker example)
+docker run --name zopp-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
+
+# Terminal 1: Start server with Postgres
+DATABASE_URL=postgres://postgres:postgres@localhost/postgres cargo run --bin zopp-server serve
+
+# Terminal 2: Use CLI (same as above)
+cargo run --bin zopp -- <command>
+```
+
+#### Production Build
+```bash
+cargo build --release
+
+# Run with SQLite (default)
+./target/release/zopp-server serve
+
+# Run with Postgres
+DATABASE_URL=postgres://user:pass@host/db ./target/release/zopp-server serve
+```
+
+### Database: sqlx Offline Mode
+This project supports both **SQLite** (development/small deployments) and **PostgreSQL** (production). Both use `sqlx` compile-time verification with prepared query metadata in `.sqlx/`.
 
 **When you modify SQL queries**, regenerate the metadata:
+
+#### SQLite
 ```bash
-# Set environment variables for SQLite
 export SQLX_OFFLINE=false
-export DATABASE_URL=sqlite::memory:
-
-# Run migrations (if needed)
 DATABASE_URL=sqlite:///tmp/zopp-prepare.db sqlx migrate run --source crates/zopp-store-sqlite/migrations
-
-# Prepare metadata
 DATABASE_URL=sqlite:///tmp/zopp-prepare.db cargo sqlx prepare --package zopp-store-sqlite
+```
 
-# Or combine:
-SQLX_OFFLINE=false DATABASE_URL=sqlite::memory: cargo sqlx prepare --package zopp-store-sqlite
+#### PostgreSQL
+```bash
+export SQLX_OFFLINE=false
+# Start a local Postgres instance (Docker recommended):
+docker run --name zopp-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
+
+# Run migrations and prepare
+DATABASE_URL=postgres://postgres:postgres@localhost/postgres sqlx migrate run --source crates/zopp-store-postgres/migrations
+DATABASE_URL=postgres://postgres:postgres@localhost/postgres cargo sqlx prepare --package zopp-store-postgres
+
+# Clean up
+docker stop zopp-postgres && docker rm zopp-postgres
 ```
 
 **DO NOT** commit code that breaks offline builds. If you see `sqlx` errors, regenerate the metadata.
@@ -92,10 +122,11 @@ apps/
   zopp-server/     - gRPC server binary
 
 crates/
-  zopp-crypto/     - Cryptographic primitives (Argon2id, XChaCha20-Poly1305, X25519 ECDH)
-  zopp-proto/      - gRPC service definitions (protobuf)
-  zopp-storage/    - Storage trait (backend-agnostic)
-  zopp-store-sqlite/ - SQLite storage implementation
+  zopp-crypto/       - Cryptographic primitives (Argon2id, XChaCha20-Poly1305, X25519 ECDH)
+  zopp-proto/        - gRPC service definitions (protobuf)
+  zopp-storage/      - Storage trait (backend-agnostic)
+  zopp-store-postgres/ - PostgreSQL storage implementation (production)
+  zopp-store-sqlite/ - SQLite storage implementation (development)
 ```
 
 ### Crypto Architecture

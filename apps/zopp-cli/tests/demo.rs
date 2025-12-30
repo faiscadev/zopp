@@ -5,9 +5,13 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use tokio::time::sleep;
 
-#[tokio::test]
-async fn demo() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🧪 Starting Zopp E2E Test\n");
+/// Run the full E2E test suite against a specific database backend
+async fn run_demo_test(
+    db_url: &str,
+    test_suffix: &str,
+    port: u16,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("🧪 Starting Zopp E2E Test ({test_suffix}) on port {port}\n");
 
     // Find the binary paths
     let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -44,10 +48,9 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     println!("  zopp:        {}\n", zopp_bin.display());
 
     // Setup test directories
-    let test_dir = PathBuf::from("/tmp/zopp-e2e-test");
+    let test_dir = std::env::temp_dir().join(format!("zopp-e2e-test-{test_suffix}"));
     let alice_home = test_dir.join("alice");
     let bob_home = test_dir.join("bob");
-    let db_path = test_dir.join("zopp.db");
 
     // Clean up from previous runs
     if test_dir.exists() {
@@ -59,22 +62,24 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Test directories created");
     println!("  Alice home: {}", alice_home.display());
     println!("  Bob home:   {}", bob_home.display());
-    println!("  Database:   {}\n", db_path.display());
+    println!("  Database:   {}\n", db_url);
 
     println!("📡 Step 0: Starting server...");
-    let db_path_str = db_path.to_str().unwrap();
 
+    let server_addr = format!("0.0.0.0:{port}");
     let mut server = Command::new(&zopp_server_bin)
-        .args(["--db", db_path_str, "serve"])
+        .env("DATABASE_URL", db_url)
+        .args(["serve", "--addr", &server_addr])
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::null())
         .spawn()?;
 
-    // Wait for server to be ready by checking if it's listening on port 50051
+    // Wait for server to be ready by checking if it's listening on the specified port
     let mut ready = false;
+    let client_addr = format!("127.0.0.1:{port}");
     for i in 1..=30 {
         sleep(Duration::from_millis(200)).await;
-        if TcpStream::connect("127.0.0.1:50051").is_ok() {
+        if TcpStream::connect(&client_addr).is_ok() {
             ready = true;
             println!("✓ Server started and ready (PID: {})\n", server.id());
             break;
@@ -89,17 +94,12 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Server failed to start".into());
     }
 
+    let server_url = format!("http://127.0.0.1:{port}");
+
     println!("🎫 Step 1: Admin creates server invite for Alice...");
     let output = Command::new(&zopp_server_bin)
-        .args([
-            "--db",
-            db_path.to_str().unwrap(),
-            "invite",
-            "create",
-            "--expires-hours",
-            "1",
-            "--plain",
-        ])
+        .env("DATABASE_URL", db_url)
+        .args(["invite", "create", "--expires-hours", "1", "--plain"])
         .output()?;
 
     if !output.status.success() {
@@ -117,6 +117,8 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .args([
+            "--server",
+            &server_url,
             "join",
             &alice_server_invite,
             "alice@example.com",
@@ -137,7 +139,7 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     println!("🏢 Step 3: Alice creates workspace 'acme'...");
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
-        .args(["workspace", "create", "acme"])
+        .args(["--server", &server_url, "workspace", "create", "acme"])
         .output()?;
 
     if !output.status.success() {
@@ -152,7 +154,15 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     println!("📁 Step 4: Alice creates project 'api'...");
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
-        .args(["project", "create", "api", "-w", "acme"])
+        .args([
+            "--server",
+            &server_url,
+            "project",
+            "create",
+            "api",
+            "-w",
+            "acme",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -168,6 +178,8 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .args([
+            "--server",
+            &server_url,
             "environment",
             "create",
             "development",
@@ -198,7 +210,15 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["invite", "create", "--expires-hours", "1", "--plain"])
+        .args([
+            "--server",
+            &server_url,
+            "invite",
+            "create",
+            "--expires-hours",
+            "1",
+            "--plain",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -217,6 +237,8 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &bob_home)
         .args([
+            "--server",
+            &server_url,
             "join",
             &workspace_invite,
             "bob@example.com",
@@ -239,7 +261,14 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &bob_home)
         .current_dir(&test_dir)
-        .args(["secret", "set", "FLUXMAIL_API_TOKEN", secret_value])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "set",
+            "FLUXMAIL_API_TOKEN",
+            secret_value,
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -255,7 +284,13 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["secret", "get", "FLUXMAIL_API_TOKEN"])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "get",
+            "FLUXMAIL_API_TOKEN",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -283,7 +318,14 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["secret", "set", "PAYFLOW_MERCHANT_ID", secret_value2])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "set",
+            "PAYFLOW_MERCHANT_ID",
+            secret_value2,
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -299,7 +341,13 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &bob_home)
         .current_dir(&test_dir)
-        .args(["secret", "get", "PAYFLOW_MERCHANT_ID"])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "get",
+            "PAYFLOW_MERCHANT_ID",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -327,7 +375,14 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["secret", "export", "-o", env_file.to_str().unwrap()])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "export",
+            "-o",
+            env_file.to_str().unwrap(),
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -348,7 +403,13 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["environment", "create", "production"])
+        .args([
+            "--server",
+            &server_url,
+            "environment",
+            "create",
+            "production",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -365,6 +426,8 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
         .args([
+            "--server",
+            &server_url,
             "secret",
             "import",
             "-e",
@@ -387,7 +450,15 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["secret", "get", "FLUXMAIL_API_TOKEN", "-e", "production"])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "get",
+            "FLUXMAIL_API_TOKEN",
+            "-e",
+            "production",
+        ])
         .output()?;
 
     let imported = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -408,6 +479,8 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
         .args([
+            "--server",
+            &server_url,
             "run",
             "-e",
             "production",
@@ -440,15 +513,6 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     println!("🧹 Cleaning up...");
     let _ = server.kill();
     let _ = server.wait();
-
-    // Also kill any lingering server processes (in case kill() didn't work)
-    #[cfg(unix)]
-    {
-        let _ = std::process::Command::new("pkill")
-            .arg("-f")
-            .arg("zopp-server.*serve")
-            .status();
-    }
     println!("✓ Server stopped\n");
 
     println!("✅ E2E Test Passed!");
@@ -465,4 +529,59 @@ async fn demo() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ Zero-knowledge architecture verified");
 
     Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test wrappers - Run the same E2E test against different storage backends
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn demo_sqlite() -> Result<(), Box<dyn std::error::Error>> {
+    // Use a unique database file for this test run to avoid conflicts
+    let test_id = std::process::id();
+    let db_path = std::env::temp_dir().join(format!("zopp-test-sqlite-{}.db", test_id));
+    let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
+
+    let result = run_demo_test(&db_url, "sqlite", 50051).await;
+
+    // Cleanup: Remove the test database file
+    let _ = std::fs::remove_file(&db_path);
+
+    result
+}
+
+#[tokio::test]
+async fn demo_postgres() -> Result<(), Box<dyn std::error::Error>> {
+    // Requires a running Postgres instance:
+    // docker run --name zopp-test-pg -e POSTGRES_PASSWORD=postgres -p 5433:5432 -d postgres:16
+
+    use sqlx::postgres::PgConnection;
+    use sqlx::{Connection, Executor};
+
+    // Create a unique database for this test run to avoid conflicts
+    let test_id = std::process::id();
+    let db_name = format!("zopp_test_{}", test_id);
+
+    // Connect to the 'postgres' database to create our test database
+    let admin_url = "postgres://postgres:postgres@localhost:5433/postgres";
+    let mut conn = PgConnection::connect(admin_url).await?;
+
+    // Drop database if it exists (cleanup from previous failed runs)
+    let drop_query = format!("DROP DATABASE IF EXISTS {}", db_name);
+    let _ = conn.execute(drop_query.as_str()).await;
+
+    // Create the test database
+    let create_query = format!("CREATE DATABASE {}", db_name);
+    conn.execute(create_query.as_str()).await?;
+    drop(conn);
+
+    let db_url = format!("postgres://postgres:postgres@localhost:5433/{}", db_name);
+    let result = run_demo_test(&db_url, "postgres", 50052).await;
+
+    // Cleanup: Drop the test database
+    let mut conn = PgConnection::connect(admin_url).await?;
+    let drop_query = format!("DROP DATABASE {}", db_name);
+    let _ = conn.execute(drop_query.as_str()).await;
+
+    result
 }

@@ -2616,6 +2616,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -2696,6 +2697,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.17",
  "tracing",
+ "uuid",
  "whoami",
 ]
 
@@ -2734,6 +2736,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.17",
  "tracing",
+ "uuid",
  "whoami",
 ]
 
@@ -2760,6 +2763,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tracing",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3958,6 +3962,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "sqlx",
  "thiserror 2.0.17",
  "tokio",
  "toml 0.8.23",
@@ -4068,6 +4073,7 @@ dependencies = [
 name = "zopp-server"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
  "clap",
  "dirs",
@@ -4088,6 +4094,7 @@ dependencies = [
  "zopp-events-memory",
  "zopp-proto",
  "zopp-storage",
+ "zopp-store-postgres",
  "zopp-store-sqlite",
 ]
 
@@ -4100,6 +4107,22 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "zopp-store-postgres"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "hex",
+ "rand_core 0.6.4",
+ "sha2",
+ "sqlx",
+ "thiserror 2.0.17",
+ "tokio",
+ "uuid",
+ "zopp-storage",
 ]
 
 [[package]]
