@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+async-trait = "0.1"
 tonic = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { version = "0.1", features = ["sync"] }
@@ -11,6 +12,7 @@ prost = { workspace = true }
 futures = "0.3"
 zopp-proto = { path = "../../crates/zopp-proto" }
 zopp-storage = { path = "../../crates/zopp-storage" }
+zopp-store-postgres = { path = "../../crates/zopp-store-postgres" }
 zopp-store-sqlite = { path = "../../crates/zopp-store-sqlite" }
 zopp-crypto = { path = "../../crates/zopp-crypto" }
 zopp-events = { path = "../../crates/zopp-events" }

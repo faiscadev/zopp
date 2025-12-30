@@ -10,6 +10,7 @@ members = [
     "crates/zopp-proto",
     "crates/zopp-secrets",
     "crates/zopp-storage",
+    "crates/zopp-store-postgres",
     "crates/zopp-store-sqlite",
     "xtask",
 ]
@@ -20,6 +21,7 @@ resolver = "2"
 rust-version = "1.65"
 
 [workspace.dependencies]
+async-trait = "0.1.89"
 argon2 = "0.5.3"
 chacha20poly1305 = "0.10.1"
 chrono = { version = "0.4.2", default-features = false, features = ["clock"] }

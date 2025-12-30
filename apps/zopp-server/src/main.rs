@@ -18,7 +18,8 @@ use zopp_proto::{
     InviteList, InviteToken, JoinRequest, JoinResponse, LoginRequest, LoginResponse, PrincipalList,
     RegisterRequest, RegisterResponse, RenamePrincipalRequest, RevokeInviteRequest, WorkspaceList,
 };
-use zopp_storage::{AddWorkspacePrincipalParams, CreatePrincipalData, Principal, *};
+use zopp_storage::{AddWorkspacePrincipalParams, CreatePrincipalData, Principal, Store, *};
+use zopp_store_postgres::PostgresStore;
 use zopp_store_sqlite::SqliteStore;
 
 // ────────────────────────────────────── CLI Types ──────────────────────────────────────
@@ -27,9 +28,13 @@ use zopp_store_sqlite::SqliteStore;
 #[command(name = "zopp-server")]
 #[command(about = "Zopp server CLI for administration and serving")]
 struct Cli {
-    /// Path to database file
-    #[arg(long, global = true, env = "ZOPP_DB_PATH", default_value = "zopp.db")]
-    db: String,
+    /// Database URL (sqlite://path/to/db.db or postgres://user:pass@host/db)
+    #[arg(long, global = true, env = "DATABASE_URL")]
+    database_url: Option<String>,
+
+    /// Legacy: Path to SQLite database file (deprecated, use --database-url instead)
+    #[arg(long, global = true, env = "ZOPP_DB_PATH")]
+    db: Option<String>,
 
     #[command(subcommand)]
     command: Command,
@@ -70,16 +75,375 @@ enum InviteCommand {
     },
 }
 
+// ────────────────────────────────────── Backend Enum ──────────────────────────────────────
+
+enum StoreBackend {
+    Sqlite(Arc<SqliteStore>),
+    Postgres(Arc<PostgresStore>),
+}
+
+enum UnifiedTxn {
+    Sqlite(<SqliteStore as Store>::Txn),
+    Postgres(<PostgresStore as Store>::Txn),
+}
+
+impl Transaction for UnifiedTxn {
+    fn commit(self) -> Result<(), StoreError> {
+        match self {
+            UnifiedTxn::Sqlite(txn) => txn.commit(),
+            UnifiedTxn::Postgres(txn) => txn.commit(),
+        }
+    }
+    fn rollback(self) -> Result<(), StoreError> {
+        match self {
+            UnifiedTxn::Sqlite(txn) => txn.rollback(),
+            UnifiedTxn::Postgres(txn) => txn.rollback(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Store for StoreBackend {
+    type Txn = UnifiedTxn;
+
+    async fn begin_txn(&self) -> Result<Self::Txn, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.begin_txn().await.map(UnifiedTxn::Sqlite),
+            StoreBackend::Postgres(s) => s.begin_txn().await.map(UnifiedTxn::Postgres),
+        }
+    }
+
+    async fn create_user(
+        &self,
+        params: &CreateUserParams,
+    ) -> Result<(UserId, Option<PrincipalId>), StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.create_user(params).await,
+            StoreBackend::Postgres(s) => s.create_user(params).await,
+        }
+    }
+
+    async fn get_user_by_email(&self, email: &str) -> Result<User, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_user_by_email(email).await,
+            StoreBackend::Postgres(s) => s.get_user_by_email(email).await,
+        }
+    }
+
+    async fn get_user_by_id(&self, user_id: &UserId) -> Result<User, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_user_by_id(user_id).await,
+            StoreBackend::Postgres(s) => s.get_user_by_id(user_id).await,
+        }
+    }
+
+    async fn create_principal(
+        &self,
+        params: &CreatePrincipalParams,
+    ) -> Result<PrincipalId, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.create_principal(params).await,
+            StoreBackend::Postgres(s) => s.create_principal(params).await,
+        }
+    }
+
+    async fn get_principal(&self, principal_id: &PrincipalId) -> Result<Principal, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_principal(principal_id).await,
+            StoreBackend::Postgres(s) => s.get_principal(principal_id).await,
+        }
+    }
+
+    async fn rename_principal(
+        &self,
+        principal_id: &PrincipalId,
+        new_name: &str,
+    ) -> Result<(), StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.rename_principal(principal_id, new_name).await,
+            StoreBackend::Postgres(s) => s.rename_principal(principal_id, new_name).await,
+        }
+    }
+
+    async fn list_principals(&self, user_id: &UserId) -> Result<Vec<Principal>, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.list_principals(user_id).await,
+            StoreBackend::Postgres(s) => s.list_principals(user_id).await,
+        }
+    }
+
+    async fn create_invite(&self, params: &CreateInviteParams) -> Result<Invite, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.create_invite(params).await,
+            StoreBackend::Postgres(s) => s.create_invite(params).await,
+        }
+    }
+
+    async fn get_invite_by_token(&self, token: &str) -> Result<Invite, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_invite_by_token(token).await,
+            StoreBackend::Postgres(s) => s.get_invite_by_token(token).await,
+        }
+    }
+
+    async fn list_invites(&self, user_id: Option<&UserId>) -> Result<Vec<Invite>, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.list_invites(user_id).await,
+            StoreBackend::Postgres(s) => s.list_invites(user_id).await,
+        }
+    }
+
+    async fn revoke_invite(&self, invite_id: &InviteId) -> Result<(), StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.revoke_invite(invite_id).await,
+            StoreBackend::Postgres(s) => s.revoke_invite(invite_id).await,
+        }
+    }
+
+    async fn create_workspace(
+        &self,
+        params: &CreateWorkspaceParams,
+    ) -> Result<WorkspaceId, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.create_workspace(params).await,
+            StoreBackend::Postgres(s) => s.create_workspace(params).await,
+        }
+    }
+
+    async fn list_workspaces(&self, user_id: &UserId) -> Result<Vec<Workspace>, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.list_workspaces(user_id).await,
+            StoreBackend::Postgres(s) => s.list_workspaces(user_id).await,
+        }
+    }
+
+    async fn get_workspace(&self, ws: &WorkspaceId) -> Result<Workspace, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_workspace(ws).await,
+            StoreBackend::Postgres(s) => s.get_workspace(ws).await,
+        }
+    }
+
+    async fn get_workspace_by_name(
+        &self,
+        user_id: &UserId,
+        name: &str,
+    ) -> Result<Workspace, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_workspace_by_name(user_id, name).await,
+            StoreBackend::Postgres(s) => s.get_workspace_by_name(user_id, name).await,
+        }
+    }
+
+    async fn get_workspace_by_name_for_principal(
+        &self,
+        principal_id: &PrincipalId,
+        name: &str,
+    ) -> Result<Workspace, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => {
+                s.get_workspace_by_name_for_principal(principal_id, name)
+                    .await
+            }
+            StoreBackend::Postgres(s) => {
+                s.get_workspace_by_name_for_principal(principal_id, name)
+                    .await
+            }
+        }
+    }
+
+    async fn add_workspace_principal(
+        &self,
+        params: &AddWorkspacePrincipalParams,
+    ) -> Result<(), StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.add_workspace_principal(params).await,
+            StoreBackend::Postgres(s) => s.add_workspace_principal(params).await,
+        }
+    }
+
+    async fn get_workspace_principal(
+        &self,
+        workspace_id: &WorkspaceId,
+        principal_id: &PrincipalId,
+    ) -> Result<WorkspacePrincipal, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_workspace_principal(workspace_id, principal_id).await,
+            StoreBackend::Postgres(s) => {
+                s.get_workspace_principal(workspace_id, principal_id).await
+            }
+        }
+    }
+
+    async fn list_workspace_principals(
+        &self,
+        workspace_id: &WorkspaceId,
+    ) -> Result<Vec<WorkspacePrincipal>, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.list_workspace_principals(workspace_id).await,
+            StoreBackend::Postgres(s) => s.list_workspace_principals(workspace_id).await,
+        }
+    }
+
+    async fn add_user_to_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        user_id: &UserId,
+    ) -> Result<(), StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.add_user_to_workspace(workspace_id, user_id).await,
+            StoreBackend::Postgres(s) => s.add_user_to_workspace(workspace_id, user_id).await,
+        }
+    }
+
+    async fn create_project(&self, params: &CreateProjectParams) -> Result<ProjectId, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.create_project(params).await,
+            StoreBackend::Postgres(s) => s.create_project(params).await,
+        }
+    }
+
+    async fn list_projects(&self, workspace_id: &WorkspaceId) -> Result<Vec<Project>, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.list_projects(workspace_id).await,
+            StoreBackend::Postgres(s) => s.list_projects(workspace_id).await,
+        }
+    }
+
+    async fn get_project(&self, project_id: &ProjectId) -> Result<Project, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_project(project_id).await,
+            StoreBackend::Postgres(s) => s.get_project(project_id).await,
+        }
+    }
+
+    async fn get_project_by_name(
+        &self,
+        workspace_id: &WorkspaceId,
+        name: &str,
+    ) -> Result<Project, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_project_by_name(workspace_id, name).await,
+            StoreBackend::Postgres(s) => s.get_project_by_name(workspace_id, name).await,
+        }
+    }
+
+    async fn delete_project(&self, project_id: &ProjectId) -> Result<(), StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.delete_project(project_id).await,
+            StoreBackend::Postgres(s) => s.delete_project(project_id).await,
+        }
+    }
+
+    async fn create_env(&self, params: &CreateEnvParams) -> Result<EnvironmentId, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.create_env(params).await,
+            StoreBackend::Postgres(s) => s.create_env(params).await,
+        }
+    }
+
+    async fn list_environments(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<Vec<Environment>, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.list_environments(project_id).await,
+            StoreBackend::Postgres(s) => s.list_environments(project_id).await,
+        }
+    }
+
+    async fn get_environment(&self, env_id: &EnvironmentId) -> Result<Environment, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_environment(env_id).await,
+            StoreBackend::Postgres(s) => s.get_environment(env_id).await,
+        }
+    }
+
+    async fn get_environment_by_name(
+        &self,
+        project_id: &ProjectId,
+        name: &str,
+    ) -> Result<Environment, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_environment_by_name(project_id, name).await,
+            StoreBackend::Postgres(s) => s.get_environment_by_name(project_id, name).await,
+        }
+    }
+
+    async fn delete_environment(&self, env_id: &EnvironmentId) -> Result<(), StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.delete_environment(env_id).await,
+            StoreBackend::Postgres(s) => s.delete_environment(env_id).await,
+        }
+    }
+
+    async fn get_env_wrap(
+        &self,
+        ws: &WorkspaceId,
+        project: &ProjectName,
+        env: &EnvName,
+    ) -> Result<(Vec<u8>, Vec<u8>), StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_env_wrap(ws, project, env).await,
+            StoreBackend::Postgres(s) => s.get_env_wrap(ws, project, env).await,
+        }
+    }
+
+    async fn upsert_secret(
+        &self,
+        env_id: &EnvironmentId,
+        key: &str,
+        nonce: &[u8],
+        ciphertext: &[u8],
+    ) -> Result<i64, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.upsert_secret(env_id, key, nonce, ciphertext).await,
+            StoreBackend::Postgres(s) => s.upsert_secret(env_id, key, nonce, ciphertext).await,
+        }
+    }
+
+    async fn get_secret(&self, env_id: &EnvironmentId, key: &str) -> Result<SecretRow, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.get_secret(env_id, key).await,
+            StoreBackend::Postgres(s) => s.get_secret(env_id, key).await,
+        }
+    }
+
+    async fn list_secret_keys(&self, env_id: &EnvironmentId) -> Result<Vec<String>, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.list_secret_keys(env_id).await,
+            StoreBackend::Postgres(s) => s.list_secret_keys(env_id).await,
+        }
+    }
+
+    async fn delete_secret(&self, env_id: &EnvironmentId, key: &str) -> Result<i64, StoreError> {
+        match self {
+            StoreBackend::Sqlite(s) => s.delete_secret(env_id, key).await,
+            StoreBackend::Postgres(s) => s.delete_secret(env_id, key).await,
+        }
+    }
+}
+
 // ────────────────────────────────────── gRPC Server ──────────────────────────────────────
 
 pub struct ZoppServer {
-    store: Arc<SqliteStore>,
+    store: StoreBackend,
     events: Arc<dyn EventBus>,
 }
 
 impl ZoppServer {
-    pub fn new(store: Arc<SqliteStore>, events: Arc<dyn EventBus>) -> Self {
-        Self { store, events }
+    pub fn new_sqlite(store: Arc<SqliteStore>, events: Arc<dyn EventBus>) -> Self {
+        Self {
+            store: StoreBackend::Sqlite(store),
+            events,
+        }
+    }
+
+    pub fn new_postgres(store: Arc<PostgresStore>, events: Arc<dyn EventBus>) -> Self {
+        Self {
+            store: StoreBackend::Postgres(store),
+            events,
+        }
     }
 
     async fn verify_signature_and_get_principal(
@@ -1490,16 +1854,15 @@ fn extract_signature<T>(request: &Request<T>) -> Result<(PrincipalId, i64, Vec<u
 // ────────────────────────────────────── CLI Commands ──────────────────────────────────────
 
 async fn cmd_invite_create(
-    db_path: &str,
+    db_url: &str,
     expires_hours: i64,
     plain: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let db_url = if db_path.starts_with("sqlite:") {
-        db_path.to_string()
+    let backend: StoreBackend = if db_url.starts_with("postgres:") {
+        StoreBackend::Postgres(Arc::new(PostgresStore::open(db_url).await?))
     } else {
-        format!("sqlite://{}?mode=rwc", db_path)
+        StoreBackend::Sqlite(Arc::new(SqliteStore::open(db_url).await?))
     };
-    let store = SqliteStore::open(&db_url).await?;
 
     // Generate random token for server invite (32 bytes = 256 bits)
     use rand_core::RngCore;
@@ -1508,7 +1871,7 @@ async fn cmd_invite_create(
     let token = hex::encode(token_bytes);
 
     let expires_at = Utc::now() + chrono::Duration::hours(expires_hours);
-    let invite = store
+    let invite = backend
         .create_invite(&CreateInviteParams {
             workspace_ids: vec![],
             token,
@@ -1531,15 +1894,14 @@ async fn cmd_invite_create(
     Ok(())
 }
 
-async fn cmd_invite_list(db_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let db_url = if db_path.starts_with("sqlite:") {
-        db_path.to_string()
+async fn cmd_invite_list(db_url: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let backend: StoreBackend = if db_url.starts_with("postgres:") {
+        StoreBackend::Postgres(Arc::new(PostgresStore::open(db_url).await?))
     } else {
-        format!("sqlite://{}?mode=rwc", db_path)
+        StoreBackend::Sqlite(Arc::new(SqliteStore::open(db_url).await?))
     };
-    let store = SqliteStore::open(&db_url).await?;
 
-    let invites = store.list_invites(None).await?;
+    let invites = backend.list_invites(None).await?;
 
     if invites.is_empty() {
         println!("No active server invites found.");
@@ -1555,33 +1917,56 @@ async fn cmd_invite_list(db_path: &str) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-async fn cmd_invite_revoke(db_path: &str, token: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let db_url = if db_path.starts_with("sqlite:") {
-        db_path.to_string()
+async fn cmd_invite_revoke(db_url: &str, token: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let backend: StoreBackend = if db_url.starts_with("postgres:") {
+        StoreBackend::Postgres(Arc::new(PostgresStore::open(db_url).await?))
     } else {
-        format!("sqlite://{}?mode=rwc", db_path)
+        StoreBackend::Sqlite(Arc::new(SqliteStore::open(db_url).await?))
     };
-    let store = SqliteStore::open(&db_url).await?;
 
-    let invite = store.get_invite_by_token(token).await?;
+    let invite = backend.get_invite_by_token(token).await?;
 
-    store.revoke_invite(&invite.id).await?;
+    backend.revoke_invite(&invite.id).await?;
 
     println!("✓ Invite token {} revoked", token);
 
     Ok(())
 }
 
-async fn cmd_serve(db_path: &str, addr: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn cmd_serve(
+    database_url: Option<String>,
+    legacy_db_path: Option<String>,
+    addr: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let addr = addr.parse()?;
-    let db_url = if db_path.starts_with("sqlite:") {
-        db_path.to_string()
+
+    // Determine database URL
+    let db_url = if let Some(url) = database_url {
+        url
+    } else if let Some(path) = legacy_db_path {
+        if path.starts_with("sqlite:") || path.starts_with("postgres:") {
+            path
+        } else {
+            format!("sqlite://{}?mode=rwc", path)
+        }
     } else {
-        format!("sqlite://{}?mode=rwc", db_path)
+        "sqlite://zopp.db?mode=rwc".to_string()
     };
-    let store = SqliteStore::open(&db_url).await?;
+
+    // Create backend based on URL scheme
+    let backend = if db_url.starts_with("postgres:") {
+        let store = PostgresStore::open(&db_url).await?;
+        StoreBackend::Postgres(Arc::new(store))
+    } else {
+        let store = SqliteStore::open(&db_url).await?;
+        StoreBackend::Sqlite(Arc::new(store))
+    };
+
     let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
-    let server = ZoppServer::new(Arc::new(store), events);
+    let server = match backend {
+        StoreBackend::Sqlite(ref s) => ZoppServer::new_sqlite(s.clone(), events),
+        StoreBackend::Postgres(ref s) => ZoppServer::new_postgres(s.clone(), events),
+    };
 
     println!("ZoppServer listening on {}", addr);
 
@@ -1601,22 +1986,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Command::Serve { addr } => {
-            cmd_serve(&cli.db, &addr).await?;
+            cmd_serve(cli.database_url, cli.db, &addr).await?;
         }
-        Command::Invite { invite_cmd } => match invite_cmd {
-            InviteCommand::Create {
-                expires_hours,
-                plain,
-            } => {
-                cmd_invite_create(&cli.db, expires_hours, plain).await?;
+        Command::Invite { invite_cmd } => {
+            let db_url = if let Some(url) = cli.database_url {
+                url
+            } else if let Some(path) = cli.db {
+                if path.starts_with("sqlite:") || path.starts_with("postgres:") {
+                    path
+                } else {
+                    format!("sqlite://{}?mode=rwc", path)
+                }
+            } else {
+                "sqlite://zopp.db?mode=rwc".to_string()
+            };
+
+            match invite_cmd {
+                InviteCommand::Create {
+                    expires_hours,
+                    plain,
+                } => {
+                    cmd_invite_create(&db_url, expires_hours, plain).await?;
+                }
+                InviteCommand::List => {
+                    cmd_invite_list(&db_url).await?;
+                }
+                InviteCommand::Revoke { token } => {
+                    cmd_invite_revoke(&db_url, &token).await?;
+                }
             }
-            InviteCommand::List => {
-                cmd_invite_list(&cli.db).await?;
-            }
-            InviteCommand::Revoke { token } => {
-                cmd_invite_revoke(&cli.db, &token).await?;
-            }
-        },
+        }
     }
 
     Ok(())
@@ -1634,7 +2033,7 @@ mod tests {
     async fn test_server_invite_joins_user_without_creating_workspace() {
         let store = Arc::new(SqliteStore::open_in_memory().await.unwrap());
         let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
-        let server = ZoppServer::new(store.clone(), events);
+        let server = ZoppServer::new_sqlite(store.clone(), events);
 
         // Create a server invite (no workspaces)
         let mut invite_secret = [0u8; 32];
@@ -1696,7 +2095,7 @@ mod tests {
     async fn test_replay_protection_rejects_old_timestamps() {
         let store = SqliteStore::open_in_memory().await.unwrap();
         let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
-        let server = ZoppServer::new(Arc::new(store), events);
+        let server = ZoppServer::new_sqlite(Arc::new(store), events);
 
         // Create a test keypair
         let signing_key = SigningKey::generate(&mut OsRng);
@@ -1737,7 +2136,7 @@ mod tests {
     async fn test_replay_protection_rejects_future_timestamps() {
         let store = SqliteStore::open_in_memory().await.unwrap();
         let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
-        let server = ZoppServer::new(Arc::new(store), events);
+        let server = ZoppServer::new_sqlite(Arc::new(store), events);
 
         // Create a test keypair
         let signing_key = SigningKey::generate(&mut OsRng);
@@ -1778,7 +2177,7 @@ mod tests {
     async fn test_replay_protection_accepts_valid_timestamps() {
         let store = SqliteStore::open_in_memory().await.unwrap();
         let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
-        let server = ZoppServer::new(Arc::new(store), events);
+        let server = ZoppServer::new_sqlite(Arc::new(store), events);
 
         // Create a test keypair
         let signing_key = SigningKey::generate(&mut OsRng);
@@ -1814,7 +2213,7 @@ mod tests {
     async fn test_replay_protection_rejects_invalid_signature() {
         let store = SqliteStore::open_in_memory().await.unwrap();
         let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
-        let server = ZoppServer::new(Arc::new(store), events);
+        let server = ZoppServer::new_sqlite(Arc::new(store), events);
 
         // Create a test keypair
         let signing_key = SigningKey::generate(&mut OsRng);
