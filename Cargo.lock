@@ -3965,6 +3965,7 @@ dependencies = [
  "uuid",
  "zopp-crypto",
  "zopp-proto",
+ "zopp-secrets",
 ]
 
 [[package]]
@@ -4041,6 +4042,7 @@ dependencies = [
  "zopp-config",
  "zopp-crypto",
  "zopp-proto",
+ "zopp-secrets",
 ]
 
 [[package]]
@@ -4051,6 +4053,15 @@ dependencies = [
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
+]
+
+[[package]]
+name = "zopp-secrets"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.17",
+ "zopp-crypto",
+ "zopp-proto",
 ]
 
 [[package]]

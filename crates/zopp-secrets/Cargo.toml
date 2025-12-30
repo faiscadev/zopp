@@ -1,0 +1,10 @@
+[package]
+name = "zopp-secrets"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+
+[dependencies]
+zopp-crypto = { path = "../zopp-crypto" }
+zopp-proto = { path = "../zopp-proto" }
+thiserror.workspace = true

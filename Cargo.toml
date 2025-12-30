@@ -8,6 +8,7 @@ members = [
     "crates/zopp-events",
     "crates/zopp-events-memory",
     "crates/zopp-proto",
+    "crates/zopp-secrets",
     "crates/zopp-storage",
     "crates/zopp-store-sqlite",
     "xtask",

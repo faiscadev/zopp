@@ -16,7 +16,6 @@ use tracing::{debug, error, info, warn};
 use zopp_proto::zopp_service_client::ZoppServiceClient;
 
 mod credentials;
-mod kek;
 mod sync;
 mod watch;
 
