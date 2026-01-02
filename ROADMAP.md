@@ -7,7 +7,7 @@ This document outlines the path to production readiness and beyond for zopp.
 Cannot deploy to production without these:
 
 - [x] **TLS/gRPC encryption** - Add mTLS support for server-client communication
-- [ ] **Docker images** - Create Dockerfiles for server and operator
+- [x] **Docker images** - Create Dockerfiles for server and operator
 - [ ] **Helm chart** - Package server + operator for easy K8s deployment
 - [ ] **Health/readiness probes** - Add HTTP endpoints for K8s liveness/readiness
 - [ ] **Graceful shutdown** - Handle SIGTERM for zero-downtime rolling updates

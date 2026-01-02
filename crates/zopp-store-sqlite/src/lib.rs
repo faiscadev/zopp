@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use uuid::Uuid;
 use zopp_storage::{
     AddWorkspacePrincipalParams, CreateEnvParams, CreateInviteParams, CreatePrincipalParams,

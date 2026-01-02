@@ -14,6 +14,25 @@ Key principles:
 
 ## Development Commands
 
+### Docker Images
+
+```bash
+# Build server image
+docker build -f server.Dockerfile -t zopp-server:latest .
+
+# Build operator image
+docker build -f operator.Dockerfile -t zopp-operator:latest .
+
+# Run server
+docker run -p 50051:50051 zopp-server:latest
+
+# Run with PostgreSQL
+docker run -e DATABASE_URL=postgres://user:pass@host/db -p 50051:50051 zopp-server:latest
+
+# Run with TLS
+docker run -v /path/to/certs:/certs -p 50051:50051 zopp-server:latest serve --tls-cert /certs/server.crt --tls-key /certs/server.key
+```
+
 ### Build
 ```bash
 cargo build --workspace --release

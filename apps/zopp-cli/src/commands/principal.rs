@@ -1,4 +1,4 @@
-use crate::config::{PrincipalConfig, get_current_principal, load_config, save_config};
+use crate::config::{get_current_principal, load_config, save_config, PrincipalConfig};
 use crate::grpc::{connect, sign_request};
 use ed25519_dalek::SigningKey;
 use tonic::metadata::MetadataValue;

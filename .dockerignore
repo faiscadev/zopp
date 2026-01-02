@@ -1,0 +1,13 @@
+target/
+.git/
+.github/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+**/.DS_Store
+zopp.toml
+zopp.yaml
+zopp.json
+node_modules/

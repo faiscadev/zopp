@@ -1,4 +1,4 @@
-use crate::config::{CliConfig, PrincipalConfig, save_config};
+use crate::config::{save_config, CliConfig, PrincipalConfig};
 use crate::grpc::connect;
 use ed25519_dalek::SigningKey;
 use zopp_proto::JoinRequest;
