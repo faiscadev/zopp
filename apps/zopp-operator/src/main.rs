@@ -180,11 +180,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let health_addr: std::net::SocketAddr = args.health_addr.parse()?;
 
-    // Start health check server
-    let health_server = tokio::spawn(async move {
-        let listener = tokio::net::TcpListener::bind(health_addr).await.unwrap();
-        axum::serve(listener, health_router).await.unwrap();
-    });
+    // Start health check server with graceful shutdown support
+    let health_listener = tokio::net::TcpListener::bind(health_addr).await?;
+    let health_server =
+        axum::serve(health_listener, health_router).with_graceful_shutdown(shutdown_signal());
 
     // Watch Secrets with zopp annotations
     let secrets: Api<Secret> = match &args.namespace {
@@ -281,16 +280,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Run watch loop with graceful shutdown
+    // Run both health server and watch loop concurrently
     tokio::select! {
-        _ = watch_loop => {},
-        _ = shutdown_signal() => {
-            info!("Shutting down operator");
+        result = health_server => {
+            result?;
+        }
+        _ = watch_loop => {
+            info!("Watch loop completed");
         }
     }
-
-    // Wait for health server to finish
-    let _ = health_server.await;
 
     Ok(())
 }

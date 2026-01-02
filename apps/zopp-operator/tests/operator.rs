@@ -352,15 +352,30 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("✓ Operator started (PID: {})", operator.id());
 
-    // Verify health endpoints work
-    sleep(Duration::from_millis(500)).await;
-    let healthz = reqwest::get("http://127.0.0.1:8081/healthz").await?;
-    let readyz = reqwest::get("http://127.0.0.1:8081/readyz").await?;
+    // Verify health endpoints work with retry loop
+    let mut health_ready = false;
+    for i in 1..=20 {
+        sleep(Duration::from_millis(100)).await;
+        let Ok(healthz) = reqwest::get("http://127.0.0.1:8081/healthz").await else {
+            continue;
+        };
+        let Ok(readyz) = reqwest::get("http://127.0.0.1:8081/readyz").await else {
+            continue;
+        };
 
-    if !healthz.status().is_success() || !readyz.status().is_success() {
-        eprintln!("❌ Health check endpoints failed");
-        eprintln!("  /healthz: {}", healthz.status());
-        eprintln!("  /readyz: {}", readyz.status());
+        if healthz.status().is_success() && readyz.status().is_success() {
+            health_ready = true;
+            break;
+        }
+
+        if i == 20 {
+            eprintln!("❌ Health check endpoints failed after {} attempts", i);
+            eprintln!("  /healthz: {}", healthz.status());
+            eprintln!("  /readyz: {}", readyz.status());
+        }
+    }
+
+    if !health_ready {
         cleanup_all(&mut server, &mut operator, cluster_name)?;
         return Err("Health endpoints not working".into());
     }
