@@ -11,11 +11,9 @@ pub async fn connect(
     let endpoint = Channel::from_shared(server.to_string())?;
 
     let endpoint = if server.starts_with("https://") {
-        // Extract domain for TLS certificate validation
-        let domain = server
-            .strip_prefix("https://")
-            .and_then(|s| s.split(':').next())
-            .ok_or("Invalid HTTPS URL format")?;
+        // Parse URL and extract host for TLS certificate validation
+        let url = url::Url::parse(server)?;
+        let domain = url.host_str().ok_or("HTTPS URL must have a valid host")?;
 
         let tls_config = tonic::transport::ClientTlsConfig::new().domain_name(domain);
         endpoint.tls_config(tls_config)?
@@ -70,4 +68,42 @@ pub fn add_auth_metadata<T>(
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_extract_domain_from_https_url_with_port() {
+        let url = url::Url::parse("https://example.com:8080/path").unwrap();
+        let domain = url.host_str().unwrap();
+        assert_eq!(domain, "example.com");
+    }
+
+    #[test]
+    fn test_extract_domain_from_https_url_with_path() {
+        let url = url::Url::parse("https://example.com/path").unwrap();
+        let domain = url.host_str().unwrap();
+        assert_eq!(domain, "example.com");
+    }
+
+    #[test]
+    fn test_extract_domain_from_https_url_with_port_and_path() {
+        let url = url::Url::parse("https://example.com:8080/path").unwrap();
+        let domain = url.host_str().unwrap();
+        assert_eq!(domain, "example.com");
+    }
+
+    #[test]
+    fn test_extract_domain_from_https_url_basic() {
+        let url = url::Url::parse("https://example.com").unwrap();
+        let domain = url.host_str().unwrap();
+        assert_eq!(domain, "example.com");
+    }
+
+    #[test]
+    fn test_extract_domain_from_https_url_with_subdomain() {
+        let url = url::Url::parse("https://api.example.com:50051").unwrap();
+        let domain = url.host_str().unwrap();
+        assert_eq!(domain, "api.example.com");
+    }
 }

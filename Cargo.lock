@@ -3968,6 +3968,7 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "tonic",
+ "url",
  "uuid",
  "zopp-crypto",
  "zopp-proto",
