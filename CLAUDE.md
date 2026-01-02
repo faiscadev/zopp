@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**zopp** is an open-source, self-hostable, CLI-first secrets manager with zero-knowledge encryption. It's being built as part of the sisypha organization, which develops open-source alternatives to commercial SaaS products.
+**zopp** is an open-source, self-hostable, CLI-first secrets manager with zero-knowledge encryption.
 
 Key principles:
 - **Zero-knowledge**: Server never sees plaintext keys or secrets
