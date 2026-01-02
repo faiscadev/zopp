@@ -1,4 +1,4 @@
-use chacha20poly1305::{KeyInit, aead::Aead};
+use chacha20poly1305::{aead::Aead, KeyInit};
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 use thiserror::Error;

@@ -3,7 +3,7 @@ use crate::grpc::setup_client;
 use crate::k8s::load_k8s_config;
 use k8s_openapi::api::core::v1::Secret;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use kube::{Api, Client, api::PostParams};
+use kube::{api::PostParams, Api, Client};
 use std::collections::BTreeMap;
 
 #[allow(clippy::too_many_arguments)]

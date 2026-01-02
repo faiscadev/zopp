@@ -7,7 +7,7 @@ use futures::StreamExt;
 use rand_core::OsRng;
 use std::sync::Arc;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Request, Response, Status, transport::Server};
+use tonic::{transport::Server, Request, Response, Status};
 use uuid::Uuid;
 
 use zopp_events::{EventBus, EventType, SecretChangeEvent};
@@ -1745,20 +1745,20 @@ impl ZoppService for ZoppServer {
             })?;
 
         // Check if client is behind (needs resync)
-        if let Some(client_version) = req.since_version
-            && client_version < env.version
-        {
-            // Client is behind, send ResyncRequired
-            let (tx, rx) = tokio::sync::mpsc::channel(1);
-            let response = zopp_proto::WatchSecretsResponse {
-                response: Some(zopp_proto::watch_secrets_response::Response::Resync(
-                    zopp_proto::ResyncRequired {
-                        current_version: env.version,
-                    },
-                )),
-            };
-            let _ = tx.send(Ok(response)).await;
-            return Ok(Response::new(ReceiverStream::new(rx)));
+        if let Some(client_version) = req.since_version {
+            if client_version < env.version {
+                // Client is behind, send ResyncRequired
+                let (tx, rx) = tokio::sync::mpsc::channel(1);
+                let response = zopp_proto::WatchSecretsResponse {
+                    response: Some(zopp_proto::watch_secrets_response::Response::Resync(
+                        zopp_proto::ResyncRequired {
+                            current_version: env.version,
+                        },
+                    )),
+                };
+                let _ = tx.send(Ok(response)).await;
+                return Ok(Response::new(ReceiverStream::new(rx)));
+            }
         }
 
         // Subscribe to events

@@ -1,0 +1,38 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image:
+          - name: server
+            dockerfile: server.Dockerfile
+          - name: operator
+            dockerfile: operator.Dockerfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.image.name }} image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.image.dockerfile }}
+          push: false
+          tags: zopp-${{ matrix.image.name }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test ${{ matrix.image.name }} image
+        run: |
+          docker run --rm zopp-${{ matrix.image.name }}:test --help
