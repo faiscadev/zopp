@@ -31,6 +31,7 @@ jobs:
           context: .
           file: ${{ matrix.image.dockerfile }}
           push: false
+          load: true
           tags: zopp-${{ matrix.image.name }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
