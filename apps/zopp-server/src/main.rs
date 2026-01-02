@@ -2529,4 +2529,38 @@ mod tests {
         assert_eq!(response.status(), 200);
         assert_eq!(response.text().await.unwrap(), "ok");
     }
+
+    #[tokio::test]
+    async fn test_health_server_endpoints() {
+        use axum::{Router, routing::get};
+
+        // Create health router
+        let app = Router::new()
+            .route("/healthz", get(health_handler))
+            .route("/readyz", get(readiness_handler));
+
+        // Bind to random port
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // Start server in background
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        // Give server time to start
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Test /healthz
+        let healthz_url = format!("http://{}/healthz", addr);
+        let response = reqwest::get(&healthz_url).await.unwrap();
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.text().await.unwrap(), "ok");
+
+        // Test /readyz
+        let readyz_url = format!("http://{}/readyz", addr);
+        let response = reqwest::get(&readyz_url).await.unwrap();
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.text().await.unwrap(), "ok");
+    }
 }
