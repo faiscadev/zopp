@@ -2003,17 +2003,19 @@ async fn cmd_serve_with_ready(
         StoreBackend::Postgres(ref s) => ZoppServer::new_postgres(s.clone(), events),
     };
 
-    // Create gRPC health service
+    // Create gRPC health service (implements gRPC health checking protocol)
     let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<ZoppServiceServer<ZoppServer>>()
         .await;
 
-    // Create a channel for readiness checks
+    // Create a channel for HTTP readiness probe signaling
     let (readiness_tx, readiness_rx) = tokio::sync::watch::channel(false);
     let readiness_check = ReadinessCheck::new(readiness_rx);
 
-    // Health check endpoints - /readyz actually verifies gRPC is working
+    // Create HTTP health check server for Kubernetes liveness/readiness probes
+    // /healthz - simple liveness check (always returns OK)
+    // /readyz - readiness check (waits for gRPC server to be listening)
     let health_router = Router::new()
         .route("/healthz", get(health_handler))
         .route("/readyz", get(readiness_handler))
@@ -2554,11 +2556,19 @@ mod tests {
             axum::serve(listener, app).await.unwrap();
         });
 
-        // Give server time to start
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        // Wait for server to be ready with retry loop
+        let healthz_url = format!("http://{}/healthz", addr);
+        let mut ready = false;
+        for _ in 0..30 {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            if reqwest::get(&healthz_url).await.is_ok() {
+                ready = true;
+                break;
+            }
+        }
+        assert!(ready, "Health server failed to start");
 
         // Test /healthz
-        let healthz_url = format!("http://{}/healthz", addr);
         let response = reqwest::get(&healthz_url).await.unwrap();
         assert_eq!(response.status(), 200);
         assert_eq!(response.text().await.unwrap(), "ok");
