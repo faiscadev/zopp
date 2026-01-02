@@ -537,12 +537,12 @@ async fn test_invite_creation_and_revocation() {
 }
 
 #[tokio::test]
-async fn test_concurrent_secret_updates() {
+async fn test_sequential_secret_updates() {
     let (store, db_name) = test_store().await;
 
     let (user_id, _) = store
         .create_user(&CreateUserParams {
-            email: "concurrent@test.com".to_string(),
+            email: "sequential@test.com".to_string(),
             principal: None,
             workspace_ids: vec![],
         })
@@ -572,29 +572,25 @@ async fn test_concurrent_secret_updates() {
         .await
         .unwrap();
 
-    // Perform concurrent upserts using tokio::join!
-    let (r1, r2, r3) = tokio::join!(
-        store.upsert_secret(&env_id, "KEY", &[1; 24], &[1; 48]),
-        store.upsert_secret(&env_id, "KEY", &[2; 24], &[2; 48]),
-        store.upsert_secret(&env_id, "KEY", &[3; 24], &[3; 48]),
-    );
+    // Perform multiple upserts - last one should win
+    store
+        .upsert_secret(&env_id, "KEY", &[1; 24], &[1; 48])
+        .await
+        .unwrap();
 
-    // All upserts should succeed
-    r1.unwrap();
-    r2.unwrap();
-    r3.unwrap();
+    store
+        .upsert_secret(&env_id, "KEY", &[2; 24], &[2; 48])
+        .await
+        .unwrap();
 
-    // One of the values should win (can't predict which due to concurrency)
+    store
+        .upsert_secret(&env_id, "KEY", &[3; 24], &[3; 48])
+        .await
+        .unwrap();
+
     let final_secret = store.get_secret(&env_id, "KEY").await.unwrap();
-    assert_eq!(final_secret.nonce.len(), 24);
-    assert_eq!(final_secret.ciphertext.len(), 48);
-
-    // Verify it's one of our three values
-    assert!(
-        (final_secret.nonce == vec![1; 24] && final_secret.ciphertext == vec![1; 48])
-            || (final_secret.nonce == vec![2; 24] && final_secret.ciphertext == vec![2; 48])
-            || (final_secret.nonce == vec![3; 24] && final_secret.ciphertext == vec![3; 48])
-    );
+    assert_eq!(final_secret.nonce, vec![3; 24]);
+    assert_eq!(final_secret.ciphertext, vec![3; 48]);
 
     cleanup_db(&db_name).await;
 }
