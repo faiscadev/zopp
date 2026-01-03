@@ -2582,4 +2582,70 @@ mod tests {
         assert_eq!(response.status(), 200);
         assert_eq!(response.text().await.unwrap(), "ok");
     }
+
+    #[tokio::test]
+    async fn test_graceful_shutdown() {
+        use axum::routing::get;
+
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::channel::<()>(1);
+
+        // Start server in background with graceful shutdown
+        let server_handle = tokio::spawn(async move {
+            let (readiness_tx, readiness_rx) = tokio::sync::watch::channel(false);
+            let readiness_check = ReadinessCheck::new(readiness_rx);
+
+            let health_router = axum::Router::new()
+                .route("/healthz", get(health_handler))
+                .route("/readyz", get(readiness_handler))
+                .with_state(readiness_check);
+
+            let health_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let health_addr = health_listener.local_addr().unwrap();
+
+            let _ = readiness_tx.send(true);
+            let _ = ready_tx.send(health_addr);
+
+            // Simulate graceful shutdown signal
+            let shutdown_signal = async move {
+                shutdown_rx.recv().await;
+            };
+
+            axum::serve(health_listener, health_router)
+                .with_graceful_shutdown(shutdown_signal)
+                .await
+                .unwrap();
+        });
+
+        // Wait for server to be ready
+        let health_addr = ready_rx.await.unwrap();
+        let healthz_url = format!("http://{}/healthz", health_addr);
+
+        // Verify server is running
+        let mut ready = false;
+        for _ in 0..30 {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            if reqwest::get(&healthz_url).await.is_ok() {
+                ready = true;
+                break;
+            }
+        }
+        assert!(ready, "Health server failed to start");
+
+        // Trigger graceful shutdown
+        shutdown_tx.send(()).await.unwrap();
+
+        // Server should shut down gracefully
+        let result = tokio::time::timeout(std::time::Duration::from_secs(5), server_handle).await;
+
+        assert!(result.is_ok(), "Server did not shut down within timeout");
+        assert!(result.unwrap().is_ok(), "Server shutdown returned error");
+
+        // Verify server is no longer accepting connections
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        assert!(
+            reqwest::get(&healthz_url).await.is_err(),
+            "Server still accepting connections after shutdown"
+        );
+    }
 }
