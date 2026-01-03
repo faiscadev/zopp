@@ -180,10 +180,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let health_addr: std::net::SocketAddr = args.health_addr.parse()?;
 
+    // Create a broadcast channel for coordinating shutdown between watch loop and health server
+    let (shutdown_tx, _) = tokio::sync::broadcast::channel::<()>(1);
+
     // Start health check server with graceful shutdown support
     let health_listener = tokio::net::TcpListener::bind(health_addr).await?;
+    let mut shutdown_rx_health = shutdown_tx.subscribe();
     let health_server =
-        axum::serve(health_listener, health_router).with_graceful_shutdown(shutdown_signal());
+        axum::serve(health_listener, health_router).with_graceful_shutdown(async move {
+            let _ = shutdown_rx_health.recv().await;
+        });
+
+    // Spawn a task to wait for shutdown signal and broadcast to all listeners
+    let shutdown_tx_clone = shutdown_tx.clone();
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        let _ = shutdown_tx_clone.send(());
+    });
 
     // Watch Secrets with zopp annotations
     let secrets: Api<Secret> = match &args.namespace {
@@ -198,21 +211,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Watching for annotated Secrets...");
 
+    let shutdown_tx_watch = shutdown_tx.clone();
     let watch_loop = async move {
-        let shutdown = shutdown_signal();
-        tokio::pin!(shutdown);
+        let mut shutdown_rx = shutdown_tx_watch.subscribe();
 
-        loop {
+        let result = loop {
             tokio::select! {
                 biased;
-                _ = &mut shutdown => {
+                _ = shutdown_rx.recv() => {
                     info!("Watch loop received shutdown signal");
-                    break;
+                    break Ok(());
                 }
                 event_option = stream.next() => {
                     let Some(event) = event_option else {
                         info!("Watch stream ended");
-                        break;
+                        break Err("watch stream ended");
                     };
 
                     match event {
@@ -294,19 +307,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
+        };
+
+        // If watch loop exited due to stream ending, trigger shutdown for health server
+        if result.is_err() {
+            let _ = shutdown_tx_watch.send(());
         }
     };
 
     // Run both health server and watch loop concurrently
-    // Exit when either completes (watch loop exit or shutdown signal)
-    tokio::select! {
-        result = health_server => {
-            result?;
-        }
-        _ = watch_loop => {
-            info!("Watch loop exited");
-        }
-    }
+    // Both will exit gracefully on shutdown signal
+    // If watch loop exits due to stream ending, it triggers shutdown for health server
+    let (health_result, _) = tokio::join!(health_server, watch_loop);
+
+    health_result?;
 
     Ok(())
 }
