@@ -2040,8 +2040,8 @@ async fn cmd_serve_with_ready(
     }
 
     // Start health check server with graceful shutdown
-    let health_server = axum::serve(health_listener, health_router)
-        .with_graceful_shutdown(shutdown_signal());
+    let health_server =
+        axum::serve(health_listener, health_router).with_graceful_shutdown(shutdown_signal());
 
     // Build gRPC server with optional TLS
     let mut grpc_builder = if let (Some(cert_path), Some(key_path)) = (tls_cert, tls_key) {
