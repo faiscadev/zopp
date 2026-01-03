@@ -32,4 +32,4 @@ hex = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3.14"
-reqwest = "0.12"
+reqwest = { workspace = true }

@@ -362,14 +362,15 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
         let Ok(healthz) = reqwest::get("http://127.0.0.1:8081/healthz").await else {
             continue;
         };
+
+        let healthz_status = healthz.status();
+        last_healthz_status = Some(healthz_status);
+
         let Ok(readyz) = reqwest::get("http://127.0.0.1:8081/readyz").await else {
             continue;
         };
 
-        let healthz_status = healthz.status();
         let readyz_status = readyz.status();
-
-        last_healthz_status = Some(healthz_status);
         last_readyz_status = Some(readyz_status);
 
         if healthz_status.is_success() && readyz_status.is_success() {

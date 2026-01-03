@@ -35,4 +35,4 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
 [dev-dependencies]
 zopp-config = { path = "../../crates/zopp-config" }
-reqwest = "0.12"
+reqwest = { workspace = true }
