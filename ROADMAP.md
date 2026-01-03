@@ -8,7 +8,7 @@ Cannot deploy to production without these:
 
 - [x] **TLS/gRPC encryption** - Add mTLS support for server-client communication
 - [x] **Docker images** - Create Dockerfiles for server and operator
-- [ ] **Helm chart** - Package server + operator for easy K8s deployment
+- [x] **Helm chart** - Package server + operator for easy K8s deployment
 - [x] **Health/readiness probes** - Add HTTP endpoints for K8s liveness/readiness
 - [x] **Graceful shutdown** - Handle SIGTERM for zero-downtime rolling updates
 
