@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.90-slim AS builder
+FROM rust:1-slim AS builder
 
 WORKDIR /build
 
@@ -21,7 +21,7 @@ ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin zopp-operator
 
 # Runtime stage
-FROM debian:sid-slim
+FROM debian:bookworm-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
