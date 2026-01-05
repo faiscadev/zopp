@@ -1,13 +1,13 @@
 use std::fs;
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 use tokio::time::sleep;
 
 #[tokio::test]
-async fn operator() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🧪 Starting Zopp Kubernetes Operator E2E Test\n");
+async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
+    println!("🧪 Starting Operator Sync E2E Test\n");
 
     // Check prerequisites
     check_prerequisites()?;
@@ -54,6 +54,11 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     println!("  zopp:          {}", zopp_bin.display());
     println!("  zopp-operator: {}\n", operator_bin.display());
 
+    // Find available port
+    let server_port = find_available_port()?;
+    let server_url = format!("http://127.0.0.1:{}", server_port);
+    println!("✓ Allocated server port: {}\n", server_port);
+
     // Setup test directories using platform-appropriate temp dir
     let test_dir = std::env::temp_dir().join("zopp-e2e-operator-test");
     let alice_home = test_dir.join("alice");
@@ -93,18 +98,20 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     // Step 1: Start zopp server
     println!("📡 Step 1: Starting zopp server...");
     let db_path_str = db_path.to_str().unwrap();
+    let server_addr = format!("0.0.0.0:{}", server_port);
 
     let mut server = Command::new(&zopp_server_bin)
-        .args(["--db", db_path_str, "serve"])
+        .args(["--db", db_path_str, "serve", "--addr", &server_addr])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()?;
 
     // Wait for server to be ready
     let mut ready = false;
+    let server_connect_addr = format!("127.0.0.1:{}", server_port);
     for i in 1..=30 {
         sleep(Duration::from_millis(200)).await;
-        if TcpStream::connect("127.0.0.1:50051").is_ok() {
+        if TcpStream::connect(&server_connect_addr).is_ok() {
             ready = true;
             println!("✓ Server started and ready (PID: {})\n", server.id());
             break;
@@ -151,6 +158,8 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .args([
+            "--server",
+            &server_url,
             "join",
             &alice_server_invite,
             "alice@example.com",
@@ -172,7 +181,7 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     println!("🏢 Step 4: Alice creates workspace 'acme'...");
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
-        .args(["workspace", "create", "acme"])
+        .args(["--server", &server_url, "workspace", "create", "acme"])
         .output()?;
 
     if !output.status.success() {
@@ -188,7 +197,15 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     println!("📁 Step 5: Alice creates project 'backend'...");
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
-        .args(["project", "create", "backend", "-w", "acme"])
+        .args([
+            "--server",
+            &server_url,
+            "project",
+            "create",
+            "backend",
+            "-w",
+            "acme",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -205,6 +222,8 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .args([
+            "--server",
+            &server_url,
             "environment",
             "create",
             "production",
@@ -245,7 +264,7 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
         let output = Command::new(&zopp_bin)
             .env("HOME", &alice_home)
             .current_dir(&test_dir)
-            .args(["secret", "set", key, value])
+            .args(["--server", &server_url, "secret", "set", key, value])
             .output()?;
 
         if !output.status.success() {
@@ -268,7 +287,14 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔑 Step 9: Creating service principal for operator...");
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
-        .args(["principal", "create", "k8s-operator", "--service"])
+        .args([
+            "--server",
+            &server_url,
+            "principal",
+            "create",
+            "k8s-operator",
+            "--service",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -285,7 +311,7 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["invite", "create", "--plain"])
+        .args(["--server", &server_url, "invite", "create", "--plain"])
         .output()?;
 
     if !output.status.success() {
@@ -304,6 +330,8 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .args([
+            "--server",
+            &server_url,
             "join",
             &invite_code,
             "k8s-operator@acme.com",
@@ -338,7 +366,7 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
         .env("RUST_LOG", "zopp_operator=debug,info")
         .args([
             "--server",
-            "http://127.0.0.1:50051",
+            &server_url,
             "--credentials",
             config_file.to_str().unwrap(),
             "--namespace",
@@ -419,7 +447,14 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["secret", "set", "DATABASE_URL", "postgresql://newhost/prod"])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "set",
+            "DATABASE_URL",
+            "postgresql://newhost/prod",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -447,7 +482,14 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["secret", "set", "SMTP_HOST", "smtp.example.com"])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "set",
+            "SMTP_HOST",
+            "smtp.example.com",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -472,7 +514,7 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["secret", "delete", "SMTP_HOST"])
+        .args(["--server", &server_url, "secret", "delete", "SMTP_HOST"])
         .output()?;
 
     if !output.status.success() {
@@ -497,7 +539,14 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["secret", "set", "API_KEY", "sk-updated-while-down"])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "set",
+            "API_KEY",
+            "sk-updated-while-down",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -511,7 +560,7 @@ async fn operator() -> Result<(), Box<dyn std::error::Error>> {
         .env("RUST_LOG", "zopp_operator=debug,info")
         .args([
             "--server",
-            "http://127.0.0.1:50051",
+            &server_url,
             "--credentials",
             config_file.to_str().unwrap(),
             "--namespace",
@@ -719,6 +768,13 @@ fn cleanup(
     cleanup_kind(cluster_name)?;
 
     Ok(())
+}
+
+fn find_available_port() -> Result<u16, Box<dyn std::error::Error>> {
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let port = listener.local_addr()?.port();
+    drop(listener); // Close the listener to free the port
+    Ok(port)
 }
 
 fn cleanup_kind(cluster_name: &str) -> Result<(), Box<dyn std::error::Error>> {
