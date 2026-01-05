@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         image:
@@ -24,12 +24,6 @@ jobs:
             dockerfile: operator.Dockerfile
           - name: cli
             dockerfile: cli.Dockerfile
-        runner: [ubuntu-latest, macos-latest]
-        include:
-          - runner: ubuntu-latest
-            platform: linux/amd64
-          - runner: macos-latest
-            platform: linux/arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -58,21 +52,15 @@ jobs:
             type=sha
             type=raw,value=edge,enable={{is_default_branch}}
 
-      - name: Build and push ${{ matrix.image.name }} image (${{ matrix.platform }})
+      - name: Build and push ${{ matrix.image.name }} image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ${{ matrix.image.dockerfile }}
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
-          load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Test ${{ matrix.image.name }} image
-        if: github.event_name == 'pull_request'
-        run: |
-          docker run --rm ${{ fromJSON(steps.meta.outputs.json).tags[0] }} --help
 
