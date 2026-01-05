@@ -172,28 +172,33 @@ kubectl create secret generic zopp-server-tls \
 
 #### Basic Configuration
 
+By default, the operator watches all namespaces across the cluster:
+
 ```yaml
 operator:
   enabled: true
 
-  # Watch specific namespace (leave empty for all namespaces)
-  watchNamespace: "production"
+  # Watch all namespaces (default)
+  watchNamespace: ""
 
   # Credentials (required)
   credentials:
     existingSecret: "zopp-operator-credentials"
+
+rbac:
+  clusterWide: true  # Creates ClusterRole (default)
 ```
 
-#### Cluster-Wide Operator
+#### Namespace-Scoped Operator
 
-To watch all namespaces across the cluster:
+To watch only a specific namespace:
 
 ```yaml
 operator:
-  watchNamespace: ""  # Empty = all namespaces
+  watchNamespace: "production"  # Watch only this namespace
 
 rbac:
-  clusterWide: true  # Creates ClusterRole instead of Role
+  clusterWide: false  # Creates Role instead of ClusterRole
 ```
 
 #### Connecting to External Server
@@ -327,7 +332,7 @@ server:
       url: "postgres://..."
 
 operator:
-  enabled: false  # No operator in central cluster
+  enabled: false  # Optional: disable if you don't need zopp in the central cluster
 
 # Install
 helm install zopp ./charts/zopp -f values-central.yaml
