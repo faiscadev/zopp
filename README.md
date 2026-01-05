@@ -95,25 +95,28 @@ See [charts/zopp/README.md](./charts/zopp/README.md) for complete Helm chart doc
 
 ### CLI Installation
 
-#### Docker (recommended)
+#### Using install script (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/faiscadev/zopp/main/install.sh | sh
+```
+
+#### Using Cargo
+
+```bash
+cargo install --git https://github.com/faiscadev/zopp --package zopp-cli
+```
+
+#### Download pre-built binaries
+
+Download the latest release from [GitHub Releases](https://github.com/faiscadev/zopp/releases).
+
+#### Using Docker
 
 ```bash
 # Pull latest stable release
 docker pull ghcr.io/faiscadev/zopp-cli:latest
 alias zopp='docker run --rm -v ~/.zopp:/home/zopp/.zopp ghcr.io/faiscadev/zopp-cli:latest'
-
-# Or use edge (latest from main branch)
-docker pull ghcr.io/faiscadev/zopp-cli:edge
-alias zopp='docker run --rm -v ~/.zopp:/home/zopp/.zopp ghcr.io/faiscadev/zopp-cli:edge'
-
-# Or build locally
-docker build -f cli.Dockerfile -t zopp-cli .
-```
-
-#### From source
-
-```bash
-cargo install --path apps/zopp-cli
 ```
 
 ---
