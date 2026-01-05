@@ -70,20 +70,23 @@ See [DEMO.md](./DEMO.md) for the complete workflow.
 Deploy zopp server and operator to your Kubernetes cluster:
 
 ```bash
-# Clone the repository
+# Install from OCI registry (recommended)
+helm install zopp oci://ghcr.io/faiscadev/charts/zopp --version 0.1.0
+
+# Or install from source
 git clone https://github.com/faiscadev/zopp.git
 cd zopp
-
-# Install with default settings (server + operator)
 helm install zopp ./charts/zopp
 
-# Or customize with your own values
-helm install zopp ./charts/zopp \
+# Customize with PostgreSQL backend
+helm install zopp oci://ghcr.io/faiscadev/charts/zopp \
+  --version 0.1.0 \
   --set server.database.type=postgres \
   --set server.database.postgres.url="postgres://user:pass@host/db"
 
 # Operator-only mode (connect to external server)
-helm install zopp ./charts/zopp \
+helm install zopp oci://ghcr.io/faiscadev/charts/zopp \
+  --version 0.1.0 \
   --set server.enabled=false \
   --set operator.server.address="zopp.example.com:50051"
 ```

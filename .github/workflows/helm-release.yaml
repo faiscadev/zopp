@@ -1,0 +1,86 @@
+name: Helm Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Remove 'v' prefix from tag (v0.1.0 -> 0.1.0)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
+
+      - name: Update Chart.yaml version
+        run: |
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.version }}/" charts/zopp/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.version }}\"/" charts/zopp/Chart.yaml
+
+      - name: Package Helm chart
+        run: |
+          helm package charts/zopp
+          echo "Packaged: $(ls zopp-*.tgz)"
+
+      - name: Push chart to OCI registry
+        run: |
+          helm push zopp-${{ steps.version.outputs.version }}.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+
+      - name: Upload chart to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} zopp-${{ steps.version.outputs.version }}.tgz
+
+      - name: Generate installation instructions
+        run: |
+          cat > INSTALL.md << 'EOF'
+          # Installing zopp Helm Chart
+
+          ## From OCI Registry (Recommended)
+
+          ```bash
+          helm install zopp oci://ghcr.io/${{ github.repository_owner }}/charts/zopp --version ${{ steps.version.outputs.version }}
+          ```
+
+          ## From Release Asset
+
+          ```bash
+          helm install zopp https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/zopp-${{ steps.version.outputs.version }}.tgz
+          ```
+
+          ## Customize Installation
+
+          ```bash
+          # Create values.yaml with your settings
+          helm install zopp oci://ghcr.io/${{ github.repository_owner }}/charts/zopp \
+            --version ${{ steps.version.outputs.version }} \
+            -f values.yaml
+          ```
+
+          See the [chart documentation](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/charts/zopp/README.md) for all configuration options.
+          EOF
+
+      - name: Upload installation instructions to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} INSTALL.md

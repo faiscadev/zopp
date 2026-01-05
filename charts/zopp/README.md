@@ -9,12 +9,30 @@ This Helm chart deploys zopp, a zero-knowledge secrets manager, to Kubernetes.
 
 ## Installation
 
+### From OCI Registry (Recommended)
+
+```bash
+# Install latest version
+helm install zopp oci://ghcr.io/faiscadev/charts/zopp --version 0.1.0
+
+# Or from GitHub release
+helm install zopp https://github.com/faiscadev/zopp/releases/download/v0.1.0/zopp-0.1.0.tgz
+```
+
+### From Source
+
+```bash
+git clone https://github.com/faiscadev/zopp.git
+cd zopp
+helm install zopp ./charts/zopp
+```
+
 ### Quick Start (Server + Operator)
 
 Deploy both server and operator in the same cluster:
 
 ```bash
-helm install zopp ./charts/zopp
+helm install zopp oci://ghcr.io/faiscadev/charts/zopp --version 0.1.0
 ```
 
 This will:
@@ -43,7 +61,8 @@ kubectl create secret generic zopp-operator-credentials \
 2. Install the chart with server disabled:
 
 ```bash
-helm install zopp ./charts/zopp \
+helm install zopp oci://ghcr.io/faiscadev/charts/zopp \
+  --version 0.1.0 \
   --set server.enabled=false \
   --set operator.server.address="zopp.example.com:50051" \
   --set operator.credentials.existingSecret="zopp-operator-credentials"
@@ -54,7 +73,8 @@ helm install zopp ./charts/zopp \
 Deploy just the server (if you want to run operators in other clusters):
 
 ```bash
-helm install zopp ./charts/zopp \
+helm install zopp oci://ghcr.io/faiscadev/charts/zopp \
+  --version 0.1.0 \
   --set operator.enabled=false \
   --set server.database.type=postgres \
   --set server.database.postgres.url="postgres://user:pass@rds.amazonaws.com/zopp"
@@ -320,7 +340,7 @@ helm install zopp ./charts/zopp -f values-edge.yaml
 ## Upgrading
 
 ```bash
-helm upgrade zopp ./charts/zopp
+helm upgrade zopp oci://ghcr.io/faiscadev/charts/zopp --version 0.1.1
 ```
 
 ## Uninstalling
