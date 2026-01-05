@@ -1,5 +1,5 @@
 use std::fs;
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -539,6 +539,17 @@ async fn run_demo_test(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Helper functions
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn find_available_port() -> Result<u16, Box<dyn std::error::Error>> {
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let port = listener.local_addr()?.port();
+    drop(listener); // Close the listener to free the port
+    Ok(port)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Test wrappers - Run the same E2E test against different storage backends
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -549,7 +560,8 @@ async fn demo_sqlite() -> Result<(), Box<dyn std::error::Error>> {
     let db_path = std::env::temp_dir().join(format!("zopp-test-sqlite-{}.db", test_id));
     let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
 
-    let result = run_demo_test(&db_url, "sqlite", 50051).await;
+    let port = find_available_port()?;
+    let result = run_demo_test(&db_url, "sqlite", port).await;
 
     // Cleanup: Remove the test database file
     let _ = std::fs::remove_file(&db_path);
@@ -583,7 +595,8 @@ async fn demo_postgres() -> Result<(), Box<dyn std::error::Error>> {
     drop(conn);
 
     let db_url = format!("postgres://postgres:postgres@localhost:5433/{}", db_name);
-    let result = run_demo_test(&db_url, "postgres", 50052).await;
+    let port = find_available_port()?;
+    let result = run_demo_test(&db_url, "postgres", port).await;
 
     // Cleanup: Drop the test database
     let mut conn = PgConnection::connect(admin_url).await?;

@@ -1,0 +1,32 @@
+[package]
+name = "e2e-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true, features = ["postgres", "runtime-tokio-rustls"] }
+
+# For Kubernetes tests
+kube = { workspace = true }
+k8s-openapi = { workspace = true }
+
+[[test]]
+name = "demo"
+path = "tests/demo.rs"
+
+[[test]]
+name = "cli_k8s_sync"
+path = "tests/cli_k8s_sync.rs"
+
+[[test]]
+name = "operator_sync"
+path = "tests/operator_sync.rs"
+
+[[test]]
+name = "self_signed_tls"
+path = "tests/self_signed_tls.rs"
+harness = false

@@ -1,13 +1,13 @@
 use std::fs;
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 use tokio::time::sleep;
 
 #[tokio::test]
-async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🧪 Starting Zopp K8s Sync E2E Test\n");
+async fn cli_k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
+    println!("🧪 Starting CLI K8s Sync E2E Test\n");
 
     // Check prerequisites
     check_prerequisites()?;
@@ -45,6 +45,11 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Using prebuilt binaries:");
     println!("  zopp-server: {}", zopp_server_bin.display());
     println!("  zopp:        {}\n", zopp_bin.display());
+
+    // Find available port
+    let server_port = find_available_port()?;
+    let server_url = format!("http://localhost:{}", server_port);
+    println!("✓ Allocated server port: {}\n", server_port);
 
     // Setup test directories
     let test_dir = PathBuf::from("/tmp/zopp-e2e-test-k8s");
@@ -89,18 +94,20 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
     // Step 1: Start zopp server
     println!("📡 Step 1: Starting zopp server...");
     let db_path_str = db_path.to_str().unwrap();
+    let server_addr = format!("0.0.0.0:{}", server_port);
 
     let mut server = Command::new(&zopp_server_bin)
-        .args(["--db", db_path_str, "serve"])
+        .args(["--db", db_path_str, "serve", "--addr", &server_addr])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()?;
 
     // Wait for server to be ready
     let mut ready = false;
+    let server_connect_addr = format!("127.0.0.1:{}", server_port);
     for i in 1..=30 {
         sleep(Duration::from_millis(200)).await;
-        if TcpStream::connect("127.0.0.1:50051").is_ok() {
+        if TcpStream::connect(&server_connect_addr).is_ok() {
             ready = true;
             println!("✓ Server started and ready (PID: {})\n", server.id());
             break;
@@ -147,6 +154,8 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .args([
+            "--server",
+            &server_url,
             "join",
             &alice_server_invite,
             "alice@example.com",
@@ -168,7 +177,7 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
     println!("🏢 Step 4: Alice creates workspace 'acme'...");
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
-        .args(["workspace", "create", "acme"])
+        .args(["--server", &server_url, "workspace", "create", "acme"])
         .output()?;
 
     if !output.status.success() {
@@ -184,7 +193,15 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
     println!("📁 Step 5: Alice creates project 'api'...");
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
-        .args(["project", "create", "api", "-w", "acme"])
+        .args([
+            "--server",
+            &server_url,
+            "project",
+            "create",
+            "api",
+            "-w",
+            "acme",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -201,6 +218,8 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .args([
+            "--server",
+            &server_url,
             "environment",
             "create",
             "development",
@@ -241,7 +260,7 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
         let output = Command::new(&zopp_bin)
             .env("HOME", &alice_home)
             .current_dir(&test_dir)
-            .args(["secret", "set", key, value])
+            .args(["--server", &server_url, "secret", "set", key, value])
             .output()?;
 
         if !output.status.success() {
@@ -267,6 +286,8 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
         .env("KUBECONFIG", &kubeconfig) // For k8s config
         .current_dir(&test_dir)
         .args([
+            "--server",
+            &server_url,
             "sync",
             "k8s",
             "--namespace",
@@ -297,6 +318,8 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
         .args([
+            "--server",
+            &server_url,
             "secret",
             "set",
             "DATABASE_URL",
@@ -318,6 +341,8 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
         .env("KUBECONFIG", &kubeconfig)
         .current_dir(&test_dir)
         .args([
+            "--server",
+            &server_url,
             "sync",
             "k8s",
             "--namespace",
@@ -351,7 +376,14 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
-        .args(["secret", "set", "API_KEY", "sk-new-key-456"])
+        .args([
+            "--server",
+            &server_url,
+            "secret",
+            "set",
+            "API_KEY",
+            "sk-new-key-456",
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -369,6 +401,8 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
         .env("KUBECONFIG", &kubeconfig)
         .current_dir(&test_dir)
         .args([
+            "--server",
+            &server_url,
             "sync",
             "k8s",
             "--namespace",
@@ -411,6 +445,8 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
         .env("KUBECONFIG", &kubeconfig)
         .current_dir(&test_dir)
         .args([
+            "--server",
+            &server_url,
             "diff",
             "k8s",
             "--namespace",
@@ -466,6 +502,8 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
         .env("KUBECONFIG", &kubeconfig)
         .current_dir(&test_dir)
         .args([
+            "--server",
+            &server_url,
             "sync",
             "k8s",
             "--namespace",
@@ -489,6 +527,8 @@ async fn k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
         .env("KUBECONFIG", &kubeconfig)
         .current_dir(&test_dir)
         .args([
+            "--server",
+            &server_url,
             "sync",
             "k8s",
             "--namespace",
@@ -629,6 +669,13 @@ fn cleanup(
     cleanup_kind(cluster_name)?;
 
     Ok(())
+}
+
+fn find_available_port() -> Result<u16, Box<dyn std::error::Error>> {
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let port = listener.local_addr()?.port();
+    drop(listener); // Close the listener to free the port
+    Ok(port)
 }
 
 fn cleanup_kind(cluster_name: &str) -> Result<(), Box<dyn std::error::Error>> {
