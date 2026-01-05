@@ -54,7 +54,7 @@ To create a new release (e.g., v0.1.1):
 
 1. **Bump versions** (use `patch`, `minor`, or `major`):
    ```bash
-   cargo workspaces version --no-git-commit --no-git-tag patch
+   cargo workspaces version --no-git-commit -y patch
    ```
 
 2. **Update Helm chart version**:
