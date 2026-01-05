@@ -1,8 +1,10 @@
 name: Helm Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
+  pull_request:
 
 permissions:
   contents: write
@@ -14,29 +16,57 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Wait for GitHub Release to be created
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for release ${{ github.ref_name }} to be created by CLI release workflow..."
+          for i in {1..30}; do
+            if gh release view ${{ github.ref_name }} &>/dev/null; then
+              echo "Release found!"
+              break
+            fi
+            echo "Attempt $i/30: Release not found yet, waiting 10s..."
+            sleep 10
+          done
+          if ! gh release view ${{ github.ref_name }} &>/dev/null; then
+            echo "Error: Release ${{ github.ref_name }} not found after 5 minutes"
+            exit 1
+          fi
+
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
           version: 'latest'
 
       - name: Log in to GitHub Container Registry
+        if: startsWith(github.ref, 'refs/tags/')
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Extract version from tag
         id: version
         run: |
-          # Extract version from tag (requires v prefix, e.g., v1.0.0)
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-            echo "Error: Tag must start with 'v' and follow semver format (e.g., v1.0.0)"
-            echo "Got: $TAG_NAME"
-            exit 1
+          if [[ "${{ github.ref }}" =~ ^refs/tags/ ]]; then
+            # Extract version from tag (requires v prefix, e.g., v1.0.0)
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+              echo "Error: Tag must start with 'v' and follow semver format (e.g., v1.0.0)"
+              echo "Got: $TAG_NAME"
+              exit 1
+            fi
+            VERSION=${TAG_NAME#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Releasing version: $VERSION"
+          else
+            # Use chart version from Chart.yaml for dry-run on PRs
+            VERSION=$(grep '^version:' charts/zopp/Chart.yaml | awk '{print $2}')
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Dry-run with Chart.yaml version: $VERSION"
           fi
-          VERSION=${TAG_NAME#v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Releasing version: $VERSION"
 
       - name: Update Chart.yaml version
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           sed -i "s/^version:.*/version: ${{ steps.version.outputs.version }}/" charts/zopp/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.version }}\"/" charts/zopp/Chart.yaml
@@ -49,16 +79,19 @@ jobs:
           echo "Packaged: $(ls zopp-*.tgz)"
 
       - name: Push chart to OCI registry
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           helm push zopp-${{ steps.version.outputs.version }}.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
 
       - name: Upload chart to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.ref_name }} zopp-${{ steps.version.outputs.version }}.tgz --clobber
 
       - name: Generate installation instructions
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           cat > INSTALL.md << 'EOF'
           # Installing zopp Helm Chart
@@ -88,6 +121,7 @@ jobs:
           EOF
 
       - name: Upload installation instructions to release
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
