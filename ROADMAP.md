@@ -1,65 +1,98 @@
 # Roadmap
 
-This document outlines the path to production readiness and beyond for zopp.
+## Features
 
-## Tier 0 - Deploy Blockers
+Core functionality needed for production use:
 
-Cannot deploy to production without these:
+- [ ] **RBAC**
+  - Roles: admin, write, read-only
+  - Permissions at workspace/project/environment level (not per-secret)
+  - Principals (not users) have permissions
+  - Privilege escalation prevention: can only create principals with subset of your permissions
+  - Example: read-only principal on prod can't create write principals for prod
 
-- [x] **TLS/gRPC encryption** - Add mTLS support for server-client communication
-- [x] **Docker images** - Create Dockerfiles for server and operator
-- [ ] **Helm chart** - Package server + operator for easy K8s deployment
-- [x] **Health/readiness probes** - Add HTTP endpoints for K8s liveness/readiness
-- [x] **Graceful shutdown** - Handle SIGTERM for zero-downtime rolling updates
+- [ ] **Audit logging**
+  - Track who (principal) accessed/modified which secrets when
+  - Immutable audit trail
+  - Queryable for compliance
 
-## Tier 1 - Security Essentials
+- [ ] **Secret versioning/rollback**
+  - Keep history of secret changes
+  - Ability to rollback to previous version
+  - Track who changed what when
 
-Core security features for production use:
+- [ ] **Migration tooling**
+  - Import from .env files
+  - Import from 1Password
+  - Import from AWS Secrets Manager
+  - Import from HashiCorp Vault
 
-- [ ] **Structured logging (JSON)** - Replace println! with structured logs for aggregation
-- [ ] **Metrics (Prometheus)** - Expose RPC latency, error rates, connection counts
-- [ ] **Audit logging** - Track who accessed which secrets when
-- [ ] **Fine-grained RBAC** - Read-only vs read-write principals
-- [ ] **Secret versioning/history** - Ability to rollback secret changes
+## Documentation
 
-## Tier 2 - Operational Must-Haves
+Guides needed for teams to adopt:
 
-Required for running in production:
+- [ ] **Production deployment guide**
+  - K8s + PostgreSQL setup
+  - RDS configuration
+  - TLS/mTLS configuration
+  - Resource requirements
 
-- [ ] **Backup/restore documentation** - Document RDS backup strategy and restore procedures
-- [ ] **Production deployment guide** - Step-by-step guide for K8s + RDS deployment
-- [ ] **Resource limits/sizing** - Document CPU/memory requirements for server and operator
-- [ ] **Secret expiration/rotation** - TTL and auto-rotation support
-- [ ] **Config management pattern** - Use K8s Secrets for DATABASE_URL and sensitive config
+- [ ] **Migration guide**
+  - How to migrate from 1Password, AWS SM, etc.
+  - Step-by-step onboarding for existing teams
+  - Common gotchas
 
-## Tier 3 - Enterprise Features
+- [ ] **Security architecture/threat model**
+  - Zero-knowledge architecture explanation
+  - What the server can/cannot see
+  - Attack vectors and mitigations
+  - Key management best practices
 
-Features needed for enterprise adoption:
+## Observability
 
-- [ ] **API tokens** - Simpler authentication for scripts and CI/CD (vs Ed25519 keypairs)
-- [ ] **Terraform provider** - Manage zopp resources via Infrastructure-as-Code
-- [ ] **Approval workflows** - Multi-person approval for production secret changes
-- [ ] **Distributed tracing** - OpenTelemetry integration for debugging
-- [ ] **Bulk operations** - Copy all secrets between environments
+Operational visibility for production:
 
-## Tier 4 - Nice-to-Haves
+- [ ] **Structured logging (JSON)**
+  - Replace println! with structured logs
+  - Include request IDs, principal IDs, timestamps
+  - Ready for aggregation (Datadog, Splunk, etc.)
 
-Quality-of-life improvements:
+- [ ] **Metrics (Prometheus)**
+  - RPC latency histograms
+  - Error rates by RPC method
+  - Active connections
+  - Database query performance
+  - Cache hit rates
 
-- [ ] **Import from other tools** - Migration scripts for 1Password, AWS Secrets Manager, etc.
-- [ ] **Secret diff** - Compare secrets across environments
-- [ ] **Webhooks** - Notify external systems on secret changes
-- [ ] **Usage analytics** - Find orphaned or unused secrets
-- [ ] **Shell completion** - Bash/zsh autocomplete for CLI
+## Developer Experience
 
-## Tier 5 - Future/Optional
+Making zopp easy to use:
 
-Advanced features for specific use cases:
+- [ ] **Better error messages**
+  - Clear actionable errors (not just "failed to decrypt")
+  - Suggestions for common mistakes
+  - Better CLI help text
 
-- [ ] **Web UI** - Optional web interface (CLI-first is core)
-- [ ] **GitOps support** - Declarative secret definitions in Git
-- [ ] **Multi-region deployment** - Active-active across regions
-- [ ] **Compliance reports** - SOC2/ISO27001 audit exports
+- [ ] **Integration examples**
+  - GitHub Actions workflow
+  - GitLab CI example
+  - Docker Compose setup
+  - Local development patterns
+
+## Trust
+
+Building confidence for security/leadership approval:
+
+- [ ] **Security documentation**
+  - Threat model document
+  - Security best practices
+  - Incident response procedures
+  - Responsible disclosure policy
+
+- [ ] **Dependency audit**
+  - Review all third-party crates
+  - Document critical dependencies
+  - Supply chain security posture
 
 ## Contributing
 
