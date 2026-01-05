@@ -1,7 +1,11 @@
 [package]
 name = "zopp-operator"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Kubernetes operator for zopp secrets manager"
 
 [[bin]]
 name = "zopp-operator"
@@ -19,10 +23,10 @@ serde_json = { workspace = true }
 tonic = { workspace = true }
 tonic-health = { workspace = true }
 prost = { workspace = true }
-zopp-proto = { path = "../../crates/zopp-proto" }
-zopp-crypto = { path = "../../crates/zopp-crypto" }
-zopp-secrets = { path = "../../crates/zopp-secrets" }
-zopp-config = { path = "../../crates/zopp-config" }
+zopp-proto = { path = "../../crates/zopp-proto", version = "0.1.0" }
+zopp-crypto = { path = "../../crates/zopp-crypto", version = "0.1.0" }
+zopp-secrets = { path = "../../crates/zopp-secrets", version = "0.1.0" }
+zopp-config = { path = "../../crates/zopp-config", version = "0.1.0" }
 chrono = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 ed25519-dalek = { workspace = true }
@@ -34,5 +38,5 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [dev-dependencies]
-zopp-config = { path = "../../crates/zopp-config" }
+zopp-config = { path = "../../crates/zopp-config", version = "0.1.0" }
 reqwest = { workspace = true }

@@ -1,7 +1,11 @@
 [package]
 name = "zopp-server"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "gRPC server for zopp secrets manager"
 
 [dependencies]
 async-trait = { workspace = true }
@@ -12,13 +16,13 @@ tokio = { workspace = true }
 tokio-stream = { workspace = true }
 prost = { workspace = true }
 futures = { workspace = true }
-zopp-proto = { path = "../../crates/zopp-proto" }
-zopp-storage = { path = "../../crates/zopp-storage" }
-zopp-store-postgres = { path = "../../crates/zopp-store-postgres" }
-zopp-store-sqlite = { path = "../../crates/zopp-store-sqlite" }
-zopp-crypto = { path = "../../crates/zopp-crypto" }
-zopp-events = { path = "../../crates/zopp-events" }
-zopp-events-memory = { path = "../../crates/zopp-events-memory" }
+zopp-proto = { path = "../../crates/zopp-proto", version = "0.1.0" }
+zopp-storage = { path = "../../crates/zopp-storage", version = "0.1.0" }
+zopp-store-postgres = { path = "../../crates/zopp-store-postgres", version = "0.1.0" }
+zopp-store-sqlite = { path = "../../crates/zopp-store-sqlite", version = "0.1.0" }
+zopp-crypto = { path = "../../crates/zopp-crypto", version = "0.1.0" }
+zopp-events = { path = "../../crates/zopp-events", version = "0.1.0" }
+zopp-events-memory = { path = "../../crates/zopp-events-memory", version = "0.1.0" }
 uuid = { workspace = true }
 thiserror = { workspace = true }
 rand_core = { workspace = true }

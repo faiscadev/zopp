@@ -1,7 +1,11 @@
 [package]
 name = "zopp-store-postgres"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "PostgreSQL storage backend for zopp secrets manager"
 
 [dependencies]
 async-trait = { workspace = true }
@@ -12,7 +16,7 @@ sqlx = { workspace = true, features = ["postgres", "runtime-tokio-native-tls", "
 thiserror = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }
-zopp-storage = { path = "../../crates/zopp-storage" }
+zopp-storage = { path = "../../crates/zopp-storage", version = "0.1.0" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "time"] }

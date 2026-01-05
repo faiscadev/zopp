@@ -1,10 +1,14 @@
 [package]
 name = "zopp-secrets"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Secret encryption and decryption for zopp secrets manager"
 
 [dependencies]
-zopp-crypto = { path = "../zopp-crypto" }
-zopp-proto = { path = "../zopp-proto" }
+zopp-crypto = { path = "../zopp-crypto", version = "0.1.0" }
+zopp-proto = { path = "../zopp-proto", version = "0.1.0" }
 thiserror.workspace = true
