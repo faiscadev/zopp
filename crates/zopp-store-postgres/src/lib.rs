@@ -1149,7 +1149,7 @@ impl Store for PostgresStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::from_str(&row.role)
+        Role::parse(&row.role)
             .ok_or_else(|| StoreError::Backend(format!("invalid role in database: {}", row.role)))
     }
 
@@ -1168,7 +1168,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
 
@@ -1197,7 +1197,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
 
@@ -1269,7 +1269,7 @@ impl Store for PostgresStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::from_str(&row.role)
+        Role::parse(&row.role)
             .ok_or_else(|| StoreError::Backend(format!("invalid role in database: {}", row.role)))
     }
 
@@ -1288,7 +1288,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
 
@@ -1317,7 +1317,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
 
@@ -1389,7 +1389,7 @@ impl Store for PostgresStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::from_str(&row.role)
+        Role::parse(&row.role)
             .ok_or_else(|| StoreError::Backend(format!("invalid role in database: {}", row.role)))
     }
 
@@ -1408,7 +1408,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
 
@@ -1437,7 +1437,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
 
@@ -1741,7 +1741,7 @@ impl Store for PostgresStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::from_str(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_group_workspace_permissions(
@@ -1758,7 +1758,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(zopp_storage::GroupWorkspacePermission {
@@ -1829,7 +1829,7 @@ impl Store for PostgresStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::from_str(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_group_project_permissions(
@@ -1846,7 +1846,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(zopp_storage::GroupProjectPermission {
@@ -1917,7 +1917,7 @@ impl Store for PostgresStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::from_str(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_group_environment_permissions(
@@ -1934,7 +1934,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(zopp_storage::GroupEnvironmentPermission {
@@ -2007,7 +2007,7 @@ impl Store for PostgresStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::from_str(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_user_workspace_permissions(
@@ -2024,7 +2024,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(UserWorkspacePermission {
@@ -2095,7 +2095,7 @@ impl Store for PostgresStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::from_str(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_user_project_permissions(
@@ -2112,7 +2112,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(UserProjectPermission {
@@ -2183,7 +2183,7 @@ impl Store for PostgresStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::from_str(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_user_environment_permissions(
@@ -2200,7 +2200,7 @@ impl Store for PostgresStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::from_str(&row.role).ok_or_else(|| {
+            let role = Role::parse(&row.role).ok_or_else(|| {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(UserEnvironmentPermission {

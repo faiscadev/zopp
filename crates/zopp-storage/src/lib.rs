@@ -65,7 +65,7 @@ impl Role {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "admin" => Some(Role::Admin),
             "write" => Some(Role::Write),
