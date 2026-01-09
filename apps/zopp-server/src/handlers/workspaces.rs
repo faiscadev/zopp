@@ -3,7 +3,9 @@
 use rand_core::RngCore;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
-use zopp_proto::{CreateWorkspaceRequest, Empty, GetWorkspaceKeysRequest, WorkspaceKeys, WorkspaceList};
+use zopp_proto::{
+    CreateWorkspaceRequest, Empty, GetWorkspaceKeysRequest, WorkspaceKeys, WorkspaceList,
+};
 use zopp_storage::{AddWorkspacePrincipalParams, CreateWorkspaceParams, Store, WorkspaceId};
 
 use crate::server::{extract_signature, ZoppServer};
@@ -28,8 +30,7 @@ pub async fn create_workspace(
 
     // Parse client-provided workspace ID
     let workspace_id = WorkspaceId(
-        Uuid::parse_str(&req.id)
-            .map_err(|_| Status::invalid_argument("Invalid workspace ID"))?,
+        Uuid::parse_str(&req.id).map_err(|_| Status::invalid_argument("Invalid workspace ID"))?,
     );
 
     server
@@ -54,6 +55,12 @@ pub async fn create_workspace(
 
     // Store wrapped KEK for the workspace creator
     if !req.ephemeral_pub.is_empty() && !req.kek_wrapped.is_empty() {
+        // Validate that kek_nonce is also provided when kek_wrapped is set
+        if req.kek_nonce.is_empty() {
+            return Err(Status::invalid_argument(
+                "kek_nonce is required when kek_wrapped is provided",
+            ));
+        }
         server
             .store
             .add_workspace_principal(&AddWorkspacePrincipalParams {

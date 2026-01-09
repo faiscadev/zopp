@@ -48,6 +48,22 @@ pub async fn set_workspace_permission(
         _ => return Err(Status::invalid_argument("Invalid role")),
     };
 
+    // Delegated authority: requester can only grant permissions <= their own effective role
+    let requester_role = server
+        .get_effective_workspace_role(&principal_id, &workspace.id)
+        .await?
+        .ok_or_else(|| {
+            Status::permission_denied("No permission to set permissions on this workspace")
+        })?;
+
+    // Check if requester's role is sufficient to grant the requested role
+    if !requester_role.includes(&role) {
+        return Err(Status::permission_denied(format!(
+            "Cannot grant {:?} permission (you only have {:?} access)",
+            role, requester_role
+        )));
+    }
+
     server
         .store
         .set_workspace_permission(&workspace.id, &target_principal_id, role)
@@ -193,6 +209,32 @@ pub async fn remove_workspace_permission(
     let target_principal_id = Uuid::parse_str(&req.principal_id)
         .map(PrincipalId)
         .map_err(|_| Status::invalid_argument("Invalid principal ID"))?;
+
+    // Get the target's current role
+    let target_role = server
+        .store
+        .get_workspace_permission(&workspace.id, &target_principal_id)
+        .await
+        .map_err(|e| match e {
+            zopp_storage::StoreError::NotFound => Status::not_found("Permission not found"),
+            _ => Status::internal(format!("Failed to get permission: {}", e)),
+        })?;
+
+    // Delegated authority: requester can only remove permissions <= their own effective role
+    let requester_role = server
+        .get_effective_workspace_role(&principal_id, &workspace.id)
+        .await?
+        .ok_or_else(|| {
+            Status::permission_denied("No permission to remove permissions on this workspace")
+        })?;
+
+    // Check if requester's role is sufficient to remove the target's role
+    if !requester_role.includes(&target_role) {
+        return Err(Status::permission_denied(format!(
+            "Cannot remove {:?} permission (you only have {:?} access)",
+            target_role, requester_role
+        )));
+    }
 
     server
         .store

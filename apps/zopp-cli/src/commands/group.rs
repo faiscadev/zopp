@@ -433,10 +433,7 @@ pub async fn cmd_group_list_permissions(
         .into_inner();
 
     if response.permissions.is_empty() {
-        println!(
-            "No group permissions found on workspace {}",
-            workspace_name
-        );
+        println!("No group permissions found on workspace {}", workspace_name);
         return Ok(());
     }
 

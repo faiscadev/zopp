@@ -2,8 +2,8 @@
 
 use tonic::{Request, Response, Status};
 use zopp_proto::{
-    CreateProjectRequest, DeleteProjectRequest, Empty, GetProjectRequest,
-    ListProjectsRequest, Project, ProjectList,
+    CreateProjectRequest, DeleteProjectRequest, Empty, GetProjectRequest, ListProjectsRequest,
+    Project, ProjectList,
 };
 use zopp_storage::Store;
 
@@ -95,6 +95,11 @@ pub async fn list_projects(
             _ => Status::internal(format!("Failed to get workspace: {}", e)),
         })?;
 
+    // Check READ permission for listing projects
+    server
+        .check_workspace_permission(&principal_id, &workspace.id, zopp_storage::Role::Read)
+        .await?;
+
     let projects = server
         .store
         .list_projects(&workspace.id)
@@ -148,6 +153,16 @@ pub async fn get_project(
             zopp_storage::StoreError::NotFound => Status::not_found("Project not found"),
             _ => Status::internal(format!("Failed to get project: {}", e)),
         })?;
+
+    // Check READ permission for getting project
+    server
+        .check_project_permission(
+            &principal_id,
+            &workspace.id,
+            &project.id,
+            zopp_storage::Role::Read,
+        )
+        .await?;
 
     Ok(Response::new(Project {
         id: project.id.0.to_string(),

@@ -4,7 +4,7 @@ use ed25519_dalek::SigningKey;
 use tonic::metadata::MetadataValue;
 use zopp_proto::{
     ListWorkspaceServicePrincipalsRequest, RegisterRequest, RemovePrincipalFromWorkspaceRequest,
-    RenamePrincipalRequest, Role, RevokeAllPrincipalPermissionsRequest,
+    RenamePrincipalRequest, RevokeAllPrincipalPermissionsRequest, Role,
 };
 
 pub async fn cmd_principal_list() -> Result<(), Box<dyn std::error::Error>> {
@@ -88,8 +88,14 @@ pub async fn cmd_principal_create(
     save_config(&config)?;
 
     if is_service {
-        println!("✓ Service principal '{}' created (ID: {})", name, principal_id);
-        println!("  Use this ID to grant permissions: zopp permission project-set --principal {}", principal_id);
+        println!(
+            "✓ Service principal '{}' created (ID: {})",
+            name, principal_id
+        );
+        println!(
+            "  Use this ID to grant permissions: zopp permission project-set --principal {}",
+            principal_id
+        );
     } else {
         println!("✓ Principal '{}' created (ID: {})", name, principal_id);
     }

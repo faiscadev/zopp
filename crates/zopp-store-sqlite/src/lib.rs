@@ -2178,12 +2178,14 @@ impl Store for SqliteStore {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(zopp_storage::GroupWorkspacePermission {
-                workspace_id: WorkspaceId(Uuid::parse_str(&row.workspace_id).map_err(|e| {
-                    StoreError::Backend(format!("invalid workspace_id: {}", e))
-                })?),
-                group_id: zopp_storage::GroupId(Uuid::parse_str(&row.group_id).map_err(|e| {
-                    StoreError::Backend(format!("invalid group_id: {}", e))
-                })?),
+                workspace_id: WorkspaceId(
+                    Uuid::parse_str(&row.workspace_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid workspace_id: {}", e)))?,
+                ),
+                group_id: zopp_storage::GroupId(
+                    Uuid::parse_str(&row.group_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid group_id: {}", e)))?,
+                ),
                 role,
                 created_at: DateTime::parse_from_rfc3339(&row.created_at)
                     .map_err(|e| StoreError::Backend(format!("invalid created_at: {}", e)))?
@@ -2282,12 +2284,14 @@ impl Store for SqliteStore {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(zopp_storage::GroupProjectPermission {
-                project_id: zopp_storage::ProjectId(Uuid::parse_str(&row.project_id).map_err(
-                    |e| StoreError::Backend(format!("invalid project_id: {}", e)),
-                )?),
-                group_id: zopp_storage::GroupId(Uuid::parse_str(&row.group_id).map_err(|e| {
-                    StoreError::Backend(format!("invalid group_id: {}", e))
-                })?),
+                project_id: zopp_storage::ProjectId(
+                    Uuid::parse_str(&row.project_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid project_id: {}", e)))?,
+                ),
+                group_id: zopp_storage::GroupId(
+                    Uuid::parse_str(&row.group_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid group_id: {}", e)))?,
+                ),
                 role,
                 created_at: DateTime::parse_from_rfc3339(&row.created_at)
                     .map_err(|e| StoreError::Backend(format!("invalid created_at: {}", e)))?
@@ -2386,12 +2390,15 @@ impl Store for SqliteStore {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(zopp_storage::GroupEnvironmentPermission {
-                environment_id: EnvironmentId(Uuid::parse_str(&row.environment_id).map_err(
-                    |e| StoreError::Backend(format!("invalid environment_id: {}", e)),
-                )?),
-                group_id: zopp_storage::GroupId(Uuid::parse_str(&row.group_id).map_err(|e| {
-                    StoreError::Backend(format!("invalid group_id: {}", e))
-                })?),
+                environment_id: EnvironmentId(
+                    Uuid::parse_str(&row.environment_id).map_err(|e| {
+                        StoreError::Backend(format!("invalid environment_id: {}", e))
+                    })?,
+                ),
+                group_id: zopp_storage::GroupId(
+                    Uuid::parse_str(&row.group_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid group_id: {}", e)))?,
+                ),
                 role,
                 created_at: DateTime::parse_from_rfc3339(&row.created_at)
                     .map_err(|e| StoreError::Backend(format!("invalid created_at: {}", e)))?
@@ -2492,12 +2499,14 @@ impl Store for SqliteStore {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(UserWorkspacePermission {
-                workspace_id: WorkspaceId(Uuid::parse_str(&row.workspace_id).map_err(|e| {
-                    StoreError::Backend(format!("invalid workspace_id: {}", e))
-                })?),
-                user_id: UserId(Uuid::parse_str(&row.user_id).map_err(|e| {
-                    StoreError::Backend(format!("invalid user_id: {}", e))
-                })?),
+                workspace_id: WorkspaceId(
+                    Uuid::parse_str(&row.workspace_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid workspace_id: {}", e)))?,
+                ),
+                user_id: UserId(
+                    Uuid::parse_str(&row.user_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid user_id: {}", e)))?,
+                ),
                 role,
                 created_at: DateTime::parse_from_rfc3339(&row.created_at)
                     .map_err(|e| StoreError::Backend(format!("invalid created_at: {}", e)))?
@@ -2596,12 +2605,14 @@ impl Store for SqliteStore {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(UserProjectPermission {
-                project_id: zopp_storage::ProjectId(Uuid::parse_str(&row.project_id).map_err(
-                    |e| StoreError::Backend(format!("invalid project_id: {}", e)),
-                )?),
-                user_id: UserId(Uuid::parse_str(&row.user_id).map_err(|e| {
-                    StoreError::Backend(format!("invalid user_id: {}", e))
-                })?),
+                project_id: zopp_storage::ProjectId(
+                    Uuid::parse_str(&row.project_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid project_id: {}", e)))?,
+                ),
+                user_id: UserId(
+                    Uuid::parse_str(&row.user_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid user_id: {}", e)))?,
+                ),
                 role,
                 created_at: DateTime::parse_from_rfc3339(&row.created_at)
                     .map_err(|e| StoreError::Backend(format!("invalid created_at: {}", e)))?
@@ -2700,12 +2711,15 @@ impl Store for SqliteStore {
                 StoreError::Backend(format!("invalid role in database: {}", row.role))
             })?;
             perms.push(UserEnvironmentPermission {
-                environment_id: EnvironmentId(Uuid::parse_str(&row.environment_id).map_err(
-                    |e| StoreError::Backend(format!("invalid environment_id: {}", e)),
-                )?),
-                user_id: UserId(Uuid::parse_str(&row.user_id).map_err(|e| {
-                    StoreError::Backend(format!("invalid user_id: {}", e))
-                })?),
+                environment_id: EnvironmentId(
+                    Uuid::parse_str(&row.environment_id).map_err(|e| {
+                        StoreError::Backend(format!("invalid environment_id: {}", e))
+                    })?,
+                ),
+                user_id: UserId(
+                    Uuid::parse_str(&row.user_id)
+                        .map_err(|e| StoreError::Backend(format!("invalid user_id: {}", e)))?,
+                ),
                 role,
                 created_at: DateTime::parse_from_rfc3339(&row.created_at)
                     .map_err(|e| StoreError::Backend(format!("invalid created_at: {}", e)))?

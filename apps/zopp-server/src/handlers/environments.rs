@@ -2,8 +2,8 @@
 
 use tonic::{Request, Response, Status};
 use zopp_proto::{
-    CreateEnvironmentRequest, DeleteEnvironmentRequest, Empty, Environment,
-    EnvironmentList, GetEnvironmentRequest, ListEnvironmentsRequest,
+    CreateEnvironmentRequest, DeleteEnvironmentRequest, Empty, Environment, EnvironmentList,
+    GetEnvironmentRequest, ListEnvironmentsRequest,
 };
 use zopp_storage::Store;
 
@@ -17,9 +17,9 @@ pub async fn create_environment(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot create environments")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot create environments"))?;
 
     let req = request.into_inner();
 
@@ -124,6 +124,16 @@ pub async fn list_environments(
             _ => Status::internal(format!("Failed to get project: {}", e)),
         })?;
 
+    // Check READ permission for listing environments
+    server
+        .check_project_permission(
+            &principal_id,
+            &workspace.id,
+            &project.id,
+            zopp_storage::Role::Read,
+        )
+        .await?;
+
     let environments = server
         .store
         .list_environments(&project.id)
@@ -190,6 +200,17 @@ pub async fn get_environment(
             _ => Status::internal(format!("Failed to get environment: {}", e)),
         })?;
 
+    // Check READ permission for getting environment
+    server
+        .check_environment_permission(
+            &principal_id,
+            &workspace.id,
+            &project.id,
+            &env.id,
+            zopp_storage::Role::Read,
+        )
+        .await?;
+
     Ok(Response::new(Environment {
         id: env.id.0.to_string(),
         project_id: env.project_id.0.to_string(),
@@ -209,9 +230,9 @@ pub async fn delete_environment(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot delete environments")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot delete environments"))?;
 
     let req = request.into_inner();
 

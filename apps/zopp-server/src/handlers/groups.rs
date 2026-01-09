@@ -192,6 +192,11 @@ pub async fn update_group(
             _ => Status::internal(format!("Failed to get workspace: {}", e)),
         })?;
 
+    // Check ADMIN permission for updating groups
+    server
+        .check_workspace_permission(&principal_id, &workspace.id, zopp_storage::Role::Admin)
+        .await?;
+
     let group = server
         .store
         .get_group_by_name(&workspace.id, &req.group_name)
@@ -354,9 +359,9 @@ pub async fn remove_group_member(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot remove group members")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot remove group members"))?;
 
     let req = request.into_inner();
 

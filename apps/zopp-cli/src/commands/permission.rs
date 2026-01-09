@@ -1,9 +1,10 @@
 use crate::grpc::{add_auth_metadata, setup_client};
 use zopp_proto::{
-    GetEffectivePermissionsRequest, GetUserWorkspacePermissionRequest, GetWorkspacePermissionRequest,
-    ListUserWorkspacePermissionsRequest, ListWorkspacePermissionsRequest,
-    RemoveUserWorkspacePermissionRequest, RemoveWorkspacePermissionRequest, Role,
-    SetUserWorkspacePermissionRequest, SetWorkspacePermissionRequest,
+    GetEffectivePermissionsRequest, GetUserWorkspacePermissionRequest,
+    GetWorkspacePermissionRequest, ListUserWorkspacePermissionsRequest,
+    ListWorkspacePermissionsRequest, RemoveUserWorkspacePermissionRequest,
+    RemoveWorkspacePermissionRequest, Role, SetUserWorkspacePermissionRequest,
+    SetWorkspacePermissionRequest,
 };
 
 pub async fn cmd_permission_set(
@@ -625,10 +626,7 @@ pub async fn cmd_principal_project_permission_list(
     });
     add_auth_metadata(&mut request, &auth_principal)?;
 
-    let response = client
-        .list_project_permissions(request)
-        .await?
-        .into_inner();
+    let response = client.list_project_permissions(request).await?.into_inner();
 
     if response.permissions.is_empty() {
         println!(
@@ -845,7 +843,10 @@ pub async fn cmd_permission_effective(
     });
     add_auth_metadata(&mut request, &auth_principal)?;
 
-    let response = client.get_effective_permissions(request).await?.into_inner();
+    let response = client
+        .get_effective_permissions(request)
+        .await?
+        .into_inner();
 
     let principal_type = if response.is_service_principal {
         "service"

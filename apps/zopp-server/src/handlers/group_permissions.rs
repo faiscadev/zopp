@@ -16,9 +16,9 @@ pub async fn set_group_workspace_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot set group permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot set group permissions"))?;
 
     let req = request.into_inner();
 
@@ -73,9 +73,9 @@ pub async fn get_group_workspace_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot get group permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot get group permissions"))?;
 
     let req = request.into_inner();
 
@@ -129,9 +129,9 @@ pub async fn list_group_workspace_permissions(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot list group permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot list group permissions"))?;
 
     let req = request.into_inner();
 
@@ -204,6 +204,11 @@ pub async fn remove_group_workspace_permission(
             _ => Status::internal(format!("Failed to get workspace: {}", e)),
         })?;
 
+    // Check ADMIN permission for removing group permissions
+    server
+        .check_workspace_permission(&principal_id, &workspace.id, zopp_storage::Role::Admin)
+        .await?;
+
     let group = server
         .store
         .get_group_by_name(&workspace.id, &req.group_name)
@@ -232,9 +237,9 @@ pub async fn set_group_project_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot set group permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot set group permissions"))?;
 
     let req = request.into_inner();
 
@@ -259,6 +264,11 @@ pub async fn set_group_project_permission(
             zopp_storage::StoreError::NotFound => Status::not_found("Project not found"),
             _ => Status::internal(format!("Failed to get project: {}", e)),
         })?;
+
+    // Check ADMIN permission for setting group permissions
+    server
+        .check_workspace_permission(&principal_id, &workspace.id, zopp_storage::Role::Admin)
+        .await?;
 
     let group = server
         .store
@@ -294,9 +304,9 @@ pub async fn get_group_project_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot get group permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot get group permissions"))?;
 
     let req = request.into_inner();
 
@@ -360,9 +370,9 @@ pub async fn list_group_project_permissions(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot list group permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot list group permissions"))?;
 
     let req = request.into_inner();
 
@@ -455,6 +465,11 @@ pub async fn remove_group_project_permission(
             _ => Status::internal(format!("Failed to get project: {}", e)),
         })?;
 
+    // Check ADMIN permission for removing group permissions
+    server
+        .check_workspace_permission(&principal_id, &workspace.id, zopp_storage::Role::Admin)
+        .await?;
+
     let group = server
         .store
         .get_group_by_name(&workspace.id, &req.group_name)
@@ -483,9 +498,9 @@ pub async fn set_group_environment_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot set group permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot set group permissions"))?;
 
     let req = request.into_inner();
 
@@ -521,6 +536,11 @@ pub async fn set_group_environment_permission(
             _ => Status::internal(format!("Failed to get environment: {}", e)),
         })?;
 
+    // Check ADMIN permission for setting group permissions
+    server
+        .check_workspace_permission(&principal_id, &workspace.id, zopp_storage::Role::Admin)
+        .await?;
+
     let group = server
         .store
         .get_group_by_name(&workspace.id, &req.group_name)
@@ -555,9 +575,9 @@ pub async fn get_group_environment_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot get group permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot get group permissions"))?;
 
     let req = request.into_inner();
 
@@ -631,9 +651,9 @@ pub async fn list_group_environment_permissions(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot list group permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot list group permissions"))?;
 
     let req = request.into_inner();
 
@@ -745,6 +765,11 @@ pub async fn remove_group_environment_permission(
             zopp_storage::StoreError::NotFound => Status::not_found("Environment not found"),
             _ => Status::internal(format!("Failed to get environment: {}", e)),
         })?;
+
+    // Check ADMIN permission for removing group permissions
+    server
+        .check_workspace_permission(&principal_id, &workspace.id, zopp_storage::Role::Admin)
+        .await?;
 
     let group = server
         .store

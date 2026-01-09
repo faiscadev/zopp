@@ -16,9 +16,9 @@ pub async fn set_user_workspace_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot set user permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot set user permissions"))?;
 
     let req = request.into_inner();
 
@@ -74,9 +74,9 @@ pub async fn get_user_workspace_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot get user permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot get user permissions"))?;
 
     let req = request.into_inner();
 
@@ -130,9 +130,9 @@ pub async fn list_user_workspace_permissions(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot list user permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot list user permissions"))?;
 
     let req = request.into_inner();
 
@@ -234,9 +234,9 @@ pub async fn set_user_project_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot set user permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot set user permissions"))?;
 
     let req = request.into_inner();
 
@@ -307,9 +307,9 @@ pub async fn get_user_project_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot get user permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot get user permissions"))?;
 
     let req = request.into_inner();
 
@@ -373,9 +373,9 @@ pub async fn list_user_project_permissions(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot list user permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot list user permissions"))?;
 
     let req = request.into_inner();
 
@@ -502,9 +502,9 @@ pub async fn set_user_environment_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot set user permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot set user permissions"))?;
 
     let req = request.into_inner();
 
@@ -586,9 +586,9 @@ pub async fn get_user_environment_permission(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot get user permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot get user permissions"))?;
 
     let req = request.into_inner();
 
@@ -662,9 +662,9 @@ pub async fn list_user_environment_permissions(
     let principal = server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
-    let user_id = principal.user_id.ok_or_else(|| {
-        Status::unauthenticated("Service accounts cannot list user permissions")
-    })?;
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::unauthenticated("Service accounts cannot list user permissions"))?;
 
     let req = request.into_inner();
 

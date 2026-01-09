@@ -190,9 +190,13 @@ impl Store for StoreBackend {
         principal_id: &PrincipalId,
     ) -> Result<(), StoreError> {
         match self {
-            StoreBackend::Sqlite(s) => s.remove_workspace_principal(workspace_id, principal_id).await,
+            StoreBackend::Sqlite(s) => {
+                s.remove_workspace_principal(workspace_id, principal_id)
+                    .await
+            }
             StoreBackend::Postgres(s) => {
-                s.remove_workspace_principal(workspace_id, principal_id).await
+                s.remove_workspace_principal(workspace_id, principal_id)
+                    .await
             }
         }
     }

@@ -3,11 +3,10 @@
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 use zopp_proto::{
-    Empty, GetPrincipalRequest, ListWorkspaceServicePrincipalsRequest,
-    PrincipalList, RemovePrincipalFromWorkspaceRequest, RenamePrincipalRequest,
-    RevokeAllPrincipalPermissionsRequest, RevokeAllPrincipalPermissionsResponse,
-    GetEffectivePermissionsRequest, EffectivePermissionsResponse,
-    ServicePrincipalList,
+    EffectivePermissionsResponse, Empty, GetEffectivePermissionsRequest, GetPrincipalRequest,
+    ListWorkspaceServicePrincipalsRequest, PrincipalList, RemovePrincipalFromWorkspaceRequest,
+    RenamePrincipalRequest, RevokeAllPrincipalPermissionsRequest,
+    RevokeAllPrincipalPermissionsResponse, ServicePrincipalList,
 };
 use zopp_storage::{PrincipalId, Store};
 
@@ -45,19 +44,37 @@ pub async fn rename_principal(
     server: &ZoppServer,
     request: Request<RenamePrincipalRequest>,
 ) -> Result<Response<Empty>, Status> {
-    let (principal_id, timestamp, signature) = extract_signature(&request)?;
-    let _principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
+    let (requester_principal_id, timestamp, signature) = extract_signature(&request)?;
+    let requester_principal = server
+        .verify_signature_and_get_principal(&requester_principal_id, timestamp, &signature)
         .await?;
     let req = request.into_inner();
 
-    let principal_id = Uuid::parse_str(&req.principal_id)
+    let target_principal_id = Uuid::parse_str(&req.principal_id)
         .map(PrincipalId)
         .map_err(|_| Status::invalid_argument("Invalid principal ID"))?;
 
+    // Get target principal to verify ownership
+    let target_principal = server
+        .store
+        .get_principal(&target_principal_id)
+        .await
+        .map_err(|e| match e {
+            zopp_storage::StoreError::NotFound => Status::not_found("Principal not found"),
+            _ => Status::internal(format!("Failed to get principal: {}", e)),
+        })?;
+
+    // Users can only rename their own principals
+    // Compare user_ids: requester must own the target principal
+    if requester_principal.user_id != target_principal.user_id {
+        return Err(Status::permission_denied(
+            "Can only rename your own principals",
+        ));
+    }
+
     server
         .store
-        .rename_principal(&principal_id, &req.new_name)
+        .rename_principal(&target_principal_id, &req.new_name)
         .await
         .map_err(|e| Status::internal(format!("Failed to rename principal: {}", e)))?;
 
@@ -196,9 +213,7 @@ pub async fn list_workspace_service_principals(
         });
     }
 
-    Ok(Response::new(ServicePrincipalList {
-        service_principals,
-    }))
+    Ok(Response::new(ServicePrincipalList { service_principals }))
 }
 
 pub async fn remove_principal_from_workspace(

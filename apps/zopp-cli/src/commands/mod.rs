@@ -15,13 +15,13 @@ pub use environment::{
     cmd_environment_create, cmd_environment_delete, cmd_environment_get, cmd_environment_list,
 };
 pub use group::{
-    cmd_group_add_member, cmd_group_create, cmd_group_delete,
-    cmd_group_get_environment_permission, cmd_group_get_permission,
-    cmd_group_get_project_permission, cmd_group_list, cmd_group_list_environment_permissions,
-    cmd_group_list_members, cmd_group_list_permissions, cmd_group_list_project_permissions,
-    cmd_group_remove_environment_permission, cmd_group_remove_member, cmd_group_remove_permission,
-    cmd_group_remove_project_permission, cmd_group_set_environment_permission,
-    cmd_group_set_permission, cmd_group_set_project_permission,
+    cmd_group_add_member, cmd_group_create, cmd_group_delete, cmd_group_get_environment_permission,
+    cmd_group_get_permission, cmd_group_get_project_permission, cmd_group_list,
+    cmd_group_list_environment_permissions, cmd_group_list_members, cmd_group_list_permissions,
+    cmd_group_list_project_permissions, cmd_group_remove_environment_permission,
+    cmd_group_remove_member, cmd_group_remove_permission, cmd_group_remove_project_permission,
+    cmd_group_set_environment_permission, cmd_group_set_permission,
+    cmd_group_set_project_permission,
 };
 pub use invite::{cmd_invite_create, cmd_invite_list, cmd_invite_revoke};
 pub use join::cmd_join;

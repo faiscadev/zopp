@@ -4,11 +4,11 @@ use chrono::Utc;
 use futures::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
+use zopp_events::{EventType, SecretChangeEvent};
 use zopp_proto::{
     DeleteSecretRequest, Empty, GetSecretRequest, ListSecretsRequest, Secret, SecretList,
     UpsertSecretRequest, WatchSecretsRequest, WatchSecretsResponse,
 };
-use zopp_events::{EventType, SecretChangeEvent};
 use zopp_storage::Store;
 
 use crate::server::{extract_signature, ZoppServer};
@@ -224,6 +224,8 @@ pub async fn list_secrets(
         .await
         .map_err(|e| Status::internal(format!("Failed to list secrets: {}", e)))?;
 
+    // TODO: This is an N+1 query pattern. Consider adding a batch method to the storage
+    // trait that fetches all secrets at once for better performance.
     // For each key, fetch the secret
     let mut secrets = Vec::new();
     for key in keys {
@@ -391,6 +393,9 @@ pub async fn watch_secrets(
         .map_err(|e| Status::internal(format!("Failed to subscribe to events: {}", e)))?;
 
     // Spawn task to forward events
+    // TODO: This stream doesn't re-validate permissions. If a user's permissions are
+    // revoked while watching, they will continue to receive events until they disconnect.
+    // Consider adding periodic permission re-validation or a mechanism to invalidate streams.
     tokio::spawn(async move {
         while let Some(event) = subscriber.next().await {
             let proto_event_type = match event.event_type {

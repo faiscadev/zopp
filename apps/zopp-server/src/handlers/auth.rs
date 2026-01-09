@@ -1,7 +1,9 @@
 //! Authentication handlers: join, register, login
 
 use tonic::{Request, Response, Status};
-use zopp_proto::{JoinRequest, JoinResponse, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse};
+use zopp_proto::{
+    JoinRequest, JoinResponse, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse,
+};
 use zopp_storage::{CreatePrincipalData, CreateUserParams, Store, StoreError};
 
 use crate::server::ZoppServer;
@@ -79,10 +81,13 @@ pub async fn join(
 
             // Add user to workspace memberships
             for workspace_id in &invite.workspace_ids {
-                let _ = server
+                server
                     .store
                     .add_user_to_workspace(workspace_id, &existing_user.id)
-                    .await;
+                    .await
+                    .map_err(|e| {
+                        Status::internal(format!("Failed to add user to workspace: {}", e))
+                    })?;
             }
 
             (existing_user.id, new_principal_id)

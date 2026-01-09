@@ -2,7 +2,9 @@
 
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
-use zopp_proto::{CreateInviteRequest, Empty, GetInviteRequest, InviteList, InviteToken, RevokeInviteRequest};
+use zopp_proto::{
+    CreateInviteRequest, Empty, GetInviteRequest, InviteList, InviteToken, RevokeInviteRequest,
+};
 use zopp_storage::{CreateInviteParams, Store, WorkspaceId};
 
 use crate::server::{extract_signature, ZoppServer};
@@ -149,7 +151,7 @@ pub async fn revoke_invite(
     request: Request<RevokeInviteRequest>,
 ) -> Result<Response<Empty>, Status> {
     let (principal_id, timestamp, signature) = extract_signature(&request)?;
-    let _principal = server
+    server
         .verify_signature_and_get_principal(&principal_id, timestamp, &signature)
         .await?;
     let req = request.into_inner();
@@ -160,6 +162,24 @@ pub async fn revoke_invite(
         .get_invite_by_token(&req.token)
         .await
         .map_err(|e| Status::not_found(format!("Invite not found: {}", e)))?;
+
+    // Check ADMIN permission on at least one workspace in the invite
+    let mut has_admin = false;
+    for ws_id in &invite.workspace_ids {
+        if server
+            .check_workspace_permission(&principal_id, ws_id, zopp_storage::Role::Admin)
+            .await
+            .is_ok()
+        {
+            has_admin = true;
+            break;
+        }
+    }
+    if !has_admin {
+        return Err(Status::permission_denied(
+            "Admin permission required on at least one workspace in the invite",
+        ));
+    }
 
     server
         .store

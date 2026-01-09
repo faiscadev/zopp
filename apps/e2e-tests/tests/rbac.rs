@@ -71,7 +71,11 @@ impl TestEnv {
         let server_addr = format!("0.0.0.0:{}", port);
         // Use wrapping arithmetic to avoid overflow when port is high
         let health_port = port.wrapping_add(1000) % 65535;
-        let health_port = if health_port < 1024 { health_port + 10000 } else { health_port };
+        let health_port = if health_port < 1024 {
+            health_port + 10000
+        } else {
+            health_port
+        };
         let health_addr = format!("0.0.0.0:{}", health_port);
 
         let server = Command::new(&zopp_server_bin)
@@ -1100,12 +1104,7 @@ impl TestEnv {
             .expect("Failed to execute permission user-list")
     }
 
-    fn user_project_permission_list(
-        &self,
-        user: &User,
-        workspace: &str,
-        project: &str,
-    ) -> Output {
+    fn user_project_permission_list(&self, user: &User, workspace: &str, project: &str) -> Output {
         Command::new(&self.zopp_bin)
             .env("HOME", &user.home)
             .args([
@@ -1162,12 +1161,7 @@ impl TestEnv {
             .expect("Failed to execute group list-permissions")
     }
 
-    fn group_project_permission_list(
-        &self,
-        user: &User,
-        workspace: &str,
-        project: &str,
-    ) -> Output {
+    fn group_project_permission_list(&self, user: &User, workspace: &str, project: &str) -> Output {
         Command::new(&self.zopp_bin)
             .env("HOME", &user.home)
             .args([
@@ -4602,7 +4596,10 @@ async fn test_permission_list_commands() -> Result<(), Box<dyn std::error::Error
     assert_success(&output, "user-list workspace");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(&bob.email), "user-list should contain bob");
-    assert!(stdout.contains(&carol.email), "user-list should contain carol");
+    assert!(
+        stdout.contains(&carol.email),
+        "user-list should contain carol"
+    );
     println!("✓ user-list shows workspace-level user permissions");
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -4717,7 +4714,10 @@ async fn test_group_permission_removal() -> Result<(), Box<dyn std::error::Error
 
     // Bob should not be able to create projects now
     let output = env.project_create(&bob, "acme", "another-proj");
-    assert_denied(&output, "Bob cannot create project after group permission removed");
+    assert_denied(
+        &output,
+        "Bob cannot create project after group permission removed",
+    );
     println!("✓ Workspace-level group permission removal works");
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -4742,7 +4742,10 @@ async fn test_group_permission_removal() -> Result<(), Box<dyn std::error::Error
 
     // Bob should not be able to access secrets now
     let output = env.secret_get(&bob, "acme", "api", "dev", "TEST_SECRET");
-    assert_denied(&output, "Bob cannot read secret after group env permission removed");
+    assert_denied(
+        &output,
+        "Bob cannot read secret after group env permission removed",
+    );
     println!("✓ Environment-level group permission removal works");
 
     println!("\n✅ test_group_permission_removal PASSED");
@@ -4780,7 +4783,10 @@ async fn test_service_principal_permissions() -> Result<(), Box<dyn std::error::
     // Test 1: Create a service principal
     // ─────────────────────────────────────────────────────────────────────────
     let svc_id = env.create_service_principal(&alice, "ci-pipeline")?;
-    assert!(!svc_id.is_empty(), "Service principal ID should not be empty");
+    assert!(
+        !svc_id.is_empty(),
+        "Service principal ID should not be empty"
+    );
     println!("✓ Created service principal: {}", svc_id);
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -4879,8 +4885,7 @@ async fn test_service_principal_permission_removal() -> Result<(), Box<dyn std::
     // ─────────────────────────────────────────────────────────────────────────
     // Test 1: Bob (WRITE) CAN remove READ permission (lower than his level)
     // ─────────────────────────────────────────────────────────────────────────
-    let output =
-        env.remove_principal_project_permission_check(&bob, "acme", "api", &svc_reader);
+    let output = env.remove_principal_project_permission_check(&bob, "acme", "api", &svc_reader);
     assert_success(&output, "Bob (write) can remove read permission");
     println!("✓ Bob (WRITE) can remove READ permission");
 
@@ -4890,8 +4895,7 @@ async fn test_service_principal_permission_removal() -> Result<(), Box<dyn std::
     // ─────────────────────────────────────────────────────────────────────────
     // Test 2: Bob (WRITE) CAN remove WRITE permission (equal to his level)
     // ─────────────────────────────────────────────────────────────────────────
-    let output =
-        env.remove_principal_project_permission_check(&bob, "acme", "api", &svc_writer);
+    let output = env.remove_principal_project_permission_check(&bob, "acme", "api", &svc_writer);
     assert_success(&output, "Bob (write) can remove write permission");
     println!("✓ Bob (WRITE) can remove WRITE permission");
 
@@ -4901,8 +4905,7 @@ async fn test_service_principal_permission_removal() -> Result<(), Box<dyn std::
     // ─────────────────────────────────────────────────────────────────────────
     // Test 3: Bob (WRITE) CANNOT remove ADMIN permission (higher than his level)
     // ─────────────────────────────────────────────────────────────────────────
-    let output =
-        env.remove_principal_project_permission_check(&bob, "acme", "api", &svc_admin);
+    let output = env.remove_principal_project_permission_check(&bob, "acme", "api", &svc_admin);
     assert_denied(&output, "Bob (write) cannot remove admin permission");
     println!("✓ Bob (WRITE) cannot remove ADMIN permission");
 
@@ -4930,8 +4933,7 @@ async fn test_service_principal_permission_removal() -> Result<(), Box<dyn std::
     // ─────────────────────────────────────────────────────────────────────────
     // Test 5: Alice (ADMIN) CAN remove any permission
     // ─────────────────────────────────────────────────────────────────────────
-    let output =
-        env.remove_principal_project_permission_check(&alice, "acme", "api", &svc_admin);
+    let output = env.remove_principal_project_permission_check(&alice, "acme", "api", &svc_admin);
     assert_success(&output, "Alice (admin) can remove admin permission");
     println!("✓ Alice (ADMIN) can remove ADMIN permission");
 
@@ -4943,8 +4945,7 @@ async fn test_service_principal_permission_removal() -> Result<(), Box<dyn std::
     env.set_principal_env_permission_check(&alice, "acme", "api", "dev", &svc_writer, "write");
 
     // Bob (WRITE) can remove READ at env level
-    let output =
-        env.remove_principal_env_permission_check(&bob, "acme", "api", "dev", &svc_reader);
+    let output = env.remove_principal_env_permission_check(&bob, "acme", "api", "dev", &svc_reader);
     assert_success(&output, "Bob (write) can remove read at env level");
     println!("✓ Bob (WRITE) can remove READ at environment level");
 
@@ -4955,8 +4956,7 @@ async fn test_service_principal_permission_removal() -> Result<(), Box<dyn std::
     env.set_principal_env_permission_check(&alice, "acme", "api", "dev", &svc_admin, "admin");
 
     // Bob (WRITE) cannot remove ADMIN at env level
-    let output =
-        env.remove_principal_env_permission_check(&bob, "acme", "api", "dev", &svc_admin);
+    let output = env.remove_principal_env_permission_check(&bob, "acme", "api", "dev", &svc_admin);
     assert_denied(&output, "Bob (write) cannot remove admin at env level");
     println!("✓ Bob (WRITE) cannot remove ADMIN at environment level");
 
