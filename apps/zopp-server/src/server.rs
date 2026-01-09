@@ -36,7 +36,7 @@ impl ZoppServer {
     /// 2. Human users:
     ///    a. base_role = max(user_permission, max(group_permissions)) at env/project/workspace levels
     ///    b. If principal permission exists: effective = min(base_role, principal_permission)
-    ///       Principal permissions can only RESTRICT, never expand access
+    ///    (Principal permissions can only RESTRICT, never expand access)
     ///    c. Use effective role
     /// 3. No permissions found = DENY (secure by default)
     ///

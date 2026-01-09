@@ -4,6 +4,7 @@
 //! `zopp-core` doesn't depend on any specific database engine or schema details.
 
 use chrono::{DateTime, Utc};
+use std::str::FromStr;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -56,21 +57,37 @@ pub enum Role {
     Read,
 }
 
+/// Error type for parsing Role from string
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseRoleError(pub String);
+
+impl std::fmt::Display for ParseRoleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid role: {}", self.0)
+    }
+}
+
+impl std::error::Error for ParseRoleError {}
+
+impl FromStr for Role {
+    type Err = ParseRoleError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "admin" => Ok(Role::Admin),
+            "write" => Ok(Role::Write),
+            "read" => Ok(Role::Read),
+            _ => Err(ParseRoleError(s.to_string())),
+        }
+    }
+}
+
 impl Role {
     pub fn as_str(&self) -> &'static str {
         match self {
             Role::Admin => "admin",
             Role::Write => "write",
             Role::Read => "read",
-        }
-    }
-
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "admin" => Some(Role::Admin),
-            "write" => Some(Role::Write),
-            "read" => Some(Role::Read),
-            _ => None,
         }
     }
 

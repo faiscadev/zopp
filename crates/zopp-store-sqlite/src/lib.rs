@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
+use std::str::FromStr;
 use uuid::Uuid;
 use zopp_storage::{
     AddWorkspacePrincipalParams, CreateEnvParams, CreateInviteParams, CreatePrincipalParams,
@@ -1457,8 +1458,7 @@ impl Store for SqliteStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::parse(&row.role)
-            .ok_or_else(|| StoreError::Backend(format!("invalid role in database: {}", row.role)))
+        Role::from_str(&row.role).map_err(|e| StoreError::Backend(format!("invalid role: {}", e)))
     }
 
     async fn list_workspace_permissions_for_principal(
@@ -1483,9 +1483,8 @@ impl Store for SqliteStore {
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
             let principal_id = Uuid::try_parse(&row.principal_id)
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
 
             perms.push(WorkspacePermission {
                 workspace_id: WorkspaceId(workspace_id),
@@ -1519,9 +1518,8 @@ impl Store for SqliteStore {
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
             let principal_id = Uuid::try_parse(&row.principal_id)
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
 
             perms.push(WorkspacePermission {
                 workspace_id: WorkspaceId(workspace_id),
@@ -1599,8 +1597,7 @@ impl Store for SqliteStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::parse(&row.role)
-            .ok_or_else(|| StoreError::Backend(format!("invalid role in database: {}", row.role)))
+        Role::from_str(&row.role).map_err(|e| StoreError::Backend(format!("invalid role: {}", e)))
     }
 
     async fn list_project_permissions_for_principal(
@@ -1625,9 +1622,8 @@ impl Store for SqliteStore {
                 Uuid::try_parse(&row.project_id).map_err(|e| StoreError::Backend(e.to_string()))?;
             let principal_id = Uuid::try_parse(&row.principal_id)
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
 
             perms.push(ProjectPermission {
                 project_id: zopp_storage::ProjectId(project_id),
@@ -1661,9 +1657,8 @@ impl Store for SqliteStore {
                 Uuid::try_parse(&row.project_id).map_err(|e| StoreError::Backend(e.to_string()))?;
             let principal_id = Uuid::try_parse(&row.principal_id)
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
 
             perms.push(ProjectPermission {
                 project_id: zopp_storage::ProjectId(project_id),
@@ -1741,8 +1736,7 @@ impl Store for SqliteStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::parse(&row.role)
-            .ok_or_else(|| StoreError::Backend(format!("invalid role in database: {}", row.role)))
+        Role::from_str(&row.role).map_err(|e| StoreError::Backend(format!("invalid role: {}", e)))
     }
 
     async fn list_environment_permissions_for_principal(
@@ -1767,9 +1761,8 @@ impl Store for SqliteStore {
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
             let principal_id = Uuid::try_parse(&row.principal_id)
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
 
             perms.push(EnvironmentPermission {
                 environment_id: EnvironmentId(environment_id),
@@ -1803,9 +1796,8 @@ impl Store for SqliteStore {
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
             let principal_id = Uuid::try_parse(&row.principal_id)
                 .map_err(|e| StoreError::Backend(e.to_string()))?;
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
 
             perms.push(EnvironmentPermission {
                 environment_id: EnvironmentId(environment_id),
@@ -2155,7 +2147,7 @@ impl Store for SqliteStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::from_str(&row.role).map_err(|_| StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_group_workspace_permissions(
@@ -2174,9 +2166,8 @@ impl Store for SqliteStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
             perms.push(zopp_storage::GroupWorkspacePermission {
                 workspace_id: WorkspaceId(
                     Uuid::parse_str(&row.workspace_id)
@@ -2261,7 +2252,7 @@ impl Store for SqliteStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::from_str(&row.role).map_err(|_| StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_group_project_permissions(
@@ -2280,9 +2271,8 @@ impl Store for SqliteStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
             perms.push(zopp_storage::GroupProjectPermission {
                 project_id: zopp_storage::ProjectId(
                     Uuid::parse_str(&row.project_id)
@@ -2367,7 +2357,7 @@ impl Store for SqliteStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::from_str(&row.role).map_err(|_| StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_group_environment_permissions(
@@ -2386,9 +2376,8 @@ impl Store for SqliteStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
             perms.push(zopp_storage::GroupEnvironmentPermission {
                 environment_id: EnvironmentId(
                     Uuid::parse_str(&row.environment_id).map_err(|e| {
@@ -2476,7 +2465,7 @@ impl Store for SqliteStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::from_str(&row.role).map_err(|_| StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_user_workspace_permissions(
@@ -2495,9 +2484,8 @@ impl Store for SqliteStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
             perms.push(UserWorkspacePermission {
                 workspace_id: WorkspaceId(
                     Uuid::parse_str(&row.workspace_id)
@@ -2582,7 +2570,7 @@ impl Store for SqliteStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::from_str(&row.role).map_err(|_| StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_user_project_permissions(
@@ -2601,9 +2589,8 @@ impl Store for SqliteStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
             perms.push(UserProjectPermission {
                 project_id: zopp_storage::ProjectId(
                     Uuid::parse_str(&row.project_id)
@@ -2688,7 +2675,7 @@ impl Store for SqliteStore {
         .map_err(|e| StoreError::Backend(e.to_string()))?
         .ok_or(StoreError::NotFound)?;
 
-        Role::parse(&row.role).ok_or(StoreError::Backend("Invalid role".to_string()))
+        Role::from_str(&row.role).map_err(|_| StoreError::Backend("Invalid role".to_string()))
     }
 
     async fn list_user_environment_permissions(
@@ -2707,9 +2694,8 @@ impl Store for SqliteStore {
 
         let mut perms = Vec::with_capacity(rows.len());
         for row in rows {
-            let role = Role::parse(&row.role).ok_or_else(|| {
-                StoreError::Backend(format!("invalid role in database: {}", row.role))
-            })?;
+            let role = Role::from_str(&row.role)
+                .map_err(|e| StoreError::Backend(format!("invalid role in database: {}", e)))?;
             perms.push(UserEnvironmentPermission {
                 environment_id: EnvironmentId(
                     Uuid::parse_str(&row.environment_id).map_err(|e| {
