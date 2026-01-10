@@ -635,11 +635,22 @@ impl TestEnv {
         Err("Principal not found".into())
     }
 
-    /// Create a service principal (no user association)
+    /// Create a service principal (no user association) with workspace access
     fn create_service_principal(
         &self,
         admin: &User,
         name: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        // Service principals require a workspace; use "acme" as default (matches most tests)
+        self.create_service_principal_in_workspace(admin, name, "acme")
+    }
+
+    /// Create a service principal with access to a specific workspace
+    fn create_service_principal_in_workspace(
+        &self,
+        admin: &User,
+        name: &str,
+        workspace: &str,
     ) -> Result<String, Box<dyn std::error::Error>> {
         let output = Command::new(&self.zopp_bin)
             .env("HOME", &admin.home)
@@ -650,6 +661,8 @@ impl TestEnv {
                 "create",
                 name,
                 "--service",
+                "--workspace",
+                workspace,
             ])
             .output()?;
         if !output.status.success() {
@@ -672,6 +685,36 @@ impl TestEnv {
             }
         }
         Err("Service principal not found in config".into())
+    }
+
+    /// Grant an existing service principal access to another workspace
+    fn grant_principal_workspace_access(
+        &self,
+        admin: &User,
+        workspace: &str,
+        principal_id: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let output = Command::new(&self.zopp_bin)
+            .env("HOME", &admin.home)
+            .args([
+                "--server",
+                &self.server_url,
+                "workspace",
+                "grant-principal-access",
+                "-w",
+                workspace,
+                "-p",
+                principal_id,
+            ])
+            .output()?;
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to grant workspace access: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+        Ok(())
     }
 
     /// Set principal permission at project level (returns Output for checking)
@@ -5276,7 +5319,6 @@ async fn test_user_permission_removal_delegated_authority() -> Result<(), Box<dy
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "TODO: Investigate h2 protocol error in UpdateGroup RPC"]
 async fn test_group_modification_requires_admin() -> Result<(), Box<dyn std::error::Error>> {
     let port = find_available_port()?;
     let env = TestEnv::setup("group_mod_admin", port).await?;
@@ -5628,5 +5670,500 @@ async fn test_service_account_cannot_revoke_invite() -> Result<(), Box<dyn std::
     println!("✓ Human admin can revoke invite");
 
     println!("\n✅ test_service_account_cannot_revoke_invite PASSED");
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test: Service Principal Multi-Workspace Access
+// Service principals can be granted access to multiple workspaces using the
+// `workspace grant-principal-access` command
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_service_principal_multi_workspace_access() -> Result<(), Box<dyn std::error::Error>> {
+    let port = find_available_port()?;
+    let env = TestEnv::setup("svc_multi_workspace", port).await?;
+
+    let alice = env.create_user("alice");
+
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+
+    // Create two workspaces
+    env.create_workspace(&alice, "workspace-a")?;
+    env.create_workspace(&alice, "workspace-b")?;
+
+    // Create projects and environments in both workspaces
+    env.create_project(&alice, "workspace-a", "proj-a")?;
+    env.create_environment(&alice, "workspace-a", "proj-a", "dev")?;
+    env.create_project(&alice, "workspace-b", "proj-b")?;
+    env.create_environment(&alice, "workspace-b", "proj-b", "dev")?;
+
+    // Set secrets in both workspaces
+    let output = env.secret_set(&alice, "workspace-a", "proj-a", "dev", "KEY_A", "value-a");
+    assert!(
+        output.status.success(),
+        "Failed to set secret in workspace-a"
+    );
+    let output = env.secret_set(&alice, "workspace-b", "proj-b", "dev", "KEY_B", "value-b");
+    assert!(
+        output.status.success(),
+        "Failed to set secret in workspace-b"
+    );
+
+    // Create a service principal in workspace-a
+    let svc_id =
+        env.create_service_principal_in_workspace(&alice, "multi-workspace-bot", "workspace-a")?;
+    println!("Created service principal {} in workspace-a", svc_id);
+
+    // Give the service principal READ permission in workspace-a
+    env.set_principal_permission(&alice, "workspace-a", &svc_id, "read")?;
+    println!("✓ Granted READ permission in workspace-a");
+
+    // Get Alice's human principal name for switching back
+    let alice_principal_name = alice.principal.clone();
+
+    // Switch to the service principal
+    let output = env.principal_use(&alice, "multi-workspace-bot");
+    assert!(
+        output.status.success(),
+        "Failed to switch to service principal"
+    );
+    println!("✓ Switched to service principal");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Service principal can read from workspace-a (initial workspace)
+    // ─────────────────────────────────────────────────────────────────────────
+    let output = env.secret_get(&alice, "workspace-a", "proj-a", "dev", "KEY_A");
+    assert_success(&output, "Service principal can read from initial workspace");
+    println!("✓ Service principal can read KEY_A from workspace-a");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Service principal CANNOT read from workspace-b (no access yet)
+    // ─────────────────────────────────────────────────────────────────────────
+    let output = env.secret_get(&alice, "workspace-b", "proj-b", "dev", "KEY_B");
+    assert!(
+        !output.status.success(),
+        "Should not have access to workspace-b yet"
+    );
+    println!("✓ Service principal cannot read from workspace-b (no access)");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Grant service principal access to workspace-b
+    // ─────────────────────────────────────────────────────────────────────────
+    // Switch back to human to grant access
+    let output = env.principal_use(&alice, &alice_principal_name);
+    assert!(
+        output.status.success(),
+        "Failed to switch back to human principal"
+    );
+
+    // Grant the service principal access to workspace-b
+    env.grant_principal_workspace_access(&alice, "workspace-b", &svc_id)?;
+    println!("✓ Granted workspace-b access to service principal");
+
+    // Also grant permission (access alone isn't enough - need role)
+    env.set_principal_permission(&alice, "workspace-b", &svc_id, "read")?;
+    println!("✓ Granted READ permission in workspace-b");
+
+    // Switch back to service principal
+    let output = env.principal_use(&alice, "multi-workspace-bot");
+    assert!(
+        output.status.success(),
+        "Failed to switch to service principal"
+    );
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Service principal can now read from workspace-b
+    // ─────────────────────────────────────────────────────────────────────────
+    let output = env.secret_get(&alice, "workspace-b", "proj-b", "dev", "KEY_B");
+    assert_success(
+        &output,
+        "Service principal can read from second workspace after grant",
+    );
+    println!("✓ Service principal can now read KEY_B from workspace-b");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Service principal can still read from workspace-a
+    // ─────────────────────────────────────────────────────────────────────────
+    let output = env.secret_get(&alice, "workspace-a", "proj-a", "dev", "KEY_A");
+    assert_success(
+        &output,
+        "Service principal still has access to first workspace",
+    );
+    println!("✓ Service principal can still read KEY_A from workspace-a");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Service principal with WRITE in workspace-a, READ in workspace-b
+    // Verify permissions are independent per workspace
+    // ─────────────────────────────────────────────────────────────────────────
+    // Switch back to human to change permissions
+    let output = env.principal_use(&alice, &alice_principal_name);
+    assert!(
+        output.status.success(),
+        "Failed to switch back to human principal"
+    );
+
+    // Upgrade to WRITE in workspace-a
+    env.set_principal_permission(&alice, "workspace-a", &svc_id, "write")?;
+    println!("✓ Upgraded to WRITE permission in workspace-a");
+
+    // Switch to service principal
+    let output = env.principal_use(&alice, "multi-workspace-bot");
+    assert!(
+        output.status.success(),
+        "Failed to switch to service principal"
+    );
+
+    // Should be able to write to workspace-a
+    let output = env.secret_set(
+        &alice,
+        "workspace-a",
+        "proj-a",
+        "dev",
+        "NEW_KEY",
+        "new-value",
+    );
+    assert_success(&output, "Service principal can write to workspace-a");
+    println!("✓ Service principal can write NEW_KEY to workspace-a");
+
+    // Should NOT be able to write to workspace-b (only has READ)
+    let output = env.secret_set(
+        &alice,
+        "workspace-b",
+        "proj-b",
+        "dev",
+        "NEW_KEY",
+        "new-value",
+    );
+    assert_denied(
+        &output,
+        "Service principal cannot write to workspace-b (READ only)",
+    );
+    println!("✓ Service principal cannot write to workspace-b (READ only)");
+
+    println!("\n✅ test_service_principal_multi_workspace_access PASSED");
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test: Grant Workspace Access Requires Admin Permission
+// Only workspace admins can grant access to other principals
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_grant_workspace_access_requires_admin() -> Result<(), Box<dyn std::error::Error>> {
+    let port = find_available_port()?;
+    let env = TestEnv::setup("grant_requires_admin", port).await?;
+
+    let alice = env.create_user("alice");
+    let bob = env.create_user("bob");
+
+    // Alice creates the workspace (owner)
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "secure-ws")?;
+    env.create_project(&alice, "secure-ws", "proj")?;
+    env.create_environment(&alice, "secure-ws", "proj", "dev")?;
+
+    // Alice invites Bob to the workspace (Bob joins server and workspace at once)
+    let ws_invite = env.create_workspace_invite(&alice, "secure-ws")?;
+    env.join_server(&bob, &ws_invite)?;
+
+    // Give Bob only READ permission
+    env.set_user_permission(&alice, "secure-ws", &bob.email, "read")?;
+    println!("✓ Bob has READ permission in secure-ws");
+
+    // Alice creates a service principal
+    let svc_id = env.create_service_principal_in_workspace(&alice, "test-bot", "secure-ws")?;
+    println!("✓ Created service principal {}", svc_id);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Bob (READ) cannot grant workspace access
+    // ─────────────────────────────────────────────────────────────────────────
+    let output = Command::new(&env.zopp_bin)
+        .env("HOME", &bob.home)
+        .args([
+            "--server",
+            &env.server_url,
+            "workspace",
+            "grant-principal-access",
+            "-w",
+            "secure-ws",
+            "-p",
+            &svc_id,
+        ])
+        .output()?;
+    assert!(
+        !output.status.success(),
+        "Bob with READ should not be able to grant workspace access"
+    );
+    println!("✓ Bob (READ) cannot grant workspace access");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Upgrade Bob to WRITE, still cannot grant access
+    // ─────────────────────────────────────────────────────────────────────────
+    env.set_user_permission(&alice, "secure-ws", &bob.email, "write")?;
+    let output = Command::new(&env.zopp_bin)
+        .env("HOME", &bob.home)
+        .args([
+            "--server",
+            &env.server_url,
+            "workspace",
+            "grant-principal-access",
+            "-w",
+            "secure-ws",
+            "-p",
+            &svc_id,
+        ])
+        .output()?;
+    assert!(
+        !output.status.success(),
+        "Bob with WRITE should not be able to grant workspace access"
+    );
+    println!("✓ Bob (WRITE) cannot grant workspace access");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Upgrade Bob to ADMIN, now can grant access
+    // ─────────────────────────────────────────────────────────────────────────
+    env.set_user_permission(&alice, "secure-ws", &bob.email, "admin")?;
+
+    // Create a new workspace for Bob to grant access to
+    env.create_workspace(&bob, "bob-ws")?;
+
+    // Create service principal in bob-ws (not secure-ws)
+    let bob_svc_id = env.create_service_principal_in_workspace(&bob, "bob-bot", "bob-ws")?;
+
+    // Bob (admin in secure-ws) grants this service access to secure-ws
+    let output = Command::new(&env.zopp_bin)
+        .env("HOME", &bob.home)
+        .args([
+            "--server",
+            &env.server_url,
+            "workspace",
+            "grant-principal-access",
+            "-w",
+            "secure-ws",
+            "-p",
+            &bob_svc_id,
+        ])
+        .output()?;
+    assert!(
+        output.status.success(),
+        "Bob (ADMIN) should be able to grant workspace access: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    println!("✓ Bob (ADMIN) can grant workspace access");
+
+    println!("\n✅ test_grant_workspace_access_requires_admin PASSED");
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test: Device Principal KEK Inheritance
+// When a user creates a new device principal, it should automatically inherit
+// KEK access to all workspaces the user has access to
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_device_principal_kek_inheritance() -> Result<(), Box<dyn std::error::Error>> {
+    let port = find_available_port()?;
+    let env = TestEnv::setup("device_kek_inherit", port).await?;
+
+    let alice = env.create_user("alice");
+
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+
+    // Create multiple workspaces
+    env.create_workspace(&alice, "ws-one")?;
+    env.create_workspace(&alice, "ws-two")?;
+    env.create_workspace(&alice, "ws-three")?;
+
+    // Create projects and environments
+    env.create_project(&alice, "ws-one", "proj")?;
+    env.create_environment(&alice, "ws-one", "proj", "dev")?;
+    env.create_project(&alice, "ws-two", "proj")?;
+    env.create_environment(&alice, "ws-two", "proj", "dev")?;
+    env.create_project(&alice, "ws-three", "proj")?;
+    env.create_environment(&alice, "ws-three", "proj", "dev")?;
+
+    // Set secrets in all workspaces
+    let output = env.secret_set(&alice, "ws-one", "proj", "dev", "KEY1", "value1");
+    assert!(output.status.success(), "Failed to set secret in ws-one");
+    let output = env.secret_set(&alice, "ws-two", "proj", "dev", "KEY2", "value2");
+    assert!(output.status.success(), "Failed to set secret in ws-two");
+    let output = env.secret_set(&alice, "ws-three", "proj", "dev", "KEY3", "value3");
+    assert!(output.status.success(), "Failed to set secret in ws-three");
+    println!("✓ Created workspaces with secrets");
+
+    // Create a new device principal (non-service)
+    let output = Command::new(&env.zopp_bin)
+        .env("HOME", &alice.home)
+        .args([
+            "--server",
+            &env.server_url,
+            "principal",
+            "create",
+            "alice-laptop",
+        ])
+        .output()?;
+    assert!(
+        output.status.success(),
+        "Failed to create device principal: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    println!(
+        "✓ Created device principal 'alice-laptop'\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    // Get Alice's original principal name
+    let alice_original = alice.principal.clone();
+
+    // Switch to the new device principal
+    let output = env.principal_use(&alice, "alice-laptop");
+    assert!(
+        output.status.success(),
+        "Failed to switch to new device principal"
+    );
+    println!("✓ Switched to device principal 'alice-laptop'");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: New device principal can access all workspaces
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Can read from ws-one
+    let output = env.secret_get(&alice, "ws-one", "proj", "dev", "KEY1");
+    assert_success(&output, "Device principal can read from ws-one");
+    println!("✓ New device can read KEY1 from ws-one");
+
+    // Can read from ws-two
+    let output = env.secret_get(&alice, "ws-two", "proj", "dev", "KEY2");
+    assert_success(&output, "Device principal can read from ws-two");
+    println!("✓ New device can read KEY2 from ws-two");
+
+    // Can read from ws-three
+    let output = env.secret_get(&alice, "ws-three", "proj", "dev", "KEY3");
+    assert_success(&output, "Device principal can read from ws-three");
+    println!("✓ New device can read KEY3 from ws-three");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: New device principal can write to all workspaces (owner)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    let output = env.secret_set(&alice, "ws-one", "proj", "dev", "NEW_KEY1", "new_value1");
+    assert_success(&output, "Device principal can write to ws-one");
+    println!("✓ New device can write to ws-one");
+
+    let output = env.secret_set(&alice, "ws-two", "proj", "dev", "NEW_KEY2", "new_value2");
+    assert_success(&output, "Device principal can write to ws-two");
+    println!("✓ New device can write to ws-two");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Switch back to original device, verify data
+    // ─────────────────────────────────────────────────────────────────────────
+    let output = env.principal_use(&alice, &alice_original);
+    assert!(
+        output.status.success(),
+        "Failed to switch back to original device"
+    );
+
+    // Verify the secret written by the new device is readable
+    let output = env.secret_get(&alice, "ws-one", "proj", "dev", "NEW_KEY1");
+    assert_success(
+        &output,
+        "Original device can read secret written by new device",
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("new_value1"),
+        "Secret value should match what new device wrote"
+    );
+    println!("✓ Original device can read secrets written by new device");
+
+    println!("\n✅ test_device_principal_kek_inheritance PASSED");
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test: Device Principal Inherits Joined Workspace Access
+// When a user joins a workspace via invite, then creates a new device,
+// the new device should also have access to that joined workspace
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_device_inherits_joined_workspace() -> Result<(), Box<dyn std::error::Error>> {
+    let port = find_available_port()?;
+    let env = TestEnv::setup("device_inherits_joined", port).await?;
+
+    let alice = env.create_user("alice");
+    let bob = env.create_user("bob");
+
+    // Alice creates the workspace
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "shared-ws")?;
+    env.create_project(&alice, "shared-ws", "proj")?;
+    env.create_environment(&alice, "shared-ws", "proj", "dev")?;
+
+    let output = env.secret_set(&alice, "shared-ws", "proj", "dev", "SECRET", "alice-secret");
+    assert!(output.status.success(), "Failed to set secret");
+
+    // Give users in this workspace at least READ permission by default
+    // (We'll give Bob write permission after he joins)
+
+    // Bob joins the workspace
+    let ws_invite = env.create_workspace_invite(&alice, "shared-ws")?;
+    env.join_server(&bob, &ws_invite)?;
+
+    // Give Bob write permission
+    env.set_user_permission(&alice, "shared-ws", &bob.email, "write")?;
+    println!("✓ Bob joined workspace with WRITE permission");
+
+    // Verify Bob can access with his first device
+    let output = env.secret_get(&bob, "shared-ws", "proj", "dev", "SECRET");
+    assert_success(&output, "Bob's first device can read");
+    println!("✓ Bob's first device can read secrets");
+
+    // Bob creates a new device principal
+    let output = Command::new(&env.zopp_bin)
+        .env("HOME", &bob.home)
+        .args([
+            "--server",
+            &env.server_url,
+            "principal",
+            "create",
+            "bob-tablet",
+        ])
+        .output()?;
+    assert!(
+        output.status.success(),
+        "Failed to create device principal: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    println!(
+        "✓ Bob created device principal 'bob-tablet'\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    // Switch to the new device
+    let output = env.principal_use(&bob, "bob-tablet");
+    assert!(output.status.success(), "Failed to switch to new device");
+    println!("✓ Switched to bob-tablet");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test: Bob's new device can access the workspace Bob joined
+    // ─────────────────────────────────────────────────────────────────────────
+    let output = env.secret_get(&bob, "shared-ws", "proj", "dev", "SECRET");
+    assert_success(&output, "Bob's new device can read from joined workspace");
+    println!("✓ Bob's new device can read from joined workspace");
+
+    // Bob's new device can also write (has WRITE permission)
+    let output = env.secret_set(&bob, "shared-ws", "proj", "dev", "BOB_KEY", "bob-value");
+    assert_success(&output, "Bob's new device can write to joined workspace");
+    println!("✓ Bob's new device can write to joined workspace");
+
+    println!("\n✅ test_device_inherits_joined_workspace PASSED");
     Ok(())
 }

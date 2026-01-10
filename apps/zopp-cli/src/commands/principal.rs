@@ -2,6 +2,7 @@ use crate::config::{get_current_principal, load_config, save_config, PrincipalCo
 use crate::grpc::{add_auth_metadata, connect};
 use ed25519_dalek::SigningKey;
 use zopp_proto::{
+    Empty, GetWorkspaceKeysRequest, GrantPrincipalWorkspaceAccessRequest,
     ListWorkspaceServicePrincipalsRequest, RegisterRequest, RemovePrincipalFromWorkspaceRequest,
     RenamePrincipalRequest, RevokeAllPrincipalPermissionsRequest, Role,
 };
@@ -37,56 +38,200 @@ pub async fn cmd_principal_create(
     tls_ca_cert: Option<&std::path::Path>,
     name: &str,
     is_service: bool,
+    workspace: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut config = load_config()?;
+
+    // Validate: --service requires --workspace
+    if is_service && workspace.is_none() {
+        return Err("Service principals require --workspace flag".into());
+    }
+
+    // Validate: --workspace without --service is not allowed (for now)
+    if !is_service && workspace.is_some() {
+        return Err("--workspace flag is only valid with --service".into());
+    }
 
     if config.principals.iter().any(|p| p.name == name) {
         return Err(format!("Principal '{}' already exists", name).into());
     }
 
+    // Generate new principal's keypairs
     let signing_key = SigningKey::generate(&mut rand_core::OsRng);
     let verifying_key = signing_key.verifying_key();
     let public_key = verifying_key.to_bytes().to_vec();
 
-    let x25519_keypair = zopp_crypto::Keypair::generate();
-    let x25519_public_bytes = x25519_keypair.public_key_bytes().to_vec();
+    let new_x25519_keypair = zopp_crypto::Keypair::generate();
+    let new_x25519_public_bytes = new_x25519_keypair.public_key_bytes().to_vec();
 
     let mut client = connect(server, tls_ca_cert).await?;
-    let principal = get_current_principal(&config)?;
+    let caller_principal = get_current_principal(&config)?.clone();
+
+    // For service principals, wrap KEK for the new principal
+    let (ephemeral_pub, kek_wrapped, kek_nonce) = if let Some(ws_name) = workspace {
+        // Get caller's wrapped KEK for this workspace
+        let mut keys_request = tonic::Request::new(GetWorkspaceKeysRequest {
+            workspace_name: ws_name.to_string(),
+        });
+        add_auth_metadata(
+            &mut keys_request,
+            &caller_principal,
+            "/zopp.ZoppService/GetWorkspaceKeys",
+        )?;
+        let keys = client.get_workspace_keys(keys_request).await?.into_inner();
+
+        // Unwrap KEK using caller's X25519 private key
+        let caller_x25519_private = caller_principal
+            .x25519_private_key
+            .as_ref()
+            .ok_or("Caller principal missing X25519 private key")?;
+        let caller_x25519_bytes = hex::decode(caller_x25519_private)?;
+        let mut caller_x25519_array = [0u8; 32];
+        caller_x25519_array.copy_from_slice(&caller_x25519_bytes);
+        let caller_keypair = zopp_crypto::Keypair::from_secret_bytes(&caller_x25519_array);
+
+        let ephemeral_pub_key = zopp_crypto::public_key_from_bytes(&keys.ephemeral_pub)?;
+        let shared_secret = caller_keypair.shared_secret(&ephemeral_pub_key);
+
+        let aad = format!("workspace:{}", keys.workspace_id).into_bytes();
+        let mut nonce_array = [0u8; 24];
+        nonce_array.copy_from_slice(&keys.kek_nonce);
+        let nonce = zopp_crypto::Nonce(nonce_array);
+
+        let kek = zopp_crypto::unwrap_key(&keys.kek_wrapped, &nonce, &shared_secret, &aad)?;
+
+        // Wrap KEK for the new service principal's X25519 public key
+        let new_ephemeral_keypair = zopp_crypto::Keypair::generate();
+        let new_principal_pubkey = zopp_crypto::public_key_from_bytes(&new_x25519_public_bytes)?;
+        let new_shared_secret = new_ephemeral_keypair.shared_secret(&new_principal_pubkey);
+
+        let (wrap_nonce, wrapped) = zopp_crypto::wrap_key(&kek, &new_shared_secret, &aad)?;
+
+        (
+            Some(new_ephemeral_keypair.public_key_bytes().to_vec()),
+            Some(wrapped.0),
+            Some(wrap_nonce.0.to_vec()),
+        )
+    } else {
+        (None, None, None)
+    };
 
     let mut request = tonic::Request::new(RegisterRequest {
         email: config.email.clone(),
         principal_name: name.to_string(),
         public_key,
-        x25519_public_key: x25519_public_bytes,
+        x25519_public_key: new_x25519_public_bytes.clone(),
         is_service,
+        workspace_name: workspace.map(|s| s.to_string()),
+        ephemeral_pub,
+        kek_wrapped,
+        kek_nonce,
     });
-    add_auth_metadata(&mut request, principal, "/zopp.ZoppService/Register")?;
+    add_auth_metadata(
+        &mut request,
+        &caller_principal,
+        "/zopp.ZoppService/Register",
+    )?;
 
     let response = client.register(request).await?.into_inner();
 
     let principal_id = response.principal_id.clone();
     config.principals.push(PrincipalConfig {
-        id: response.principal_id,
+        id: response.principal_id.clone(),
         name: name.to_string(),
         private_key: hex::encode(signing_key.to_bytes()),
         public_key: hex::encode(verifying_key.to_bytes()),
-        x25519_private_key: Some(hex::encode(x25519_keypair.secret_key_bytes())),
-        x25519_public_key: Some(hex::encode(x25519_keypair.public_key_bytes())),
+        x25519_private_key: Some(hex::encode(new_x25519_keypair.secret_key_bytes())),
+        x25519_public_key: Some(hex::encode(new_x25519_keypair.public_key_bytes())),
     });
     save_config(&config)?;
 
     if is_service {
         println!(
-            "✓ Service principal '{}' created (ID: {})",
+            "Service principal '{}' created (ID: {})",
             name, principal_id
         );
+        println!("  Added to workspace: {}", workspace.unwrap());
         println!(
-            "  Use this ID to grant permissions: zopp permission project-set --principal {}",
+            "  Grant permissions with: zopp permission set -w {} --principal {} --role <role>",
+            workspace.unwrap(),
             principal_id
         );
     } else {
-        println!("✓ Principal '{}' created (ID: {})", name, principal_id);
+        println!("Principal '{}' created (ID: {})", name, principal_id);
+
+        // For device principals, grant KEK access to all workspaces the user has access to
+        let mut ws_request = tonic::Request::new(Empty {});
+        add_auth_metadata(
+            &mut ws_request,
+            &caller_principal,
+            "/zopp.ZoppService/ListWorkspaces",
+        )?;
+        let workspaces = client
+            .list_workspaces(ws_request)
+            .await?
+            .into_inner()
+            .workspaces;
+
+        if !workspaces.is_empty() {
+            println!("  Granting access to workspaces...");
+            let caller_x25519_private = caller_principal
+                .x25519_private_key
+                .as_ref()
+                .ok_or("Caller principal missing X25519 private key")?;
+            let caller_x25519_bytes = hex::decode(caller_x25519_private)?;
+            let mut caller_x25519_array = [0u8; 32];
+            caller_x25519_array.copy_from_slice(&caller_x25519_bytes);
+            let caller_keypair = zopp_crypto::Keypair::from_secret_bytes(&caller_x25519_array);
+
+            for ws in &workspaces {
+                // Get caller's wrapped KEK for this workspace
+                let mut keys_request = tonic::Request::new(GetWorkspaceKeysRequest {
+                    workspace_name: ws.name.clone(),
+                });
+                add_auth_metadata(
+                    &mut keys_request,
+                    &caller_principal,
+                    "/zopp.ZoppService/GetWorkspaceKeys",
+                )?;
+                let keys = client.get_workspace_keys(keys_request).await?.into_inner();
+
+                // Unwrap KEK
+                let ephemeral_pub_key = zopp_crypto::public_key_from_bytes(&keys.ephemeral_pub)?;
+                let shared_secret = caller_keypair.shared_secret(&ephemeral_pub_key);
+                let aad = format!("workspace:{}", keys.workspace_id).into_bytes();
+                let mut nonce_array = [0u8; 24];
+                nonce_array.copy_from_slice(&keys.kek_nonce);
+                let nonce = zopp_crypto::Nonce(nonce_array);
+                let kek = zopp_crypto::unwrap_key(&keys.kek_wrapped, &nonce, &shared_secret, &aad)?;
+
+                // Wrap KEK for the new device principal
+                let new_ephemeral_keypair = zopp_crypto::Keypair::generate();
+                let new_principal_pubkey =
+                    zopp_crypto::public_key_from_bytes(&new_x25519_public_bytes)?;
+                let new_shared_secret = new_ephemeral_keypair.shared_secret(&new_principal_pubkey);
+                let (wrap_nonce, wrapped) = zopp_crypto::wrap_key(&kek, &new_shared_secret, &aad)?;
+
+                // Grant access via RPC
+                let mut grant_request = tonic::Request::new(GrantPrincipalWorkspaceAccessRequest {
+                    workspace_name: ws.name.clone(),
+                    principal_id: principal_id.clone(),
+                    ephemeral_pub: new_ephemeral_keypair.public_key_bytes().to_vec(),
+                    kek_wrapped: wrapped.0,
+                    kek_nonce: wrap_nonce.0.to_vec(),
+                });
+                add_auth_metadata(
+                    &mut grant_request,
+                    &caller_principal,
+                    "/zopp.ZoppService/GrantPrincipalWorkspaceAccess",
+                )?;
+                client
+                    .grant_principal_workspace_access(grant_request)
+                    .await?;
+
+                println!("    ✓ {}", ws.name);
+            }
+        }
     }
     Ok(())
 }

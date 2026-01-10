@@ -1963,7 +1963,7 @@ impl Store for SqliteStore {
         let g_id = group_id.0.to_string();
 
         let result = sqlx::query!(
-            "UPDATE groups SET name = ?, description = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = ?",
+            "UPDATE groups SET name = ?, description = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
             name,
             description,
             g_id

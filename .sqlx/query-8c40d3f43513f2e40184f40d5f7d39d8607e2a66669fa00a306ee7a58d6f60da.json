@@ -1,13 +1,10 @@
 {
-  "db_name": "PostgreSQL",
+  "db_name": "SQLite",
   "query": "UPDATE principals SET name = $1 WHERE id = $2",
   "describe": {
     "columns": [],
     "parameters": {
-      "Left": [
-        "Text",
-        "Uuid"
-      ]
+      "Right": 2
     },
     "nullable": []
   },

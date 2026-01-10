@@ -6,9 +6,11 @@ use tonic::{Request, Response, Status};
 use zopp_proto::{
     JoinRequest, JoinResponse, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse,
 };
-use zopp_storage::{CreatePrincipalData, CreateUserParams, Store, StoreError};
+use zopp_storage::{
+    CreatePrincipalData, CreatePrincipalParams, CreateUserParams, Store, StoreError,
+};
 
-use crate::server::ZoppServer;
+use crate::server::{extract_signature, ZoppServer};
 
 pub async fn join(
     server: &ZoppServer,
@@ -146,6 +148,89 @@ pub async fn register(
     server: &ZoppServer,
     request: Request<RegisterRequest>,
 ) -> Result<Response<RegisterResponse>, Status> {
+    let method = "/zopp.ZoppService/Register";
+
+    // For service principals with workspace, we need authentication
+    if request.get_ref().is_service && request.get_ref().workspace_name.is_some() {
+        let (caller_principal_id, timestamp, signature, request_hash) =
+            extract_signature(&request)?;
+
+        let _caller = server
+            .verify_signature_and_get_principal(
+                &caller_principal_id,
+                timestamp,
+                &signature,
+                method,
+                request.get_ref(),
+                &request_hash,
+            )
+            .await?;
+
+        let req = request.into_inner();
+        let workspace_name = req.workspace_name.as_ref().unwrap();
+
+        // Get workspace (caller must have access)
+        let workspace = server
+            .store
+            .get_workspace_by_name_for_principal(&caller_principal_id, workspace_name)
+            .await
+            .map_err(|_| Status::not_found(format!("Workspace '{}' not found", workspace_name)))?;
+
+        // Verify caller has admin access to the workspace
+        server
+            .check_workspace_permission(
+                &caller_principal_id,
+                &workspace.id,
+                zopp_storage::Role::Admin,
+            )
+            .await?;
+
+        // Create service principal (no user_id)
+        let new_principal_id = server
+            .store
+            .create_principal(&CreatePrincipalParams {
+                user_id: None, // Service principal has no user
+                name: req.principal_name.clone(),
+                public_key: req.public_key.clone(),
+                x25519_public_key: if req.x25519_public_key.is_empty() {
+                    None
+                } else {
+                    Some(req.x25519_public_key.clone())
+                },
+            })
+            .await
+            .map_err(|e| Status::internal(format!("Failed to create service principal: {}", e)))?;
+
+        // Store wrapped KEK for the new service principal
+        if let (Some(ephemeral_pub), Some(kek_wrapped), Some(kek_nonce)) =
+            (req.ephemeral_pub, req.kek_wrapped, req.kek_nonce)
+        {
+            server
+                .store
+                .add_workspace_principal(&zopp_storage::AddWorkspacePrincipalParams {
+                    workspace_id: workspace.id.clone(),
+                    principal_id: new_principal_id.clone(),
+                    ephemeral_pub,
+                    kek_wrapped,
+                    kek_nonce,
+                })
+                .await
+                .map_err(|e| {
+                    Status::internal(format!(
+                        "Failed to add service principal to workspace: {}",
+                        e
+                    ))
+                })?;
+        }
+
+        // Return empty user_id for service principals
+        return Ok(Response::new(RegisterResponse {
+            user_id: String::new(),
+            principal_id: new_principal_id.0.to_string(),
+        }));
+    }
+
+    // Standard register flow (for human principals / new devices)
     let req = request.into_inner();
 
     let (user_id, principal_id) = server

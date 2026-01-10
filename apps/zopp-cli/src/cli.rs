@@ -107,6 +107,15 @@ pub enum WorkspaceCommand {
         /// Workspace name
         name: String,
     },
+    /// Grant an existing service principal access to this workspace
+    GrantPrincipalAccess {
+        /// Workspace name
+        #[arg(long, short = 'w')]
+        workspace: String,
+        /// Principal ID to grant access to
+        #[arg(long, short = 'p')]
+        principal: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -115,13 +124,16 @@ pub enum PrincipalCommand {
     List,
     /// Show current principal
     Current,
-    /// Create a new principal (register new device)
+    /// Create a new principal (register new device or service principal)
     Create {
         /// Principal name
         name: String,
         /// Create as service principal (no user association)
         #[arg(long)]
         service: bool,
+        /// Workspace to add service principal to (required for --service)
+        #[arg(long, short = 'w')]
+        workspace: Option<String>,
     },
     /// Switch to a different principal (set as default)
     Use {

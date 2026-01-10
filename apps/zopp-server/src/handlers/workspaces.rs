@@ -1,12 +1,15 @@
-//! Workspace handlers: create, list, get_keys
+//! Workspace handlers: create, list, get_keys, grant_principal_access
 
 use rand_core::RngCore;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 use zopp_proto::{
-    CreateWorkspaceRequest, Empty, GetWorkspaceKeysRequest, WorkspaceKeys, WorkspaceList,
+    CreateWorkspaceRequest, Empty, GetWorkspaceKeysRequest, GrantPrincipalWorkspaceAccessRequest,
+    WorkspaceKeys, WorkspaceList,
 };
-use zopp_storage::{AddWorkspacePrincipalParams, CreateWorkspaceParams, Store, WorkspaceId};
+use zopp_storage::{
+    AddWorkspacePrincipalParams, CreateWorkspaceParams, PrincipalId, Store, WorkspaceId,
+};
 
 use crate::server::{extract_signature, ZoppServer};
 
@@ -143,16 +146,21 @@ pub async fn get_workspace_keys(
         .await?;
     let req = request.into_inner();
 
-    let user_id = principal
-        .user_id
-        .ok_or_else(|| Status::unauthenticated("Service accounts cannot access workspaces"))?;
-
-    // Get workspace by name
-    let workspace = server
-        .store
-        .get_workspace_by_name(&user_id, &req.workspace_name)
-        .await
-        .map_err(|e| Status::not_found(format!("Workspace not found: {}", e)))?;
+    // Get workspace by name - use different lookup for service principals
+    let workspace = if let Some(user_id) = &principal.user_id {
+        server
+            .store
+            .get_workspace_by_name(user_id, &req.workspace_name)
+            .await
+            .map_err(|e| Status::not_found(format!("Workspace not found: {}", e)))?
+    } else {
+        // Service principal - use principal-based lookup
+        server
+            .store
+            .get_workspace_by_name_for_principal(&principal_id, &req.workspace_name)
+            .await
+            .map_err(|e| Status::not_found(format!("Workspace not found: {}", e)))?
+    };
 
     // Get wrapped KEK for this principal
     let wp = server
@@ -167,4 +175,77 @@ pub async fn get_workspace_keys(
         kek_wrapped: wp.kek_wrapped,
         kek_nonce: wp.kek_nonce,
     }))
+}
+
+pub async fn grant_principal_workspace_access(
+    server: &ZoppServer,
+    request: Request<GrantPrincipalWorkspaceAccessRequest>,
+) -> Result<Response<Empty>, Status> {
+    let (caller_principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
+    let req_for_verify = request.get_ref().clone();
+    let caller = server
+        .verify_signature_and_get_principal(
+            &caller_principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/GrantPrincipalWorkspaceAccess",
+            &req_for_verify,
+            &request_hash,
+        )
+        .await?;
+    let req = request.into_inner();
+
+    // Caller must be a user (not service principal) to grant workspace access
+    let user_id = caller.user_id.ok_or_else(|| {
+        Status::permission_denied("Service principals cannot grant workspace access")
+    })?;
+
+    // Get workspace by name (caller must have access)
+    let workspace = server
+        .store
+        .get_workspace_by_name(&user_id, &req.workspace_name)
+        .await
+        .map_err(|e| Status::not_found(format!("Workspace not found: {}", e)))?;
+
+    // Parse target principal ID
+    let target_principal_id = PrincipalId(
+        Uuid::parse_str(&req.principal_id)
+            .map_err(|_| Status::invalid_argument("Invalid principal ID"))?,
+    );
+
+    // Verify the target principal exists
+    let target_principal = server
+        .store
+        .get_principal(&target_principal_id)
+        .await
+        .map_err(|_| Status::not_found("Principal not found"))?;
+
+    // Check permissions:
+    // - If target principal belongs to the same user (device principal), allow without admin
+    // - Otherwise, require admin permission on the workspace
+    let is_same_user = target_principal.user_id.as_ref() == Some(&user_id);
+    if !is_same_user {
+        server
+            .check_workspace_permission(
+                &caller_principal_id,
+                &workspace.id,
+                zopp_storage::Role::Admin,
+            )
+            .await?;
+    }
+
+    // Store the wrapped KEK for the target principal
+    server
+        .store
+        .add_workspace_principal(&AddWorkspacePrincipalParams {
+            workspace_id: workspace.id,
+            principal_id: target_principal_id,
+            ephemeral_pub: req.ephemeral_pub,
+            kek_wrapped: req.kek_wrapped,
+            kek_nonce: req.kek_nonce,
+        })
+        .await
+        .map_err(|e| Status::internal(format!("Failed to grant workspace access: {}", e)))?;
+
+    Ok(Response::new(Empty {}))
 }

@@ -54,10 +54,14 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
     println!("  zopp:          {}", zopp_bin.display());
     println!("  zopp-operator: {}\n", operator_bin.display());
 
-    // Find available port
+    // Find available ports for server and health check
     let server_port = find_available_port()?;
+    let server_health_port = find_available_port()?;
     let server_url = format!("http://127.0.0.1:{}", server_port);
-    println!("✓ Allocated server port: {}\n", server_port);
+    println!(
+        "✓ Allocated server port: {}, health port: {}\n",
+        server_port, server_health_port
+    );
 
     // Setup test directories using platform-appropriate temp dir
     let test_dir = std::env::temp_dir().join("zopp-e2e-operator-test");
@@ -102,9 +106,18 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
     println!("📡 Step 1: Starting zopp server...");
     let db_path_str = db_path.to_str().unwrap();
     let server_addr = format!("0.0.0.0:{}", server_port);
+    let server_health_addr = format!("0.0.0.0:{}", server_health_port);
 
     let mut server = Command::new(&zopp_server_bin)
-        .args(["--db", db_path_str, "serve", "--addr", &server_addr])
+        .args([
+            "--db",
+            db_path_str,
+            "serve",
+            "--addr",
+            &server_addr,
+            "--health-addr",
+            &server_health_addr,
+        ])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()?;
@@ -286,68 +299,86 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
     create_annotated_secret("app-secrets").await?;
     println!("✓ Created annotated Secret 'app-secrets'\n");
 
-    // Step 9: Create workspace invite and have operator join
-    println!("🔑 Step 9: Setting up operator principal...");
+    // Step 9: Create service principal for operator
+    println!("🔑 Step 9: Setting up operator service principal...");
 
-    // Create workspace invite
+    // Alice creates a service principal for the operator with workspace access
+    // This creates the principal with KEK access to the workspace in one command
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
-        .current_dir(&test_dir)
-        .args(["--server", &server_url, "invite", "create", "--plain"])
-        .output()?;
-
-    if !output.status.success() {
-        eprintln!(
-            "Failed to create invite: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        cleanup(&mut server, cluster_name)?;
-        return Err("Failed to create invite".into());
-    }
-
-    let invite_code = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    println!("✓ Workspace invite created");
-
-    // Operator joins workspace using the invite (creates credentials in operator_home)
-    let output = Command::new(&zopp_bin)
-        .env("HOME", &operator_home)
         .args([
             "--server",
             &server_url,
-            "join",
-            &invite_code,
-            "k8s-operator@acme.com",
-            "--principal",
+            "principal",
+            "create",
             "k8s-operator",
+            "--service",
+            "--workspace",
+            "acme",
         ])
         .output()?;
 
     if !output.status.success() {
         eprintln!(
-            "Failed to join workspace: {}",
+            "Failed to create service principal: {}",
             String::from_utf8_lossy(&output.stderr)
         );
         cleanup(&mut server, cluster_name)?;
-        return Err("Failed to join workspace with operator principal".into());
+        return Err("Failed to create service principal".into());
     }
 
-    // Extract principal ID from join output (format: "Principal ID: <uuid>")
-    let join_output = String::from_utf8_lossy(&output.stdout);
-    let operator_principal_id = join_output
+    // Extract principal ID from output (format: "Service principal 'k8s-operator' created (ID: <uuid>)")
+    let create_output = String::from_utf8_lossy(&output.stdout);
+    let operator_principal_id = create_output
         .lines()
-        .find(|line| line.starts_with("Principal ID:"))
-        .and_then(|line| line.strip_prefix("Principal ID:"))
-        .map(|s| s.trim().to_string())
-        .ok_or("Failed to parse principal ID from join output")?;
+        .find(|line| line.contains("created (ID:"))
+        .and_then(|line| {
+            let start = line.find("(ID: ")? + 5;
+            let end = line.find(')')?;
+            Some(line[start..end].to_string())
+        })
+        .ok_or("Failed to parse principal ID from create output")?;
 
     println!(
-        "✓ Operator joined workspace 'acme' (Principal ID: {})",
+        "✓ Service principal 'k8s-operator' created (ID: {})",
         operator_principal_id
     );
 
-    // Grant READ permission to the operator user on the workspace
-    // Note: We use user-set (not set --principal) because the operator joined as a regular user
-    // and principal permissions only act as a ceiling for users, not as a grant
+    // Copy the service principal credentials from alice_home to operator_home
+    // The service principal was created in Alice's config, we need to extract it for the operator
+    let alice_config_path = alice_home.join(".zopp/config.json");
+    let alice_config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&alice_config_path)?)?;
+
+    // Find the service principal in Alice's config
+    let service_principal = alice_config["principals"]
+        .as_array()
+        .and_then(|principals| {
+            principals
+                .iter()
+                .find(|p| p["id"].as_str() == Some(&operator_principal_id))
+        })
+        .ok_or("Service principal not found in Alice's config")?
+        .clone();
+
+    // Create operator config with just the service principal
+    let operator_config = serde_json::json!({
+        "user_id": "",
+        "email": "",
+        "principals": [service_principal],
+        "current_principal": "k8s-operator"
+    });
+
+    let operator_config_dir = operator_home.join(".zopp");
+    fs::create_dir_all(&operator_config_dir)?;
+    fs::write(
+        operator_config_dir.join("config.json"),
+        serde_json::to_string_pretty(&operator_config)?,
+    )?;
+    println!("✓ Service principal credentials copied to operator home");
+
+    // Grant READ permission to the service principal on the workspace
+    // Service principals use principal permissions directly (not user permissions)
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
@@ -355,11 +386,11 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
             "--server",
             &server_url,
             "permission",
-            "user-set",
+            "set",
             "--workspace",
             "acme",
-            "--email",
-            "k8s-operator@acme.com",
+            "--principal",
+            &operator_principal_id,
             "--role",
             "read",
         ])
@@ -374,7 +405,7 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Failed to set permission for operator".into());
     }
     println!(
-        "✓ Granted READ permission to operator (Principal ID: {})\n",
+        "✓ Granted READ permission to service principal (ID: {})\n",
         operator_principal_id
     );
 

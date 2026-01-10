@@ -1,13 +1,10 @@
 {
-  "db_name": "PostgreSQL",
+  "db_name": "SQLite",
   "query": "DELETE FROM secrets WHERE env_id = $1 AND key_name = $2",
   "describe": {
     "columns": [],
     "parameters": {
-      "Left": [
-        "Uuid",
-        "Text"
-      ]
+      "Right": 2
     },
     "nullable": []
   },

@@ -11,6 +11,7 @@ service ZoppService {
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (Workspace);
   rpc ListWorkspaces(Empty) returns (WorkspaceList);
   rpc GetWorkspaceKeys(GetWorkspaceKeysRequest) returns (WorkspaceKeys);
+  rpc GrantPrincipalWorkspaceAccess(GrantPrincipalWorkspaceAccessRequest) returns (Empty);
 
   // Invites
   rpc CreateInvite(CreateInviteRequest) returns (InviteToken);
@@ -138,6 +139,11 @@ message RegisterRequest {
   bytes public_key = 3;              // Ed25519 for authentication
   bytes x25519_public_key = 4;       // X25519 for encryption (ECDH)
   bool is_service = 5;               // Service principal (user_id will be NULL)
+  // For service principals: workspace to add the principal to (required if is_service=true)
+  optional string workspace_name = 6;
+  optional bytes ephemeral_pub = 7;  // Ephemeral X25519 public key for wrapping KEK
+  optional bytes kek_wrapped = 8;    // Workspace KEK wrapped for new principal
+  optional bytes kek_nonce = 9;      // 24-byte nonce for wrapping
 }
 
 message RegisterResponse {
@@ -184,6 +190,14 @@ message WorkspaceKeys {
   bytes ephemeral_pub = 2;  // Ephemeral X25519 public key for unwrapping
   bytes kek_wrapped = 3;    // Workspace KEK wrapped for requesting principal
   bytes kek_nonce = 4;      // 24-byte nonce for unwrapping
+}
+
+message GrantPrincipalWorkspaceAccessRequest {
+  string workspace_name = 1;     // Workspace to grant access to
+  string principal_id = 2;       // Principal to grant access to
+  bytes ephemeral_pub = 3;       // Ephemeral X25519 public key for wrapping KEK
+  bytes kek_wrapped = 4;         // Workspace KEK wrapped for the principal
+  bytes kek_nonce = 5;           // 24-byte nonce for wrapping
 }
 
 // Invite messages

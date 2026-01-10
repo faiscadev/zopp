@@ -29,23 +29,34 @@ pub async fn upsert_secret(
             &request_hash,
         )
         .await?;
-    let user_id = principal
-        .user_id
-        .ok_or_else(|| Status::unauthenticated("Service accounts cannot upsert secrets"))?;
 
     let req = request.into_inner();
 
-    // Look up workspace by name
-    let workspace = server
-        .store
-        .get_workspace_by_name(&user_id, &req.workspace_name)
-        .await
-        .map_err(|e| match e {
-            zopp_storage::StoreError::NotFound => {
-                Status::not_found("Workspace not found or access denied")
-            }
-            _ => Status::internal(format!("Failed to get workspace: {}", e)),
-        })?;
+    // Look up workspace by name - use different lookup for service principals
+    let workspace = if let Some(user_id) = &principal.user_id {
+        server
+            .store
+            .get_workspace_by_name(user_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    } else {
+        // Service principal - use principal-based lookup
+        server
+            .store
+            .get_workspace_by_name_for_principal(&principal_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    };
 
     // Look up project by name in workspace
     let project = server
@@ -112,23 +123,33 @@ pub async fn get_secret(
             &request_hash,
         )
         .await?;
-    let user_id = principal
-        .user_id
-        .ok_or_else(|| Status::unauthenticated("Service accounts cannot get secrets"))?;
-
     let req = request.into_inner();
 
-    // Look up workspace by name
-    let workspace = server
-        .store
-        .get_workspace_by_name(&user_id, &req.workspace_name)
-        .await
-        .map_err(|e| match e {
-            zopp_storage::StoreError::NotFound => {
-                Status::not_found("Workspace not found or access denied")
-            }
-            _ => Status::internal(format!("Failed to get workspace: {}", e)),
-        })?;
+    // Look up workspace by name - use different lookup for service principals
+    let workspace = if let Some(user_id) = &principal.user_id {
+        server
+            .store
+            .get_workspace_by_name(user_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    } else {
+        // Service principal - use principal-based lookup
+        server
+            .store
+            .get_workspace_by_name_for_principal(&principal_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    };
 
     // Look up project by name in workspace
     let project = server
@@ -193,23 +214,34 @@ pub async fn list_secrets(
             &request_hash,
         )
         .await?;
-    let user_id = principal
-        .user_id
-        .ok_or_else(|| Status::unauthenticated("Service accounts cannot list secrets"))?;
 
     let req = request.into_inner();
 
-    // Look up workspace by name
-    let workspace = server
-        .store
-        .get_workspace_by_name(&user_id, &req.workspace_name)
-        .await
-        .map_err(|e| match e {
-            zopp_storage::StoreError::NotFound => {
-                Status::not_found("Workspace not found or access denied")
-            }
-            _ => Status::internal(format!("Failed to get workspace: {}", e)),
-        })?;
+    // Look up workspace by name - use different lookup for service principals
+    let workspace = if let Some(user_id) = &principal.user_id {
+        server
+            .store
+            .get_workspace_by_name(user_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    } else {
+        // Service principal - use principal-based lookup
+        server
+            .store
+            .get_workspace_by_name_for_principal(&principal_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    };
 
     // Look up project by name in workspace
     let project = server
@@ -287,23 +319,34 @@ pub async fn delete_secret(
             &request_hash,
         )
         .await?;
-    let user_id = principal
-        .user_id
-        .ok_or_else(|| Status::unauthenticated("Service accounts cannot delete secrets"))?;
 
     let req = request.into_inner();
 
-    // Look up workspace by name
-    let workspace = server
-        .store
-        .get_workspace_by_name(&user_id, &req.workspace_name)
-        .await
-        .map_err(|e| match e {
-            zopp_storage::StoreError::NotFound => {
-                Status::not_found("Workspace not found or access denied")
-            }
-            _ => Status::internal(format!("Failed to get workspace: {}", e)),
-        })?;
+    // Look up workspace by name - use different lookup for service principals
+    let workspace = if let Some(user_id) = &principal.user_id {
+        server
+            .store
+            .get_workspace_by_name(user_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    } else {
+        // Service principal - use principal-based lookup
+        server
+            .store
+            .get_workspace_by_name_for_principal(&principal_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    };
 
     // Look up project by name in workspace
     let project = server
@@ -373,23 +416,34 @@ pub async fn watch_secrets(
             &request_hash,
         )
         .await?;
-    let user_id = principal
-        .user_id
-        .ok_or_else(|| Status::unauthenticated("Service accounts cannot watch secrets"))?;
 
     let req = request.into_inner();
 
-    // Look up workspace by name
-    let workspace = server
-        .store
-        .get_workspace_by_name(&user_id, &req.workspace_name)
-        .await
-        .map_err(|e| match e {
-            zopp_storage::StoreError::NotFound => {
-                Status::not_found("Workspace not found or access denied")
-            }
-            _ => Status::internal(format!("Failed to get workspace: {}", e)),
-        })?;
+    // Look up workspace by name - use different lookup for service principals
+    let workspace = if let Some(user_id) = &principal.user_id {
+        server
+            .store
+            .get_workspace_by_name(user_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    } else {
+        // Service principal - use principal-based lookup
+        server
+            .store
+            .get_workspace_by_name_for_principal(&principal_id, &req.workspace_name)
+            .await
+            .map_err(|e| match e {
+                zopp_storage::StoreError::NotFound => {
+                    Status::not_found("Workspace not found or access denied")
+                }
+                _ => Status::internal(format!("Failed to get workspace: {}", e)),
+            })?
+    };
 
     // Look up project by name in workspace
     let project = server

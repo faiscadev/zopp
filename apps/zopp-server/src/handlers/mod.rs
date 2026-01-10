@@ -77,6 +77,13 @@ impl ZoppService for ZoppServer {
         workspaces::get_workspace_keys(self, request).await
     }
 
+    async fn grant_principal_workspace_access(
+        &self,
+        request: Request<GrantPrincipalWorkspaceAccessRequest>,
+    ) -> Result<Response<Empty>, Status> {
+        workspaces::grant_principal_workspace_access(self, request).await
+    }
+
     // ───────────────────────────────────── Invites ─────────────────────────────────────
 
     async fn create_invite(

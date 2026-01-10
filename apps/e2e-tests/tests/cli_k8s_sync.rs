@@ -46,10 +46,14 @@ async fn cli_k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
     println!("  zopp-server: {}", zopp_server_bin.display());
     println!("  zopp:        {}\n", zopp_bin.display());
 
-    // Find available port
+    // Find available ports for server and health check
     let server_port = find_available_port()?;
+    let health_port = find_available_port()?;
     let server_url = format!("http://localhost:{}", server_port);
-    println!("✓ Allocated server port: {}\n", server_port);
+    println!(
+        "✓ Allocated server port: {}, health port: {}\n",
+        server_port, health_port
+    );
 
     // Setup test directories
     let test_dir = PathBuf::from("/tmp/zopp-e2e-test-k8s");
@@ -95,9 +99,18 @@ async fn cli_k8s_sync() -> Result<(), Box<dyn std::error::Error>> {
     println!("📡 Step 1: Starting zopp server...");
     let db_path_str = db_path.to_str().unwrap();
     let server_addr = format!("0.0.0.0:{}", server_port);
+    let health_addr = format!("0.0.0.0:{}", health_port);
 
     let mut server = Command::new(&zopp_server_bin)
-        .args(["--db", db_path_str, "serve", "--addr", &server_addr])
+        .args([
+            "--db",
+            db_path_str,
+            "serve",
+            "--addr",
+            &server_addr,
+            "--health-addr",
+            &health_addr,
+        ])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()?;

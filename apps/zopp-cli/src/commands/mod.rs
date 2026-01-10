@@ -41,4 +41,6 @@ pub use secret::{
     cmd_secret_run, cmd_secret_set,
 };
 pub use sync::cmd_sync_k8s;
-pub use workspace::{cmd_workspace_create, cmd_workspace_list};
+pub use workspace::{
+    cmd_workspace_create, cmd_workspace_grant_principal_access, cmd_workspace_list,
+};

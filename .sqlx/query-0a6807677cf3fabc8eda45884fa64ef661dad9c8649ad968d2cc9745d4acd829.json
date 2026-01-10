@@ -1,30 +1,16 @@
 {
-  "db_name": "PostgreSQL",
+  "db_name": "SQLite",
   "query": "SELECT role as \"role: String\" FROM project_permissions WHERE project_id = $1 AND principal_id = $2",
   "describe": {
     "columns": [
       {
-        "ordinal": 0,
         "name": "role: String",
-        "type_info": {
-          "Custom": {
-            "name": "role",
-            "kind": {
-              "Enum": [
-                "admin",
-                "write",
-                "read"
-              ]
-            }
-          }
-        }
+        "ordinal": 0,
+        "type_info": "Text"
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid",
-        "Uuid"
-      ]
+      "Right": 2
     },
     "nullable": [
       false

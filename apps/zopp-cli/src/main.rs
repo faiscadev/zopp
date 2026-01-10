@@ -40,6 +40,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             WorkspaceCommand::Create { name } => {
                 cmd_workspace_create(&cli.server, cli.tls_ca_cert.as_deref(), &name).await?;
             }
+            WorkspaceCommand::GrantPrincipalAccess {
+                workspace,
+                principal,
+            } => {
+                cmd_workspace_grant_principal_access(
+                    &cli.server,
+                    cli.tls_ca_cert.as_deref(),
+                    &workspace,
+                    &principal,
+                )
+                .await?;
+            }
         },
         Command::Principal { principal_cmd } => match principal_cmd {
             PrincipalCommand::List => {
@@ -48,9 +60,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             PrincipalCommand::Current => {
                 cmd_principal_current().await?;
             }
-            PrincipalCommand::Create { name, service } => {
-                cmd_principal_create(&cli.server, cli.tls_ca_cert.as_deref(), &name, service)
-                    .await?;
+            PrincipalCommand::Create {
+                name,
+                service,
+                workspace,
+            } => {
+                cmd_principal_create(
+                    &cli.server,
+                    cli.tls_ca_cert.as_deref(),
+                    &name,
+                    service,
+                    workspace.as_deref(),
+                )
+                .await?;
             }
             PrincipalCommand::Use { name } => {
                 cmd_principal_use(&name).await?;

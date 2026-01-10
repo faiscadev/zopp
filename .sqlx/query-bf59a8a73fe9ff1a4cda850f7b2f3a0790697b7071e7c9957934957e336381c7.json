@@ -1,15 +1,10 @@
 {
-  "db_name": "PostgreSQL",
+  "db_name": "SQLite",
   "query": "INSERT INTO groups(id, workspace_id, name, description) VALUES($1, $2, $3, $4)",
   "describe": {
     "columns": [],
     "parameters": {
-      "Left": [
-        "Uuid",
-        "Uuid",
-        "Text",
-        "Text"
-      ]
+      "Right": 4
     },
     "nullable": []
   },

@@ -1,13 +1,10 @@
 {
-  "db_name": "PostgreSQL",
+  "db_name": "SQLite",
   "query": "DELETE FROM environment_permissions\n               WHERE principal_id = $1\n               AND environment_id IN (\n                   SELECT e.id FROM environments e\n                   JOIN projects p ON e.project_id = p.id\n                   WHERE p.workspace_id = $2\n               )",
   "describe": {
     "columns": [],
     "parameters": {
-      "Left": [
-        "Uuid",
-        "Uuid"
-      ]
+      "Right": 2
     },
     "nullable": []
   },
