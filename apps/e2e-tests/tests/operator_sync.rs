@@ -359,6 +359,8 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
             &server_url,
             "permission",
             "set",
+            "--workspace",
+            "acme",
             "--principal",
             "k8s-operator",
             "--role",
