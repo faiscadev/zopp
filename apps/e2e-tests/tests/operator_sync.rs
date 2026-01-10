@@ -62,6 +62,7 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
     // Setup test directories using platform-appropriate temp dir
     let test_dir = std::env::temp_dir().join("zopp-e2e-operator-test");
     let alice_home = test_dir.join("alice");
+    let operator_home = test_dir.join("operator");
     let db_path = test_dir.join("zopp.db");
 
     // Clean up from previous runs
@@ -69,9 +70,11 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
         fs::remove_dir_all(&test_dir)?;
     }
     fs::create_dir_all(&alice_home)?;
+    fs::create_dir_all(&operator_home)?;
 
     println!("✓ Test directories created");
     println!("  Alice home: {}", alice_home.display());
+    println!("  Operator home: {}", operator_home.display());
     println!("  Database:   {}\n", db_path.display());
 
     // Step 0: Create kind cluster
@@ -283,42 +286,10 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
     create_annotated_secret("app-secrets").await?;
     println!("✓ Created annotated Secret 'app-secrets'\n");
 
-    // Step 9: Create service principal for operator
-    println!("🔑 Step 9: Creating service principal for operator...");
-    let output = Command::new(&zopp_bin)
-        .env("HOME", &alice_home)
-        .args([
-            "--server",
-            &server_url,
-            "principal",
-            "create",
-            "k8s-operator",
-            "--service",
-        ])
-        .output()?;
+    // Step 9: Create workspace invite and have operator join
+    println!("🔑 Step 9: Setting up operator principal...");
 
-    if !output.status.success() {
-        eprintln!(
-            "Failed to create service principal: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        cleanup(&mut server, cluster_name)?;
-        return Err("Failed to create service principal".into());
-    }
-    // Extract the principal ID from output like "✓ Service principal 'k8s-operator' created (ID: <uuid>)"
-    let create_output = String::from_utf8_lossy(&output.stdout);
-    let operator_principal_id = create_output
-        .split("(ID: ")
-        .nth(1)
-        .and_then(|s| s.split(')').next())
-        .map(|s| s.trim().to_string())
-        .ok_or("Failed to parse principal ID from create output")?;
-    println!(
-        "✓ Service principal 'k8s-operator' created (ID: {})",
-        operator_principal_id
-    );
-
-    // Create workspace invite to add operator to workspace
+    // Create workspace invite
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
@@ -337,9 +308,9 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
     let invite_code = String::from_utf8_lossy(&output.stdout).trim().to_string();
     println!("✓ Workspace invite created");
 
-    // Operator joins workspace using the invite (wraps KEK for operator principal)
+    // Operator joins workspace using the invite (creates credentials in operator_home)
     let output = Command::new(&zopp_bin)
-        .env("HOME", &alice_home)
+        .env("HOME", &operator_home)
         .args([
             "--server",
             &server_url,
@@ -359,7 +330,20 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
         cleanup(&mut server, cluster_name)?;
         return Err("Failed to join workspace with operator principal".into());
     }
-    println!("✓ Operator principal added to workspace 'acme'");
+
+    // Extract principal ID from join output (format: "Principal ID: <uuid>")
+    let join_output = String::from_utf8_lossy(&output.stdout);
+    let operator_principal_id = join_output
+        .lines()
+        .find(|line| line.starts_with("Principal ID:"))
+        .and_then(|line| line.strip_prefix("Principal ID:"))
+        .map(|s| s.trim().to_string())
+        .ok_or("Failed to parse principal ID from join output")?;
+
+    println!(
+        "✓ Operator joined workspace 'acme' (Principal ID: {})",
+        operator_principal_id
+    );
 
     // Grant READ permission to the operator on the workspace
     let output = Command::new(&zopp_bin)
@@ -394,8 +378,8 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
     let real_home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     let kubeconfig = PathBuf::from(&real_home).join(".kube/config");
 
-    // Operator uses the standard config file from Alice's home
-    let config_file = alice_home.join(".zopp/config.json");
+    // Operator uses its own config file (created during join)
+    let config_file = operator_home.join(".zopp/config.json");
 
     let operator_stdout = fs::File::create(test_dir.join("operator.stdout.log"))?;
     let operator_stderr = fs::File::create(test_dir.join("operator.stderr.log"))?;
