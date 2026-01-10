@@ -1,3 +1,4 @@
+use crate::reload::trigger_deployment_reloads;
 use crate::OperatorError;
 use k8s_openapi::api::core::v1::Secret;
 use kube::{api::PatchParams, Api, Client};
@@ -108,7 +109,7 @@ pub async fn run_sync(
     )
     .await
     {
-        Ok(version) => version,
+        Ok((version, _count)) => version,
         Err(e) => {
             error!("Initial sync failed: {}", e);
             return Err(e);
@@ -119,6 +120,9 @@ pub async fn run_sync(
         "Initial sync complete for {}/{}, version: {}",
         namespace, name, current_version
     );
+
+    // Trigger deployment reloads after initial sync
+    trigger_reload_if_needed(&k8s_client, &namespace, &name).await;
 
     // Spawn watch stream task with exponential backoff reconnection
     let _stream_handle = tokio::spawn({
@@ -177,6 +181,8 @@ pub async fn run_sync(
 
         debug!("Periodic reconciliation for {}/{}", namespace, name);
 
+        let previous_version = current_version;
+
         match full_resync(
             &grpc_client,
             &k8s_client,
@@ -187,12 +193,20 @@ pub async fn run_sync(
         )
         .await
         {
-            Ok(version) => {
+            Ok((version, _count)) => {
                 current_version = version;
                 debug!(
                     "Periodic reconciliation complete for {}/{}, version: {}",
                     namespace, name, current_version
                 );
+                // Only trigger deployment reloads if secrets actually changed
+                if version != previous_version {
+                    info!(
+                        "Secrets changed (version {} -> {}), triggering deployment reloads",
+                        previous_version, version
+                    );
+                    trigger_reload_if_needed(&k8s_client, &namespace, &name).await;
+                }
             }
             Err(e) => {
                 warn!(
@@ -209,14 +223,17 @@ pub async fn run_sync(
     // Ok(())
 }
 
-async fn full_resync(
+/// Perform a full resync of secrets from Zopp to a Kubernetes Secret.
+///
+/// Returns (version, secret_count) on success.
+pub async fn full_resync(
     grpc_client: &Arc<ZoppServiceClient<tonic::transport::Channel>>,
     k8s_client: &Client,
     credentials: &crate::credentials::OperatorCredentials,
     namespace: &str,
     name: &str,
     config: &SecretSyncConfig,
-) -> Result<i64, OperatorError> {
+) -> Result<(i64, usize), OperatorError> {
     info!("Performing full resync for {}/{}", namespace, name);
 
     let mut client = grpc_client.as_ref().clone();
@@ -262,10 +279,12 @@ async fn full_resync(
         }
     }
 
+    let secret_count = decrypted.len();
+
     // Update K8s Secret
     update_k8s_secret(k8s_client, namespace, name, decrypted).await?;
 
-    Ok(secrets_data.version)
+    Ok((secrets_data.version, secret_count))
 }
 
 async fn unwrap_environment_dek(
@@ -371,7 +390,7 @@ async fn start_watch_stream(
                     current, resync.current_version
                 );
 
-                let new_version = full_resync(
+                let (new_version, _count) = full_resync(
                     grpc_client,
                     k8s_client,
                     credentials,
@@ -461,12 +480,18 @@ async fn handle_secret_event(
             update_k8s_secret_key(k8s_client, namespace, name, &event.key, value).await?;
 
             info!("Updated secret key: {}", event.key);
+
+            // Trigger deployment reloads after secret update
+            trigger_reload_if_needed(k8s_client, namespace, name).await;
         }
         Ok(EventType::Deleted) => {
             // Remove key from K8s Secret
             delete_k8s_secret_key(k8s_client, namespace, name, &event.key).await?;
 
             info!("Deleted secret key: {}", event.key);
+
+            // Trigger deployment reloads after secret deletion
+            trigger_reload_if_needed(k8s_client, namespace, name).await;
         }
         Err(_) => {
             warn!("Unknown event type: {}", event.event_type);
@@ -576,4 +601,21 @@ async fn delete_k8s_secret_key(
     .await?;
 
     Ok(())
+}
+
+/// Trigger deployment reloads for Deployments that reference this secret.
+///
+/// This is a helper that wraps the reload logic with error handling.
+/// Failures are logged but don't propagate - reloads are best-effort.
+async fn trigger_reload_if_needed(k8s_client: &Client, namespace: &str, secret_name: &str) {
+    match trigger_deployment_reloads(k8s_client, namespace, secret_name).await {
+        Ok(restarted) => {
+            if !restarted.is_empty() {
+                info!("Triggered reload for deployments: {:?}", restarted);
+            }
+        }
+        Err(e) => {
+            warn!("Failed to trigger deployment reloads: {}", e);
+        }
+    }
 }
