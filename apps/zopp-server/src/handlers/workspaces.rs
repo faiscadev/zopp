@@ -17,7 +17,14 @@ pub async fn create_workspace(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/CreateWorkspace", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/CreateWorkspace",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let req = request.into_inner();
 
@@ -90,7 +97,14 @@ pub async fn list_workspaces(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/ListWorkspaces", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/ListWorkspaces",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -118,7 +132,14 @@ pub async fn get_workspace_keys(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/GetWorkspaceKeys", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/GetWorkspaceKeys",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let req = request.into_inner();
 

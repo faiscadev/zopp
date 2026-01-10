@@ -65,7 +65,11 @@ pub async fn cmd_workspace_create(
         kek_wrapped: wrapped.0,
         kek_nonce: nonce.0.to_vec(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/CreateWorkspace")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/CreateWorkspace",
+    )?;
 
     let response = client.create_workspace(request).await?.into_inner();
 

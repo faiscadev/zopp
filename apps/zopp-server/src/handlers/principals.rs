@@ -19,7 +19,14 @@ pub async fn get_principal(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let _principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/GetPrincipal", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/GetPrincipal",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let req = request.into_inner();
 
@@ -48,7 +55,14 @@ pub async fn rename_principal(
     let (requester_principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let requester_principal = server
-        .verify_signature_and_get_principal(&requester_principal_id, timestamp, &signature, "/zopp.ZoppService/RenamePrincipal", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &requester_principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/RenamePrincipal",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let req = request.into_inner();
 
@@ -95,7 +109,14 @@ pub async fn list_principals(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/ListPrincipals", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/ListPrincipals",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -125,7 +146,14 @@ pub async fn list_workspace_service_principals(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/ListWorkspaceServicePrincipals", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/ListWorkspaceServicePrincipals",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal.user_id.ok_or_else(|| {
         Status::unauthenticated("Service accounts cannot list service principals")
@@ -232,7 +260,14 @@ pub async fn remove_principal_from_workspace(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/RemovePrincipalFromWorkspace", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/RemovePrincipalFromWorkspace",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal.user_id.ok_or_else(|| {
         Status::unauthenticated("Service accounts cannot remove principals from workspaces")
@@ -311,7 +346,14 @@ pub async fn revoke_all_principal_permissions(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/RevokeAllPrincipalPermissions", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/RevokeAllPrincipalPermissions",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal.user_id.ok_or_else(|| {
         Status::unauthenticated("Service accounts cannot revoke principal permissions")
@@ -378,7 +420,14 @@ pub async fn get_effective_permissions(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/GetEffectivePermissions", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/GetEffectivePermissions",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal.user_id.ok_or_else(|| {
         Status::unauthenticated("Service accounts cannot query effective permissions")

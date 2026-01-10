@@ -16,7 +16,14 @@ pub async fn create_invite(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/CreateInvite", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/CreateInvite",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let req = request.into_inner();
 
@@ -117,7 +124,14 @@ pub async fn list_invites(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/ListInvites", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/ListInvites",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -155,7 +169,14 @@ pub async fn revoke_invite(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/RevokeInvite", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/RevokeInvite",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     principal
         .user_id

@@ -20,7 +20,14 @@ pub async fn upsert_secret(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/UpsertSecret", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/UpsertSecret",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -96,7 +103,14 @@ pub async fn get_secret(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/GetSecret", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/GetSecret",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -170,7 +184,14 @@ pub async fn list_secrets(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/ListSecrets", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/ListSecrets",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -257,7 +278,14 @@ pub async fn delete_secret(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/DeleteSecret", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/DeleteSecret",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -336,7 +364,14 @@ pub async fn watch_secrets(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/WatchSecrets", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/WatchSecrets",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id

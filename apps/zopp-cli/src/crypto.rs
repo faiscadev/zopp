@@ -14,7 +14,11 @@ pub async fn unwrap_workspace_kek(
     let mut request = tonic::Request::new(zopp_proto::GetWorkspaceKeysRequest {
         workspace_name: workspace_name.to_string(),
     });
-    crate::grpc::add_auth_metadata(&mut request, principal, "/zopp.ZoppService/GetWorkspaceKeys")?;
+    crate::grpc::add_auth_metadata(
+        &mut request,
+        principal,
+        "/zopp.ZoppService/GetWorkspaceKeys",
+    )?;
 
     let response = client.get_workspace_keys(request).await?.into_inner();
 
@@ -59,7 +63,11 @@ pub async fn fetch_and_decrypt_secrets(
     let mut request = tonic::Request::new(zopp_proto::GetWorkspaceKeysRequest {
         workspace_name: workspace_name.to_string(),
     });
-    crate::grpc::add_auth_metadata(&mut request, principal, "/zopp.ZoppService/GetWorkspaceKeys")?;
+    crate::grpc::add_auth_metadata(
+        &mut request,
+        principal,
+        "/zopp.ZoppService/GetWorkspaceKeys",
+    )?;
     let workspace_keys = client.get_workspace_keys(request).await?.into_inner();
 
     // Get environment

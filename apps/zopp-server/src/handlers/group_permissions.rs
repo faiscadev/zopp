@@ -15,7 +15,14 @@ pub async fn set_group_workspace_permission(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/SetGroupWorkspacePermission", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/SetGroupWorkspacePermission",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -73,7 +80,14 @@ pub async fn get_group_workspace_permission(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/GetGroupWorkspacePermission", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/GetGroupWorkspacePermission",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -130,7 +144,14 @@ pub async fn list_group_workspace_permissions(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/ListGroupWorkspacePermissions", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/ListGroupWorkspacePermissions",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -188,7 +209,14 @@ pub async fn remove_group_workspace_permission(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/RemoveGroupWorkspacePermission", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/RemoveGroupWorkspacePermission",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal.user_id.ok_or_else(|| {
         Status::unauthenticated("Service accounts cannot remove group permissions")
@@ -240,7 +268,14 @@ pub async fn set_group_project_permission(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/SetGroupProjectPermission", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/SetGroupProjectPermission",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -308,7 +343,14 @@ pub async fn get_group_project_permission(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/GetGroupProjectPermission", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/GetGroupProjectPermission",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -375,7 +417,14 @@ pub async fn list_group_project_permissions(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/ListGroupProjectPermissions", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/ListGroupProjectPermissions",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -443,7 +492,14 @@ pub async fn remove_group_project_permission(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/RemoveGroupProjectPermission", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/RemoveGroupProjectPermission",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal.user_id.ok_or_else(|| {
         Status::unauthenticated("Service accounts cannot remove group permissions")
@@ -505,7 +561,14 @@ pub async fn set_group_environment_permission(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/SetGroupEnvironmentPermission", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/SetGroupEnvironmentPermission",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -583,7 +646,14 @@ pub async fn get_group_environment_permission(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/GetGroupEnvironmentPermission", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/GetGroupEnvironmentPermission",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -660,7 +730,14 @@ pub async fn list_group_environment_permissions(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/ListGroupEnvironmentPermissions", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/ListGroupEnvironmentPermissions",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal
         .user_id
@@ -738,7 +815,14 @@ pub async fn remove_group_environment_permission(
     let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
     let req_for_verify = request.get_ref().clone();
     let principal = server
-        .verify_signature_and_get_principal(&principal_id, timestamp, &signature, "/zopp.ZoppService/RemoveGroupEnvironmentPermission", &req_for_verify, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/RemoveGroupEnvironmentPermission",
+            &req_for_verify,
+            &request_hash,
+        )
         .await?;
     let user_id = principal.user_id.ok_or_else(|| {
         Status::unauthenticated("Service accounts cannot remove group permissions")

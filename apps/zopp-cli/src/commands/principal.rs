@@ -190,7 +190,11 @@ pub async fn cmd_principal_service_list(
     let mut request = tonic::Request::new(ListWorkspaceServicePrincipalsRequest {
         workspace_name: workspace.to_string(),
     });
-    add_auth_metadata(&mut request, principal, "/zopp.ZoppService/ListWorkspaceServicePrincipals")?;
+    add_auth_metadata(
+        &mut request,
+        principal,
+        "/zopp.ZoppService/ListWorkspaceServicePrincipals",
+    )?;
 
     let response = client
         .list_workspace_service_principals(request)
@@ -239,7 +243,11 @@ pub async fn cmd_principal_workspace_remove(
         workspace_name: workspace.to_string(),
         principal_id: principal_id.to_string(),
     });
-    add_auth_metadata(&mut request, principal, "/zopp.ZoppService/RemovePrincipalFromWorkspace")?;
+    add_auth_metadata(
+        &mut request,
+        principal,
+        "/zopp.ZoppService/RemovePrincipalFromWorkspace",
+    )?;
 
     client.remove_principal_from_workspace(request).await?;
 
@@ -264,7 +272,11 @@ pub async fn cmd_principal_revoke_all(
         workspace_name: workspace.to_string(),
         principal_id: principal_id.to_string(),
     });
-    add_auth_metadata(&mut request, principal, "/zopp.ZoppService/RevokeAllPrincipalPermissions")?;
+    add_auth_metadata(
+        &mut request,
+        principal,
+        "/zopp.ZoppService/RevokeAllPrincipalPermissions",
+    )?;
 
     let response = client
         .revoke_all_principal_permissions(request)

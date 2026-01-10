@@ -42,10 +42,7 @@ pub async fn cmd_project_create(
 
     let response = client.create_project(request).await?.into_inner();
 
-    println!(
-        "Project '{}' created (ID: {})",
-        response.name, response.id
-    );
+    println!("Project '{}' created (ID: {})", response.name, response.id);
 
     Ok(())
 }

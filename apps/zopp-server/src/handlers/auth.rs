@@ -209,7 +209,14 @@ pub async fn login(
     let request_hash = hasher.finalize().to_vec();
 
     server
-        .verify_signature_and_get_principal(&principal.id, req.timestamp, &req.signature, method, &req, &request_hash)
+        .verify_signature_and_get_principal(
+            &principal.id,
+            req.timestamp,
+            &req.signature,
+            method,
+            &req,
+            &request_hash,
+        )
         .await?;
 
     Ok(Response::new(LoginResponse {

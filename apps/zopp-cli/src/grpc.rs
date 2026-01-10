@@ -91,7 +91,8 @@ pub fn add_auth_metadata<T: Message>(
     method: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let request_hash = compute_request_hash(method, request.get_ref());
-    let (timestamp, signature) = sign_request_with_body(&principal.private_key, method, &request_hash)?;
+    let (timestamp, signature) =
+        sign_request_with_body(&principal.private_key, method, &request_hash)?;
 
     request
         .metadata_mut()

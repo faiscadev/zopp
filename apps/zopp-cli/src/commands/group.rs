@@ -174,7 +174,11 @@ pub async fn cmd_group_remove_member(
         group_name: group_name.clone(),
         user_email: user_email.clone(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/RemoveGroupMember")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/RemoveGroupMember",
+    )?;
 
     client.remove_group_member(request).await?;
     println!("Removed {} from group {}", user_email, group_name);
@@ -198,7 +202,11 @@ pub async fn cmd_group_list_members(
         workspace_name,
         group_name: group_name.clone(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/ListGroupMembers")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/ListGroupMembers",
+    )?;
 
     let response = client.list_group_members(request).await?.into_inner();
 
@@ -240,7 +248,11 @@ pub async fn cmd_group_set_permission(
         group_name: group_name.clone(),
         role,
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/SetGroupWorkspacePermission")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/SetGroupWorkspacePermission",
+    )?;
 
     client.set_group_workspace_permission(request).await?;
     println!("Set permission for group {}", group_name);
@@ -264,7 +276,11 @@ pub async fn cmd_group_remove_permission(
         workspace_name,
         group_name: group_name.clone(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/RemoveGroupWorkspacePermission")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/RemoveGroupWorkspacePermission",
+    )?;
 
     client.remove_group_workspace_permission(request).await?;
     println!("Removed permission for group {}", group_name);
@@ -299,7 +315,11 @@ pub async fn cmd_group_set_project_permission(
         group_name: group_name.clone(),
         role: role_enum,
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/SetGroupProjectPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/SetGroupProjectPermission",
+    )?;
 
     client.set_group_project_permission(request).await?;
     println!(
@@ -328,7 +348,11 @@ pub async fn cmd_group_remove_project_permission(
         project_name: project.to_string(),
         group_name: group_name.clone(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/RemoveGroupProjectPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/RemoveGroupProjectPermission",
+    )?;
 
     client.remove_group_project_permission(request).await?;
     println!(
@@ -368,7 +392,11 @@ pub async fn cmd_group_set_environment_permission(
         group_name: group_name.clone(),
         role: role_enum,
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/SetGroupEnvironmentPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/SetGroupEnvironmentPermission",
+    )?;
 
     client.set_group_environment_permission(request).await?;
     println!(
@@ -399,7 +427,11 @@ pub async fn cmd_group_remove_environment_permission(
         environment_name: environment.to_string(),
         group_name: group_name.clone(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/RemoveGroupEnvironmentPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/RemoveGroupEnvironmentPermission",
+    )?;
 
     client.remove_group_environment_permission(request).await?;
     println!(
@@ -428,7 +460,11 @@ pub async fn cmd_group_get_permission(
         workspace_name: workspace_name.clone(),
         group_name: group_name.clone(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/GetGroupWorkspacePermission")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/GetGroupWorkspacePermission",
+    )?;
 
     let response = client
         .get_group_workspace_permission(request)
@@ -464,7 +500,11 @@ pub async fn cmd_group_list_permissions(
     let mut request = tonic::Request::new(zopp_proto::ListGroupWorkspacePermissionsRequest {
         workspace_name: workspace_name.clone(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/ListGroupWorkspacePermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/ListGroupWorkspacePermissions",
+    )?;
 
     let response = client
         .list_group_workspace_permissions(request)
@@ -508,7 +548,11 @@ pub async fn cmd_group_get_project_permission(
         project_name: project.to_string(),
         group_name: group_name.clone(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/GetGroupProjectPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/GetGroupProjectPermission",
+    )?;
 
     let response = client
         .get_group_project_permission(request)
@@ -546,7 +590,11 @@ pub async fn cmd_group_list_project_permissions(
         workspace_name: workspace_name.clone(),
         project_name: project.to_string(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/ListGroupProjectPermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/ListGroupProjectPermissions",
+    )?;
 
     let response = client
         .list_group_project_permissions(request)
@@ -598,7 +646,11 @@ pub async fn cmd_group_get_environment_permission(
         environment_name: environment.to_string(),
         group_name: group_name.clone(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/GetGroupEnvironmentPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/GetGroupEnvironmentPermission",
+    )?;
 
     let response = client
         .get_group_environment_permission(request)
@@ -638,7 +690,11 @@ pub async fn cmd_group_list_environment_permissions(
         project_name: project.to_string(),
         environment_name: environment.to_string(),
     });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/ListGroupEnvironmentPermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &principal,
+        "/zopp.ZoppService/ListGroupEnvironmentPermissions",
+    )?;
 
     let response = client
         .list_group_environment_permissions(request)

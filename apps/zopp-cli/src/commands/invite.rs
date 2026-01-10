@@ -21,7 +21,11 @@ pub async fn cmd_invite_create(
     let secret_hash = zopp_crypto::hash_sha256(&invite_secret);
 
     let mut ws_request = tonic::Request::new(zopp_proto::Empty {});
-    add_auth_metadata(&mut ws_request, &principal, "/zopp.ZoppService/ListWorkspaces")?;
+    add_auth_metadata(
+        &mut ws_request,
+        &principal,
+        "/zopp.ZoppService/ListWorkspaces",
+    )?;
     let workspaces = client.list_workspaces(ws_request).await?.into_inner();
     let workspace = workspaces
         .workspaces

@@ -14,7 +14,11 @@ async fn create_secret_context(
     let mut request = tonic::Request::new(zopp_proto::GetWorkspaceKeysRequest {
         workspace_name: workspace_name.to_string(),
     });
-    add_auth_metadata(&mut request, principal, "/zopp.ZoppService/GetWorkspaceKeys")?;
+    add_auth_metadata(
+        &mut request,
+        principal,
+        "/zopp.ZoppService/GetWorkspaceKeys",
+    )?;
     let workspace_keys = client.get_workspace_keys(request).await?.into_inner();
 
     // Get environment

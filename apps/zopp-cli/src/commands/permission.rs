@@ -28,7 +28,11 @@ pub async fn cmd_permission_set(
         principal_id: principal.to_string(),
         role: role_enum,
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/SetWorkspacePermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/SetWorkspacePermission",
+    )?;
 
     client.set_workspace_permission(request).await?;
     println!(
@@ -51,7 +55,11 @@ pub async fn cmd_permission_get(
         workspace_name: workspace.to_string(),
         principal_id: principal.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/GetWorkspacePermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/GetWorkspacePermission",
+    )?;
 
     let response = client.get_workspace_permission(request).await?.into_inner();
 
@@ -80,7 +88,11 @@ pub async fn cmd_permission_list(
     let mut request = tonic::Request::new(ListWorkspacePermissionsRequest {
         workspace_name: workspace.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/ListWorkspacePermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/ListWorkspacePermissions",
+    )?;
 
     let response = client
         .list_workspace_permissions(request)
@@ -118,7 +130,11 @@ pub async fn cmd_permission_remove(
         workspace_name: workspace.to_string(),
         principal_id: principal.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/RemoveWorkspacePermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/RemoveWorkspacePermission",
+    )?;
 
     client.remove_workspace_permission(request).await?;
     println!(
@@ -152,7 +168,11 @@ pub async fn cmd_user_permission_set(
         user_email: email.to_string(),
         role: role_enum,
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/SetUserWorkspacePermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/SetUserWorkspacePermission",
+    )?;
 
     client.set_user_workspace_permission(request).await?;
     println!(
@@ -175,7 +195,11 @@ pub async fn cmd_user_permission_get(
         workspace_name: workspace.to_string(),
         user_email: email.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/GetUserWorkspacePermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/GetUserWorkspacePermission",
+    )?;
 
     let response = client
         .get_user_workspace_permission(request)
@@ -207,7 +231,11 @@ pub async fn cmd_user_permission_list(
     let mut request = tonic::Request::new(ListUserWorkspacePermissionsRequest {
         workspace_name: workspace.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/ListUserWorkspacePermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/ListUserWorkspacePermissions",
+    )?;
 
     let response = client
         .list_user_workspace_permissions(request)
@@ -245,7 +273,11 @@ pub async fn cmd_user_permission_remove(
         workspace_name: workspace.to_string(),
         user_email: email.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/RemoveUserWorkspacePermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/RemoveUserWorkspacePermission",
+    )?;
 
     client.remove_user_workspace_permission(request).await?;
     println!(
@@ -281,7 +313,11 @@ pub async fn cmd_user_project_permission_set(
         user_email: email.to_string(),
         role: role_enum,
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/SetUserProjectPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/SetUserProjectPermission",
+    )?;
 
     client.set_user_project_permission(request).await?;
     println!(
@@ -306,7 +342,11 @@ pub async fn cmd_user_project_permission_remove(
         project_name: project.to_string(),
         user_email: email.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/RemoveUserProjectPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/RemoveUserProjectPermission",
+    )?;
 
     client.remove_user_project_permission(request).await?;
     println!(
@@ -344,7 +384,11 @@ pub async fn cmd_user_environment_permission_set(
         user_email: email.to_string(),
         role: role_enum,
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/SetUserEnvironmentPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/SetUserEnvironmentPermission",
+    )?;
 
     client.set_user_environment_permission(request).await?;
     println!(
@@ -371,7 +415,11 @@ pub async fn cmd_user_environment_permission_remove(
         environment_name: environment.to_string(),
         user_email: email.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/RemoveUserEnvironmentPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/RemoveUserEnvironmentPermission",
+    )?;
 
     client.remove_user_environment_permission(request).await?;
     println!(
@@ -394,7 +442,11 @@ pub async fn cmd_user_project_permission_list(
         workspace_name: workspace.to_string(),
         project_name: project.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/ListUserProjectPermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/ListUserProjectPermissions",
+    )?;
 
     let response = client
         .list_user_project_permissions(request)
@@ -437,7 +489,11 @@ pub async fn cmd_user_environment_permission_list(
         project_name: project.to_string(),
         environment_name: environment.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/ListUserEnvironmentPermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/ListUserEnvironmentPermissions",
+    )?;
 
     let response = client
         .list_user_environment_permissions(request)
@@ -483,7 +539,11 @@ pub async fn cmd_user_project_permission_get(
         project_name: project.to_string(),
         user_email: email.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/GetUserProjectPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/GetUserProjectPermission",
+    )?;
 
     let response = client
         .get_user_project_permission(request)
@@ -521,7 +581,11 @@ pub async fn cmd_user_environment_permission_get(
         environment_name: environment.to_string(),
         user_email: email.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/GetUserEnvironmentPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/GetUserEnvironmentPermission",
+    )?;
 
     let response = client
         .get_user_environment_permission(request)
@@ -568,7 +632,11 @@ pub async fn cmd_principal_project_permission_set(
         principal_id: principal.to_string(),
         role: role_enum,
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/SetProjectPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/SetProjectPermission",
+    )?;
 
     client.set_project_permission(request).await?;
     println!(
@@ -593,7 +661,11 @@ pub async fn cmd_principal_project_permission_get(
         project_name: project.to_string(),
         principal_id: principal.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/GetProjectPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/GetProjectPermission",
+    )?;
 
     let response = client.get_project_permission(request).await?.into_inner();
 
@@ -624,7 +696,11 @@ pub async fn cmd_principal_project_permission_list(
         workspace_name: workspace.to_string(),
         project_name: project.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/ListProjectPermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/ListProjectPermissions",
+    )?;
 
     let response = client.list_project_permissions(request).await?.into_inner();
 
@@ -667,7 +743,11 @@ pub async fn cmd_principal_project_permission_remove(
         project_name: project.to_string(),
         principal_id: principal.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/RemoveProjectPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/RemoveProjectPermission",
+    )?;
 
     client.remove_project_permission(request).await?;
     println!(
@@ -705,7 +785,11 @@ pub async fn cmd_principal_environment_permission_set(
         principal_id: principal.to_string(),
         role: role_enum,
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/SetEnvironmentPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/SetEnvironmentPermission",
+    )?;
 
     client.set_environment_permission(request).await?;
     println!(
@@ -732,7 +816,11 @@ pub async fn cmd_principal_environment_permission_get(
         environment_name: environment.to_string(),
         principal_id: principal.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/GetEnvironmentPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/GetEnvironmentPermission",
+    )?;
 
     let response = client
         .get_environment_permission(request)
@@ -768,7 +856,11 @@ pub async fn cmd_principal_environment_permission_list(
         project_name: project.to_string(),
         environment_name: environment.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/ListEnvironmentPermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/ListEnvironmentPermissions",
+    )?;
 
     let response = client
         .list_environment_permissions(request)
@@ -816,7 +908,11 @@ pub async fn cmd_principal_environment_permission_remove(
         environment_name: environment.to_string(),
         principal_id: principal.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/RemoveEnvironmentPermission")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/RemoveEnvironmentPermission",
+    )?;
 
     client.remove_environment_permission(request).await?;
     println!(
@@ -841,7 +937,11 @@ pub async fn cmd_permission_effective(
         workspace_name: workspace.to_string(),
         principal_id: principal.to_string(),
     });
-    add_auth_metadata(&mut request, &auth_principal, "/zopp.ZoppService/GetEffectivePermissions")?;
+    add_auth_metadata(
+        &mut request,
+        &auth_principal,
+        "/zopp.ZoppService/GetEffectivePermissions",
+    )?;
 
     let response = client
         .get_effective_permissions(request)
