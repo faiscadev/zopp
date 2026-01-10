@@ -297,8 +297,7 @@ async fn update_status(
     let namespace = zss.namespace().unwrap_or_default();
     let api: Api<ZoppSecretSync> = Api::namespaced(client.clone(), &namespace);
 
-    let mut new_status =
-        status.unwrap_or_else(|| zss.status.clone().unwrap_or_default());
+    let mut new_status = status.unwrap_or_else(|| zss.status.clone().unwrap_or_default());
     new_status.observed_generation = zss.metadata.generation;
     new_status.set_condition(condition.with_generation(zss.metadata.generation.unwrap_or(0)));
 
