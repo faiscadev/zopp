@@ -181,6 +181,8 @@ pub async fn run_sync(
 
         debug!("Periodic reconciliation for {}/{}", namespace, name);
 
+        let previous_version = current_version;
+
         match full_resync(
             &grpc_client,
             &k8s_client,
@@ -197,8 +199,14 @@ pub async fn run_sync(
                     "Periodic reconciliation complete for {}/{}, version: {}",
                     namespace, name, current_version
                 );
-                // Trigger deployment reloads after successful periodic sync
-                trigger_reload_if_needed(&k8s_client, &namespace, &name).await;
+                // Only trigger deployment reloads if secrets actually changed
+                if version != previous_version {
+                    info!(
+                        "Secrets changed (version {} -> {}), triggering deployment reloads",
+                        previous_version, version
+                    );
+                    trigger_reload_if_needed(&k8s_client, &namespace, &name).await;
+                }
             }
             Err(e) => {
                 warn!(
