@@ -15,7 +15,8 @@ fn add_auth_metadata<T: Message + Clone>(
 ) {
     let timestamp = chrono::Utc::now().timestamp();
     let req_body = request.get_ref().clone();
-    let (signature, request_hash) = crate::watch::create_signature(credentials, method, &req_body, timestamp);
+    let (signature, request_hash) =
+        crate::watch::create_signature(credentials, method, &req_body, timestamp);
 
     request.metadata_mut().insert(
         "principal-id",
@@ -287,7 +288,11 @@ async fn unwrap_environment_dek(
         project_name: project_name.to_string(),
         environment_name: environment_name.to_string(),
     });
-    add_auth_metadata(&mut request, credentials, "/zopp.ZoppService/GetEnvironment");
+    add_auth_metadata(
+        &mut request,
+        credentials,
+        "/zopp.ZoppService/GetEnvironment",
+    );
 
     let environment = client.get_environment(request).await?.into_inner();
 
@@ -295,7 +300,11 @@ async fn unwrap_environment_dek(
     let mut ws_request = tonic::Request::new(zopp_proto::GetWorkspaceKeysRequest {
         workspace_name: workspace_name.to_string(),
     });
-    add_auth_metadata(&mut ws_request, credentials, "/zopp.ZoppService/GetWorkspaceKeys");
+    add_auth_metadata(
+        &mut ws_request,
+        credentials,
+        "/zopp.ZoppService/GetWorkspaceKeys",
+    );
 
     let workspace_keys = client.get_workspace_keys(ws_request).await?.into_inner();
 
