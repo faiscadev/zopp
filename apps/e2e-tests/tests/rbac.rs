@@ -70,7 +70,7 @@ impl TestEnv {
 
         let server_addr = format!("0.0.0.0:{}", port);
         // Use wrapping arithmetic to avoid overflow when port is high
-        let health_port = port.wrapping_add(1000) % 65535;
+        let health_port = port.wrapping_add(1000);
         let health_port = if health_port < 1024 {
             health_port + 10000
         } else {
