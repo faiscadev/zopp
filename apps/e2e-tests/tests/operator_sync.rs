@@ -348,7 +348,33 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
         cleanup(&mut server, cluster_name)?;
         return Err("Failed to join workspace with operator principal".into());
     }
-    println!("✓ Operator principal added to workspace 'acme'\n");
+    println!("✓ Operator principal added to workspace 'acme'");
+
+    // Grant READ permission to the operator on the workspace
+    let output = Command::new(&zopp_bin)
+        .env("HOME", &alice_home)
+        .current_dir(&test_dir)
+        .args([
+            "--server",
+            &server_url,
+            "permission",
+            "set",
+            "--principal",
+            "k8s-operator",
+            "--role",
+            "read",
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        eprintln!(
+            "Failed to set permission: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        cleanup(&mut server, cluster_name)?;
+        return Err("Failed to set permission for operator".into());
+    }
+    println!("✓ Granted READ permission to operator\n");
 
     // Step 10: Start operator
     println!("🤖 Step 10: Starting zopp operator...");
