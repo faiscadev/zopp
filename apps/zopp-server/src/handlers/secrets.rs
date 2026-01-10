@@ -486,12 +486,38 @@ pub async fn watch_secrets(
         .await
         .map_err(|e| Status::internal(format!("Failed to subscribe to events: {}", e)))?;
 
-    // Spawn task to forward events
-    // TODO: This stream doesn't re-validate permissions. If a user's permissions are
-    // revoked while watching, they will continue to receive events until they disconnect.
-    // Consider adding periodic permission re-validation or a mechanism to invalidate streams.
+    // Clone what we need for the spawned task
+    let server_clone = server.clone();
+    let principal_id_clone = principal_id.clone();
+    let workspace_id_clone = workspace.id.clone();
+    let project_id_clone = project.id.clone();
+    let env_id_clone = env.id.clone();
+
+    // Spawn task to forward events with permission re-validation
     tokio::spawn(async move {
         while let Some(event) = subscriber.next().await {
+            // Re-check permissions before forwarding each event
+            // This ensures revoked permissions are respected immediately
+            if server_clone
+                .check_permission(
+                    &principal_id_clone,
+                    &workspace_id_clone,
+                    &project_id_clone,
+                    &env_id_clone,
+                    zopp_storage::Role::Read,
+                )
+                .await
+                .is_err()
+            {
+                // Permission revoked - close the stream
+                let _ = tx
+                    .send(Err(Status::permission_denied(
+                        "Permission revoked - closing watch stream",
+                    )))
+                    .await;
+                break;
+            }
+
             let proto_event_type = match event.event_type {
                 EventType::Created => zopp_proto::secret_change_event::EventType::Created,
                 EventType::Updated => zopp_proto::secret_change_event::EventType::Updated,

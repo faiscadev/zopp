@@ -10,6 +10,7 @@ use zopp_storage::{EnvironmentId, Principal, PrincipalId, ProjectId, Store, Work
 use zopp_store_postgres::PostgresStore;
 use zopp_store_sqlite::SqliteStore;
 
+#[derive(Clone)]
 pub struct ZoppServer {
     pub store: StoreBackend,
     pub events: Arc<dyn EventBus>,
