@@ -31,6 +31,7 @@ pub struct ControllerContext {
 
 /// Error type for controller operations.
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum ControllerError {
     #[error("Kubernetes error: {0}")]
     Kube(#[from] kube::Error),

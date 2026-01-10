@@ -161,6 +161,7 @@ pub struct Condition {
 }
 
 /// Well-known condition types for ZoppSecretSync.
+#[allow(dead_code)]
 pub mod condition_types {
     /// Ready indicates whether the sync is operational.
     pub const READY: &str = "Ready";
@@ -170,6 +171,7 @@ pub mod condition_types {
 }
 
 /// Well-known condition reasons.
+#[allow(dead_code)]
 pub mod condition_reasons {
     pub const SYNC_SUCCESS: &str = "SyncSuccess";
     pub const SYNC_FAILED: &str = "SyncFailed";
@@ -179,6 +181,7 @@ pub mod condition_reasons {
     pub const DECRYPTION_FAILED: &str = "DecryptionFailed";
 }
 
+#[allow(dead_code)]
 impl ZoppSecretSyncStatus {
     /// Create a new status with an empty condition list.
     pub fn new() -> Self {
