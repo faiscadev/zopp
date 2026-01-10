@@ -345,7 +345,9 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
         operator_principal_id
     );
 
-    // Grant READ permission to the operator on the workspace
+    // Grant READ permission to the operator user on the workspace
+    // Note: We use user-set (not set --principal) because the operator joined as a regular user
+    // and principal permissions only act as a ceiling for users, not as a grant
     let output = Command::new(&zopp_bin)
         .env("HOME", &alice_home)
         .current_dir(&test_dir)
@@ -353,11 +355,11 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
             "--server",
             &server_url,
             "permission",
-            "set",
+            "user-set",
             "--workspace",
             "acme",
-            "--principal",
-            &operator_principal_id,
+            "--email",
+            "k8s-operator@acme.com",
             "--role",
             "read",
         ])
@@ -371,7 +373,10 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
         cleanup(&mut server, cluster_name)?;
         return Err("Failed to set permission for operator".into());
     }
-    println!("✓ Granted READ permission to operator\n");
+    println!(
+        "✓ Granted READ permission to operator (Principal ID: {})\n",
+        operator_principal_id
+    );
 
     // Step 10: Start operator
     println!("🤖 Step 10: Starting zopp operator...");
