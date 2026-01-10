@@ -67,7 +67,14 @@ async fn run_demo_test(
     println!("📡 Step 0: Starting server...");
 
     let server_addr = format!("0.0.0.0:{port}");
-    let health_addr = format!("0.0.0.0:{}", port + 1000); // Use port + 1000 for health checks
+    // Use wrapping arithmetic to avoid overflow when port is high
+    let health_port = port.wrapping_add(1000);
+    let health_port = if health_port < 1024 {
+        health_port + 10000
+    } else {
+        health_port
+    };
+    let health_addr = format!("0.0.0.0:{}", health_port);
     let mut server = Command::new(&zopp_server_bin)
         .env("DATABASE_URL", db_url)
         .args([
@@ -262,6 +269,32 @@ async fn run_demo_test(
         return Err("Bob failed to join workspace".into());
     }
     println!("✓ Bob joined workspace 'acme'\n");
+
+    println!("🔑 Step 7b: Alice grants Bob write permission...");
+    let output = Command::new(&zopp_bin)
+        .env("HOME", &alice_home)
+        .args([
+            "--server",
+            &server_url,
+            "permission",
+            "user-set",
+            "-w",
+            "acme",
+            "--email",
+            "bob@example.com",
+            "--role",
+            "write",
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        eprintln!(
+            "Permission set failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Err("Failed to grant Bob write permission".into());
+    }
+    println!("✓ Bob granted write permission on workspace 'acme'\n");
 
     println!("🔐 Step 8: Bob writes secret 'FLUXMAIL_API_TOKEN'...");
     let secret_value = "fxt_8k2m9p4x7n1q5w3e6r8t0y2u4i6o8p0a";
