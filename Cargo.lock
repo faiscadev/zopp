@@ -4421,6 +4421,7 @@ version = "0.1.1"
 dependencies = [
  "async-trait",
  "futures",
+ "serde",
  "thiserror 2.0.17",
  "zopp-storage",
 ]
@@ -4432,6 +4433,21 @@ dependencies = [
  "async-trait",
  "dashmap",
  "futures",
+ "tokio",
+ "tokio-stream",
+ "uuid",
+ "zopp-events",
+ "zopp-storage",
+]
+
+[[package]]
+name = "zopp-events-postgres"
+version = "0.1.1"
+dependencies = [
+ "async-trait",
+ "futures",
+ "serde_json",
+ "sqlx",
  "tokio",
  "tokio-stream",
  "uuid",
@@ -4521,6 +4537,7 @@ dependencies = [
  "zopp-crypto",
  "zopp-events",
  "zopp-events-memory",
+ "zopp-events-postgres",
  "zopp-proto",
  "zopp-storage",
  "zopp-store-postgres",

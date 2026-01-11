@@ -1,0 +1,22 @@
+[package]
+name = "zopp-events-postgres"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "PostgreSQL event bus implementation for zopp using LISTEN/NOTIFY"
+
+[dependencies]
+async-trait = { workspace = true }
+futures = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true, features = ["postgres", "runtime-tokio-native-tls"] }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+zopp-events = { path = "../zopp-events", version = "0.1.0" }
+zopp-storage = { path = "../zopp-storage", version = "0.1.0" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "time"] }
+uuid = { workspace = true }

@@ -8,12 +8,13 @@
 
 use async_trait::async_trait;
 use futures::Stream;
+use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 use thiserror::Error;
 use zopp_storage::EnvironmentId;
 
 /// Type of secret change event
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventType {
     Created,
     Updated,
@@ -21,7 +22,7 @@ pub enum EventType {
 }
 
 /// Event representing a change to a secret in an environment
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SecretChangeEvent {
     pub event_type: EventType,
     pub key: String,

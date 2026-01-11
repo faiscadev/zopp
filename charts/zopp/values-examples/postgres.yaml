@@ -1,9 +1,12 @@
-# Example: PostgreSQL backend
+# Example: PostgreSQL backend with horizontal scaling
 # Usage: helm install zopp ./charts/zopp -f values-examples/postgres.yaml
+#
+# This example runs 2 server replicas with PostgreSQL storage.
+# Events are automatically shared between replicas via PostgreSQL LISTEN/NOTIFY.
 
 server:
   enabled: true
-  replicaCount: 2
+  replicaCount: 2  # Horizontally scalable with postgres events (auto-detected)
 
   database:
     type: postgres
@@ -11,6 +14,13 @@ server:
       # Use existing secret for security
       existingSecret: "zopp-db-credentials"
       existingSecretKey: "DATABASE_URL"
+
+  # Events backend is auto-detected (postgres when using postgres database)
+  # Explicit configuration:
+  # events:
+  #   backend: postgres  # or "auto" (default)
+  #   # Optional: separate database for events (load isolation)
+  #   # databaseUrl: "postgres://user:pass@events-host/db"
 
   resources:
     limits:

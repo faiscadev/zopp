@@ -15,6 +15,7 @@ use backend::StoreBackend;
 use server::ZoppServer;
 use zopp_events::EventBus;
 use zopp_events_memory::MemoryEventBus;
+use zopp_events_postgres::PostgresEventBus;
 use zopp_proto::zopp_service_server::ZoppServiceServer;
 use zopp_storage::{CreateInviteParams, Store};
 use zopp_store_postgres::PostgresStore;
@@ -61,6 +62,17 @@ enum Command {
         /// Path to CA certificate for client verification (enables mTLS)
         #[arg(long, env = "ZOPP_TLS_CLIENT_CA")]
         tls_client_ca: Option<String>,
+
+        /// Event bus backend: "auto" (default), "memory", or "postgres"
+        /// - auto: Use postgres if DATABASE_URL is postgres://, otherwise memory
+        /// - memory: In-memory only (single replica)
+        /// - postgres: PostgreSQL LISTEN/NOTIFY (multi-replica)
+        #[arg(long, env = "ZOPP_EVENTS_BACKEND", default_value = "auto")]
+        events_backend: String,
+
+        /// Optional separate database URL for events (defaults to DATABASE_URL)
+        #[arg(long, env = "ZOPP_EVENTS_DATABASE_URL")]
+        events_database_url: Option<String>,
     },
     /// Invite management commands
     Invite {
@@ -171,6 +183,7 @@ async fn cmd_invite_revoke(db_url: &str, token: &str) -> Result<(), Box<dyn std:
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn cmd_serve(
     database_url: Option<String>,
     legacy_db_path: Option<String>,
@@ -179,6 +192,8 @@ async fn cmd_serve(
     tls_cert: Option<String>,
     tls_key: Option<String>,
     tls_client_ca: Option<String>,
+    events_backend: &str,
+    events_database_url: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     cmd_serve_with_ready(
         database_url,
@@ -188,6 +203,8 @@ async fn cmd_serve(
         tls_cert,
         tls_key,
         tls_client_ca,
+        events_backend,
+        events_database_url,
         None,
     )
     .await
@@ -202,6 +219,8 @@ async fn cmd_serve_with_ready(
     tls_cert: Option<String>,
     tls_key: Option<String>,
     tls_client_ca: Option<String>,
+    events_backend: &str,
+    events_database_url: Option<String>,
     ready_tx: Option<tokio::sync::oneshot::Sender<(std::net::SocketAddr, std::net::SocketAddr)>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use axum::{routing::get, Router};
@@ -248,7 +267,33 @@ async fn cmd_serve_with_ready(
         StoreBackend::Sqlite(Arc::new(store))
     };
 
-    let events: Arc<dyn EventBus> = Arc::new(MemoryEventBus::new());
+    // Create event bus based on configuration
+    let events: Arc<dyn EventBus> = match events_backend {
+        "memory" => {
+            println!("Using in-memory event bus (single replica only)");
+            Arc::new(MemoryEventBus::new())
+        }
+        "postgres" => {
+            let events_url = events_database_url.as_deref().unwrap_or(&db_url);
+            if !events_url.starts_with("postgres:") {
+                return Err("--events-backend=postgres requires a PostgreSQL database URL".into());
+            }
+            println!("Using PostgreSQL event bus for horizontal scaling");
+            Arc::new(PostgresEventBus::connect(events_url).await?)
+        }
+        _ => {
+            // Auto-detect (default): use postgres if available, otherwise memory
+            let events_url = events_database_url.as_deref().unwrap_or(&db_url);
+            if events_url.starts_with("postgres:") {
+                println!("Using PostgreSQL event bus for horizontal scaling (auto-detected)");
+                Arc::new(PostgresEventBus::connect(events_url).await?)
+            } else {
+                println!("Using in-memory event bus (single replica only)");
+                Arc::new(MemoryEventBus::new())
+            }
+        }
+    };
+
     let server = match backend {
         StoreBackend::Sqlite(ref s) => ZoppServer::new_sqlite(s.clone(), events),
         StoreBackend::Postgres(ref s) => ZoppServer::new_postgres(s.clone(), events),
@@ -409,6 +454,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tls_cert,
             tls_key,
             tls_client_ca,
+            events_backend,
+            events_database_url,
         } => {
             cmd_serve(
                 cli.database_url,
@@ -418,6 +465,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tls_cert,
                 tls_key,
                 tls_client_ca,
+                &events_backend,
+                events_database_url,
             )
             .await?;
         }
