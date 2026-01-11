@@ -9,6 +9,7 @@ members = [
     "crates/zopp-crypto",
     "crates/zopp-events",
     "crates/zopp-events-memory",
+    "crates/zopp-events-postgres",
     "crates/zopp-proto",
     "crates/zopp-secrets",
     "crates/zopp-storage",

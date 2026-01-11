@@ -61,6 +61,19 @@ spec:
           - name: DATABASE_URL
             value: "sqlite://{{ .Values.server.database.sqlite.path }}?mode=rwc"
           {{- end }}
+          - name: ZOPP_EVENTS_BACKEND
+            value: {{ .Values.server.events.backend | quote }}
+          {{- if or .Values.server.events.databaseUrl .Values.server.events.existingSecret }}
+          - name: ZOPP_EVENTS_DATABASE_URL
+            {{- if .Values.server.events.existingSecret }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.server.events.existingSecret }}
+                key: {{ .Values.server.events.existingSecretKey }}
+            {{- else }}
+            value: {{ .Values.server.events.databaseUrl | quote }}
+            {{- end }}
+          {{- end }}
         ports:
         - name: grpc
           containerPort: {{ .Values.server.service.grpcPort }}

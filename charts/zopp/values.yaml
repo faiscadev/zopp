@@ -44,6 +44,19 @@ server:
       existingSecret: ""
       existingSecretKey: "DATABASE_URL"
 
+  # Event bus configuration (for WatchSecrets streaming)
+  events:
+    # Backend type: auto, memory, or postgres
+    # - auto (default): uses postgres if database.type=postgres, otherwise memory
+    # - memory: in-memory only (single replica)
+    # - postgres: PostgreSQL LISTEN/NOTIFY (required for horizontal scaling)
+    backend: auto
+    # Optional: separate database URL for events (defaults to main DATABASE_URL)
+    # Useful for load isolation or using a read replica
+    databaseUrl: ""
+    existingSecret: ""
+    existingSecretKey: "EVENTS_DATABASE_URL"
+
   # TLS configuration (optional)
   tls:
     enabled: false
