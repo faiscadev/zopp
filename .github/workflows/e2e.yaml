@@ -117,7 +117,7 @@ jobs:
             <details>
             <summary>View full report</summary>
 
-            Download the \`coverage-report\` artifact or view on [GitHub Pages](https://${{ github.repository_owner }}.github.io/${context.repo.repo}/coverage/) after merge.
+            Download the \`coverage-report\` artifact or view on [GitHub Pages](https://${{ github.repository_owner }}.github.io/${context.repo.repo}/coverage/html/) after merge.
             </details>`;
 
             // Find existing comment
