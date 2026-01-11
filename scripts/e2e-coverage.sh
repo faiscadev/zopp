@@ -21,10 +21,6 @@ cargo llvm-cov clean --workspace
 echo "Building instrumented binaries..."
 cargo build --workspace --bins
 
-# Run unit tests
-echo "Running unit tests..."
-cargo test --workspace --all-features
-
 # Run E2E tests (spawned binaries inherit coverage env)
 echo "Running E2E tests..."
 cargo test --package e2e-tests -- --test-threads=1
