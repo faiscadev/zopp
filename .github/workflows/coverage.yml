@@ -17,28 +17,24 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Setup coverage environment
+      - name: Build instrumented binaries
         run: |
           source <(cargo llvm-cov show-env --export-prefix)
-          echo "RUSTFLAGS=$RUSTFLAGS" >> $GITHUB_ENV
-          echo "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE" >> $GITHUB_ENV
-          echo "CARGO_INCREMENTAL=$CARGO_INCREMENTAL" >> $GITHUB_ENV
+          cargo build --workspace --bins
 
-      - name: Clean coverage
-        run: cargo llvm-cov clean --workspace
+      - name: Run unit tests with coverage
+        run: cargo llvm-cov --workspace --all-features --exclude e2e-tests --exclude zopp-events-postgres --exclude zopp-store-postgres --no-report
 
-      - name: Build instrumented binaries
-        run: cargo build --workspace --bins
-
-      - name: Run unit tests
-        run: cargo test --workspace --all-features --exclude e2e-tests --exclude zopp-events-postgres --exclude zopp-store-postgres
-
-      - name: Run E2E tests (demo/sqlite only)
-        run: cargo test --package e2e-tests --test demo demo_sqlite -- --test-threads=1
+      - name: Run E2E tests with coverage
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          cargo test --package e2e-tests --test demo demo_sqlite -- --test-threads=1
 
       - name: Generate coverage report
         run: |
