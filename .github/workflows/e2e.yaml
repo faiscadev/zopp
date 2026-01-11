@@ -54,6 +54,8 @@ jobs:
           cargo llvm-cov run --no-report --bin zopp-server -- --help || true
           cargo llvm-cov run --no-report --bin zopp -- --help || true
           # Run e2e tests (they spawn the binaries)
+          # Set CARGO_TARGET_DIR so tests can find the llvm-cov built binaries
+          export CARGO_TARGET_DIR=$PWD/target/llvm-cov-target
           cargo llvm-cov test --no-report --package e2e-tests --test demo -- --test-threads=1
           cargo llvm-cov test --no-report --package e2e-tests --test rbac -- --test-threads=1
           # Generate reports
