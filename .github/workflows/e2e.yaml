@@ -47,26 +47,19 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Build instrumented binaries
-        run: |
-          cargo llvm-cov clean --workspace
-          cargo llvm-cov build --workspace --bins
-        env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5433/postgres
-
       - name: Run E2E tests with coverage
         run: |
+          cargo llvm-cov clean --workspace
+          # Build binaries and run e2e tests
           cargo llvm-cov test --no-report --package e2e-tests --test demo -- --test-threads=1
           cargo llvm-cov test --no-report --package e2e-tests --test rbac -- --test-threads=1
-        env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5433/postgres
-
-      - name: Generate coverage report
-        run: |
+          # Generate reports
           mkdir -p coverage
           cargo llvm-cov report --lcov --output-path coverage/lcov.info
           cargo llvm-cov report --html --output-dir coverage/html
           cargo llvm-cov report | tee coverage/summary.txt
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5433/postgres
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
