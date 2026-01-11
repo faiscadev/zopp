@@ -362,9 +362,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("✓ Operator started (PID: {})", operator.id());
 
-    // Wait for sync
+    // Wait for sync (allow more time in CI where things may be slower)
     println!("  Waiting for operator to sync secret...");
-    sleep(Duration::from_secs(10)).await;
+    sleep(Duration::from_secs(30)).await;
 
     // Verify secret was synced
     match verify_k8s_secret(
