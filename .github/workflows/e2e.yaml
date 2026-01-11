@@ -50,7 +50,10 @@ jobs:
       - name: Run E2E tests with coverage
         run: |
           cargo llvm-cov clean --workspace
-          # cargo llvm-cov test sets CARGO_TARGET_DIR internally for subprocess
+          # Build binaries (run --help just to compile them)
+          cargo llvm-cov run --no-report --bin zopp-server -- --help || true
+          cargo llvm-cov run --no-report --bin zopp -- --help || true
+          # Run e2e tests (they spawn the binaries)
           cargo llvm-cov test --no-report --package e2e-tests --test demo -- --test-threads=1
           cargo llvm-cov test --no-report --package e2e-tests --test rbac -- --test-threads=1
           # Generate reports
