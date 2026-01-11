@@ -111,6 +111,7 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
     let server_health_addr = format!("0.0.0.0:{}", server_health_port);
 
     let mut server = Command::new(&zopp_server_bin)
+        .env_remove("DATABASE_URL") // Ensure we use SQLite via --db, not inherited Postgres
         .args([
             "--db",
             db_path_str,
@@ -149,6 +150,7 @@ async fn operator_sync() -> Result<(), Box<dyn std::error::Error>> {
     // Step 2: Setup Alice with workspace/project/environment
     println!("🎫 Step 2: Admin creates server invite for Alice...");
     let output = Command::new(&zopp_server_bin)
+        .env_remove("DATABASE_URL") // Ensure we use SQLite via --db
         .args([
             "--db",
             db_path.to_str().unwrap(),

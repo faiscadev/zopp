@@ -81,6 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server_addr = format!("0.0.0.0:{}", server_port);
     let health_addr = format!("0.0.0.0:{}", server_health_port);
     let mut server = Command::new(&zopp_server_bin)
+        .env_remove("DATABASE_URL") // Ensure we use SQLite via --db, not inherited Postgres
         .env("RUST_LOG", "info")
         .args([
             "--db",
@@ -122,6 +123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Step 3: Create server invite
     println!("🎫 Step 3: Creating server invite...");
     let output = Command::new(&zopp_server_bin)
+        .env_remove("DATABASE_URL") // Ensure we use SQLite via --db
         .args([
             "--db",
             db_path.to_str().unwrap(),
