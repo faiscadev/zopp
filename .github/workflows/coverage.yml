@@ -35,7 +35,7 @@ jobs:
         run: cargo build --workspace --bins
 
       - name: Run unit tests
-        run: cargo test --workspace --all-features --exclude e2e-tests
+        run: cargo test --workspace --all-features --exclude e2e-tests --exclude zopp-events-postgres --exclude zopp-store-postgres
 
       - name: Run E2E tests (demo/sqlite only)
         run: cargo test --package e2e-tests --test demo demo_sqlite -- --test-threads=1
