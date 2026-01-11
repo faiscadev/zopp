@@ -176,6 +176,12 @@ jobs:
           }
           EOF
 
+          # Save coverage files before switching branches (coverage/ is a build artifact, not in git)
+          mkdir -p /tmp/coverage-deploy
+          cp -r coverage/html/* /tmp/coverage-deploy/
+          cp coverage/coverage-baseline.txt /tmp/coverage-deploy/
+          cp coverage/badge.json /tmp/coverage-deploy/
+
           # Create/update gh-pages branch
           if git fetch origin gh-pages:gh-pages 2>/dev/null; then
             git checkout gh-pages
@@ -185,14 +191,12 @@ jobs:
             git rm -rf . 2>/dev/null || true
           fi
 
-          # Copy new coverage report to coverage/ subdirectory
-          git checkout ${{ github.sha }} -- coverage/
-          mkdir -p coverage_tmp
-          mv coverage/html/* coverage_tmp/ 2>/dev/null || true
-          mv coverage/coverage-baseline.txt ./
-          mv coverage/badge.json ./
-          rm -rf coverage/
-          mv coverage_tmp coverage/
+          # Copy coverage files to the branch
+          cp /tmp/coverage-deploy/coverage-baseline.txt ./
+          cp /tmp/coverage-deploy/badge.json ./
+          mkdir -p coverage
+          cp -r /tmp/coverage-deploy/* coverage/ 2>/dev/null || true
+          rm -f coverage/coverage-baseline.txt coverage/badge.json
 
           # Commit and push
           git add -A
