@@ -170,4 +170,75 @@ mod tests {
         let result = sign_request_with_body("abcd", "TestMethod", &[0u8; 32]);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_add_auth_metadata() {
+        use ed25519_dalek::SigningKey;
+        use rand_core::OsRng;
+
+        // Generate a test keypair
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let private_key_hex = hex::encode(signing_key.to_bytes());
+
+        // Create a test principal config
+        let principal = PrincipalConfig {
+            id: "test-principal-id".to_string(),
+            name: "test-principal".to_string(),
+            private_key: private_key_hex,
+            public_key: hex::encode(signing_key.verifying_key().to_bytes()),
+            x25519_private_key: None,
+            x25519_public_key: None,
+        };
+
+        // Create a test request
+        let mut request = tonic::Request::new(ListProjectsRequest {
+            workspace_name: "test-ws".to_string(),
+        });
+
+        // Add auth metadata
+        let result = add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/ListProjects");
+        assert!(result.is_ok());
+
+        // Verify metadata was added
+        let metadata = request.metadata();
+        assert!(metadata.get("principal-id").is_some());
+        assert!(metadata.get("timestamp").is_some());
+        assert!(metadata.get("signature").is_some());
+        assert!(metadata.get("request-hash").is_some());
+
+        // Verify principal-id matches
+        assert_eq!(
+            metadata.get("principal-id").unwrap().to_str().unwrap(),
+            "test-principal-id"
+        );
+    }
+
+    #[test]
+    fn test_compute_request_hash_deterministic() {
+        // Same inputs should always produce same hash
+        let request1 = ListProjectsRequest {
+            workspace_name: "workspace-a".to_string(),
+        };
+        let request2 = ListProjectsRequest {
+            workspace_name: "workspace-a".to_string(),
+        };
+
+        let hash1 = compute_request_hash("/zopp.ZoppService/ListProjects", &request1);
+        let hash2 = compute_request_hash("/zopp.ZoppService/ListProjects", &request2);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_request_hash_different_content() {
+        let request1 = ListProjectsRequest {
+            workspace_name: "workspace-a".to_string(),
+        };
+        let request2 = ListProjectsRequest {
+            workspace_name: "workspace-b".to_string(),
+        };
+
+        let hash1 = compute_request_hash("/zopp.ZoppService/ListProjects", &request1);
+        let hash2 = compute_request_hash("/zopp.ZoppService/ListProjects", &request2);
+        assert_ne!(hash1, hash2);
+    }
 }
