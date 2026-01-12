@@ -216,7 +216,6 @@ impl RbacTestEnv {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn remove_user_project_permission(
         &self,
         admin: &TestUser,
@@ -281,7 +280,6 @@ impl RbacTestEnv {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn remove_user_env_permission(
         &self,
         admin: &TestUser,
@@ -448,7 +446,6 @@ impl RbacTestEnv {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn remove_group_permission(
         &self,
         admin: &TestUser,
@@ -507,7 +504,6 @@ impl RbacTestEnv {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn remove_group_project_permission(
         &self,
         admin: &TestUser,
@@ -572,7 +568,6 @@ impl RbacTestEnv {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn remove_group_env_permission(
         &self,
         admin: &TestUser,
@@ -646,12 +641,10 @@ impl RbacTestEnv {
         ])
     }
 
-    #[allow(dead_code)]
     fn group_permission_list(&self, user: &TestUser, workspace: &str) -> Output {
         user.raw_exec(&["group", "list-permissions", "-w", workspace])
     }
 
-    #[allow(dead_code)]
     fn group_project_permission_list(
         &self,
         user: &TestUser,
@@ -668,7 +661,6 @@ impl RbacTestEnv {
         ])
     }
 
-    #[allow(dead_code)]
     fn group_env_permission_list(
         &self,
         user: &TestUser,
@@ -1663,4 +1655,304 @@ async fn run_test_permission_list_commands(
     Ok(())
 }
 
-// Note: Non-admin permission management tests removed pending RBAC enforcement verification
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: Project Permission Removal
+// ═══════════════════════════════════════════════════════════════════════════
+
+backend_test!(
+    test_project_permission_removal,
+    run_test_project_permission_removal
+);
+
+async fn run_test_project_permission_removal(
+    config: BackendConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let env = RbacTestEnv::new("proj_perm_removal", config).await?;
+
+    let alice = env.create_user("alice");
+    let bob = env.create_user("bob");
+
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "acme")?;
+    env.create_project(&alice, "acme", "api")?;
+    env.create_environment(&alice, "acme", "api", "dev")?;
+
+    env.secret_set(&alice, "acme", "api", "dev", "SECRET", "value");
+
+    let ws_invite = env.create_workspace_invite(&alice, "acme")?;
+    env.join_server(&bob, &ws_invite)?;
+    env.set_user_project_permission(&alice, "acme", "api", &bob.email(), "read")?;
+
+    // Bob can read with project permission
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_success(&output, "Bob read (with project permission)");
+
+    // Remove project permission
+    env.remove_user_project_permission(&alice, "acme", "api", &bob.email())?;
+    println!("  Project permission removed");
+
+    // Bob should no longer have access
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_denied(&output, "Bob read (after project permission removal)");
+
+    println!("  test_project_permission_removal PASSED");
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: Environment Permission Removal
+// ═══════════════════════════════════════════════════════════════════════════
+
+backend_test!(
+    test_environment_permission_removal,
+    run_test_environment_permission_removal
+);
+
+async fn run_test_environment_permission_removal(
+    config: BackendConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let env = RbacTestEnv::new("env_perm_removal", config).await?;
+
+    let alice = env.create_user("alice");
+    let bob = env.create_user("bob");
+
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "acme")?;
+    env.create_project(&alice, "acme", "api")?;
+    env.create_environment(&alice, "acme", "api", "dev")?;
+
+    env.secret_set(&alice, "acme", "api", "dev", "SECRET", "value");
+
+    let ws_invite = env.create_workspace_invite(&alice, "acme")?;
+    env.join_server(&bob, &ws_invite)?;
+    env.set_user_env_permission(&alice, "acme", "api", "dev", &bob.email(), "read")?;
+
+    // Bob can read with environment permission
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_success(&output, "Bob read (with env permission)");
+
+    // Remove environment permission
+    env.remove_user_env_permission(&alice, "acme", "api", "dev", &bob.email())?;
+    println!("  Environment permission removed");
+
+    // Bob should no longer have access
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_denied(&output, "Bob read (after env permission removal)");
+
+    println!("  test_environment_permission_removal PASSED");
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: Group Workspace Permission Removal
+// ═══════════════════════════════════════════════════════════════════════════
+
+backend_test!(
+    test_group_workspace_permission_removal,
+    run_test_group_workspace_permission_removal
+);
+
+async fn run_test_group_workspace_permission_removal(
+    config: BackendConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let env = RbacTestEnv::new("grp_ws_perm_removal", config).await?;
+
+    let alice = env.create_user("alice");
+    let bob = env.create_user("bob");
+
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "acme")?;
+    env.create_project(&alice, "acme", "api")?;
+    env.create_environment(&alice, "acme", "api", "dev")?;
+
+    env.secret_set(&alice, "acme", "api", "dev", "SECRET", "value");
+
+    let ws_invite = env.create_workspace_invite(&alice, "acme")?;
+    env.join_server(&bob, &ws_invite)?;
+
+    // Create group with workspace permission and add Bob
+    env.create_group(&alice, "acme", "readers")?;
+    env.set_group_permission(&alice, "acme", "readers", "read")?;
+    env.add_group_member(&alice, "acme", "readers", &bob.email())?;
+
+    // Bob can read via group
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_success(&output, "Bob read (with group permission)");
+
+    // Remove group permission
+    env.remove_group_permission(&alice, "acme", "readers")?;
+    println!("  Group workspace permission removed");
+
+    // Bob should no longer have access
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_denied(&output, "Bob read (after group permission removal)");
+
+    println!("  test_group_workspace_permission_removal PASSED");
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: Group Project Permission Removal
+// ═══════════════════════════════════════════════════════════════════════════
+
+backend_test!(
+    test_group_project_permission_removal,
+    run_test_group_project_permission_removal
+);
+
+async fn run_test_group_project_permission_removal(
+    config: BackendConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let env = RbacTestEnv::new("grp_proj_perm_removal", config).await?;
+
+    let alice = env.create_user("alice");
+    let bob = env.create_user("bob");
+
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "acme")?;
+    env.create_project(&alice, "acme", "api")?;
+    env.create_environment(&alice, "acme", "api", "dev")?;
+
+    env.secret_set(&alice, "acme", "api", "dev", "SECRET", "value");
+
+    let ws_invite = env.create_workspace_invite(&alice, "acme")?;
+    env.join_server(&bob, &ws_invite)?;
+
+    // Create group with project permission and add Bob
+    env.create_group(&alice, "acme", "api-readers")?;
+    env.set_group_project_permission(&alice, "acme", "api", "api-readers", "read")?;
+    env.add_group_member(&alice, "acme", "api-readers", &bob.email())?;
+
+    // Bob can read via group
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_success(&output, "Bob read (with group project permission)");
+
+    // Remove group project permission
+    env.remove_group_project_permission(&alice, "acme", "api", "api-readers")?;
+    println!("  Group project permission removed");
+
+    // Bob should no longer have access
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_denied(&output, "Bob read (after group project permission removal)");
+
+    println!("  test_group_project_permission_removal PASSED");
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: Group Environment Permission Removal
+// ═══════════════════════════════════════════════════════════════════════════
+
+backend_test!(
+    test_group_environment_permission_removal,
+    run_test_group_environment_permission_removal
+);
+
+async fn run_test_group_environment_permission_removal(
+    config: BackendConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let env = RbacTestEnv::new("grp_env_perm_removal", config).await?;
+
+    let alice = env.create_user("alice");
+    let bob = env.create_user("bob");
+
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "acme")?;
+    env.create_project(&alice, "acme", "api")?;
+    env.create_environment(&alice, "acme", "api", "dev")?;
+
+    env.secret_set(&alice, "acme", "api", "dev", "SECRET", "value");
+
+    let ws_invite = env.create_workspace_invite(&alice, "acme")?;
+    env.join_server(&bob, &ws_invite)?;
+
+    // Create group with environment permission and add Bob
+    env.create_group(&alice, "acme", "dev-readers")?;
+    env.set_group_env_permission(&alice, "acme", "api", "dev", "dev-readers", "read")?;
+    env.add_group_member(&alice, "acme", "dev-readers", &bob.email())?;
+
+    // Bob can read via group
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_success(&output, "Bob read (with group env permission)");
+
+    // Remove group environment permission
+    env.remove_group_env_permission(&alice, "acme", "api", "dev", "dev-readers")?;
+    println!("  Group environment permission removed");
+
+    // Bob should no longer have access
+    let output = env.secret_get(&bob, "acme", "api", "dev", "SECRET");
+    assert_denied(&output, "Bob read (after group env permission removal)");
+
+    println!("  test_group_environment_permission_removal PASSED");
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: Group Permission List Commands
+// ═══════════════════════════════════════════════════════════════════════════
+
+backend_test!(
+    test_group_permission_list_commands,
+    run_test_group_permission_list_commands
+);
+
+async fn run_test_group_permission_list_commands(
+    config: BackendConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let env = RbacTestEnv::new("grp_perm_list", config).await?;
+
+    let alice = env.create_user("alice");
+
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "acme")?;
+    env.create_project(&alice, "acme", "api")?;
+    env.create_environment(&alice, "acme", "api", "dev")?;
+
+    // Create groups with permissions at different levels
+    env.create_group(&alice, "acme", "ws-readers")?;
+    env.set_group_permission(&alice, "acme", "ws-readers", "read")?;
+
+    env.create_group(&alice, "acme", "api-writers")?;
+    env.set_group_project_permission(&alice, "acme", "api", "api-writers", "write")?;
+
+    env.create_group(&alice, "acme", "dev-admins")?;
+    env.set_group_env_permission(&alice, "acme", "api", "dev", "dev-admins", "admin")?;
+
+    println!("  Setup complete - groups with permissions at all levels");
+
+    // Test workspace-level group permission list
+    let output = env.group_permission_list(&alice, "acme");
+    assert_success(&output, "List workspace group permissions");
+    let perm_output = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        perm_output.contains("ws-readers"),
+        "ws-readers should be in workspace group permissions"
+    );
+
+    // Test project-level group permission list
+    let output = env.group_project_permission_list(&alice, "acme", "api");
+    assert_success(&output, "List project group permissions");
+    let perm_output = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        perm_output.contains("api-writers"),
+        "api-writers should be in project group permissions"
+    );
+
+    // Test environment-level group permission list
+    let output = env.group_env_permission_list(&alice, "acme", "api", "dev");
+    assert_success(&output, "List environment group permissions");
+    let perm_output = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        perm_output.contains("dev-admins"),
+        "dev-admins should be in environment group permissions"
+    );
+
+    println!("  test_group_permission_list_commands PASSED");
+    Ok(())
+}

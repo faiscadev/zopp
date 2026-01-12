@@ -23,6 +23,10 @@ fi
 echo "Cleaning previous coverage data..."
 cargo llvm-cov clean --workspace
 
+# Disable incremental compilation to reduce "mismatched data" warnings
+# This warning occurs when source code hashes don't match profiling data
+export CARGO_INCREMENTAL=0
+
 # Get llvm-cov environment variables and export them
 # This sets RUSTFLAGS, LLVM_PROFILE_FILE, CARGO_LLVM_COV_TARGET_DIR, etc.
 echo "Setting up coverage environment..."

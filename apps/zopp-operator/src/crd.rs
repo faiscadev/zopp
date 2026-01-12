@@ -181,7 +181,6 @@ pub mod condition_reasons {
     pub const DECRYPTION_FAILED: &str = "DecryptionFailed";
 }
 
-#[allow(dead_code)]
 impl ZoppSecretSyncStatus {
     /// Create a new status with an empty condition list.
     pub fn new() -> Self {
@@ -206,11 +205,13 @@ impl ZoppSecretSyncStatus {
     }
 
     /// Get a condition by type.
+    #[allow(dead_code)] // Public API for CRD users
     pub fn get_condition(&self, type_: &str) -> Option<&Condition> {
         self.conditions.iter().find(|c| c.type_ == type_)
     }
 
     /// Check if the Ready condition is True.
+    #[allow(dead_code)] // Public API for CRD users
     pub fn is_ready(&self) -> bool {
         self.get_condition(condition_types::READY)
             .map(|c| c.status == "True")

@@ -4,9 +4,6 @@ mod server;
 
 use chrono::Utc;
 use clap::{Parser, Subcommand};
-#[allow(unused_imports)]
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-#[allow(unused_imports)]
 use rand_core::OsRng;
 use std::sync::Arc;
 use tonic::transport::Server;
@@ -508,7 +505,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::SigningKey;
+    use ed25519_dalek::{Signer, SigningKey};
     use prost::Message;
     use rand_core::OsRng;
     use sha2::{Digest, Sha256};
