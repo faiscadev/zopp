@@ -393,7 +393,24 @@ pub async fn revoke_all_principal_permissions(
             _ => Status::internal(format!("Failed to get principal: {}", e)),
         })?;
 
-    // Remove all permissions for the principal
+    // Remove all permissions for the principal at all levels
+
+    // Remove workspace-level permission (if exists)
+    let ws_removed = match server
+        .store
+        .remove_workspace_permission(&workspace.id, &target_principal_id)
+        .await
+    {
+        Ok(()) => 1,
+        Err(zopp_storage::StoreError::NotFound) => 0,
+        Err(e) => {
+            return Err(Status::internal(format!(
+                "Failed to remove workspace permission: {}",
+                e
+            )))
+        }
+    };
+
     let project_removed = server
         .store
         .remove_all_project_permissions_for_principal(&workspace.id, &target_principal_id)
@@ -409,7 +426,7 @@ pub async fn revoke_all_principal_permissions(
         })?;
 
     Ok(Response::new(RevokeAllPrincipalPermissionsResponse {
-        permissions_revoked: (project_removed + env_removed) as i32,
+        permissions_revoked: (ws_removed + project_removed + env_removed) as i32,
     }))
 }
 

@@ -81,6 +81,11 @@ pub enum Command {
         #[command(subcommand)]
         group_cmd: GroupCommand,
     },
+    /// Audit log commands (admin only)
+    Audit {
+        #[command(subcommand)]
+        audit_cmd: AuditCommand,
+    },
     /// Run a command with secrets injected as environment variables
     Run {
         /// Workspace name (defaults from zopp.toml)
@@ -963,5 +968,44 @@ pub enum GroupCommand {
         /// Environment name
         #[arg(long, short = 'e')]
         environment: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum AuditCommand {
+    /// List audit log entries in a workspace
+    List {
+        /// Workspace name
+        #[arg(long, short = 'w')]
+        workspace: String,
+        /// Filter by action (e.g. secret.create, user.join)
+        #[arg(long)]
+        action: Option<String>,
+        /// Filter by result (success, permission_denied, not_found, error)
+        #[arg(long)]
+        result: Option<String>,
+        /// Maximum number of entries to return
+        #[arg(long, default_value = "50")]
+        limit: u32,
+    },
+    /// Get a specific audit log entry
+    Get {
+        /// Workspace name
+        #[arg(long, short = 'w')]
+        workspace: String,
+        /// Audit log ID (UUID)
+        id: String,
+    },
+    /// Count audit log entries in a workspace
+    Count {
+        /// Workspace name
+        #[arg(long, short = 'w')]
+        workspace: String,
+        /// Filter by action (e.g. secret.create, user.join)
+        #[arg(long)]
+        action: Option<String>,
+        /// Filter by result (success, permission_denied, not_found, error)
+        #[arg(long)]
+        result: Option<String>,
     },
 }
