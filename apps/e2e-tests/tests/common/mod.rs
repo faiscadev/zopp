@@ -1,3 +1,9 @@
+//! Shared test utilities for e2e tests.
+//!
+//! Not all exports are used by all tests, so we allow unused imports.
+
+#![allow(unused_imports)]
+
 pub mod harness;
 pub mod utils;
 

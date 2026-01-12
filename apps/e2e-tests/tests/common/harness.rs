@@ -1,4 +1,9 @@
 //! Test harness for e2e tests with backend matrix support.
+//!
+//! This module provides shared test utilities. Not all methods are used by all tests,
+//! so we allow dead_code to prevent warnings when compiling individual test files.
+
+#![allow(dead_code)]
 
 use std::fs;
 use std::net::{TcpListener, TcpStream};
