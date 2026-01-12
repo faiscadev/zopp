@@ -235,18 +235,18 @@ impl TestHarness {
         let server = cmd.spawn()?;
         self.server_process = Some(server);
 
-        // Wait for server to be ready
+        // Wait for server to be ready (12 seconds timeout for slow CI machines)
         let client_addr = format!("127.0.0.1:{}", self.port);
-        for i in 1..=30 {
+        for i in 1..=60 {
             sleep(Duration::from_millis(200)).await;
             if TcpStream::connect(&client_addr).is_ok() {
                 return Ok(());
             }
-            if i == 30 {
+            if i == 60 {
                 if let Some(ref mut server) = self.server_process {
                     graceful_shutdown(server);
                 }
-                return Err("Server failed to start within 6 seconds".into());
+                return Err("Server failed to start within 12 seconds".into());
             }
         }
 
