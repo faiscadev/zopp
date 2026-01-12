@@ -228,20 +228,25 @@ All `-w`, `-p`, `-e` flags are optional when `zopp.toml` (or `.yaml`/`.json`) is
 
 Config stored in `~/.zopp/config.json` with principal credentials.
 
-## Testing Strategy
+## Testing Standards
 
-1. **Unit tests**: In each crate (e.g., `zopp-crypto`, `zopp-storage`)
-2. **E2E test**: `apps/e2e-test` simulates the full DEMO.md flow:
-   - Server invite → Alice registers → creates workspace
-   - Workspace invite → Bob joins
-   - Both users read/write secrets (validates zero-knowledge)
-   - Export/import `.env` files
-3. **Manual validation**: Follow DEMO.md for exploratory testing
+See [TESTING.md](./TESTING.md) for full details.
 
-**When adding features:** Follow TDD. Write E2E test steps first, then implement CLI commands, then update DEMO.md to match.
+**Every code change must include tests:**
+- New feature → add E2E test + unit tests
+- Bug fix → add regression test
+- Refactor → ensure existing tests pass
+
+**When implementing:**
+1. Write/update E2E test in `apps/e2e-tests/` first
+2. Write unit tests alongside the code
+3. Run `cargo test --workspace` before committing
+
+**Do not skip tests.** If you're unsure what tests to write, ask.
 
 ## Important Notes
 
+- **Tests are mandatory**: Every code change needs tests. No exceptions.
 - **No co-authored commits**: Do NOT add "Co-Authored-By: Claude" trailers to commits
 - **DEMO.md alignment**: Keep DEMO.md steps 1:1 with E2E test steps
 - **Security**: Never log or expose plaintext keys/secrets in server code
