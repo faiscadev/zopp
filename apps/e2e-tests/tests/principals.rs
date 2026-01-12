@@ -636,9 +636,7 @@ async fn run_principals_current_test(
 }
 
 /// Test principal use command to switch between principals
-async fn run_principals_use_test(
-    config: BackendConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_principals_use_test(config: BackendConfig) -> Result<(), Box<dyn std::error::Error>> {
     let harness = TestHarness::new("prin_use", config).await?;
 
     // Setup - alice registers with first principal
@@ -669,7 +667,9 @@ async fn run_principals_use_test(
 
     // Test 2: Switch to second principal
     println!("  Test 2: Switch to second principal...");
-    alice.exec(&["principal", "use", second_principal]).success()?;
+    alice
+        .exec(&["principal", "use", second_principal])
+        .success()?;
 
     // Verify current principal changed
     let output = alice.exec(&["principal", "current"]).success()?;
@@ -682,7 +682,9 @@ async fn run_principals_use_test(
 
     // Test 3: Switch back to first principal
     println!("  Test 3: Switch back to first principal...");
-    alice.exec(&["principal", "use", first_principal]).success()?;
+    alice
+        .exec(&["principal", "use", first_principal])
+        .success()?;
 
     // Verify current principal changed back
     let output = alice.exec(&["principal", "current"]).success()?;
