@@ -216,6 +216,15 @@ pub struct SecretRow {
     pub ciphertext: Vec<u8>, // AEAD ciphertext
 }
 
+/// Result of upserting a secret.
+#[derive(Clone, Debug)]
+pub struct UpsertSecretResult {
+    /// New environment version after the upsert.
+    pub version: i64,
+    /// True if a new secret was created, false if an existing secret was updated.
+    pub created: bool,
+}
+
 /// Parameters for creating a user
 #[derive(Clone, Debug)]
 pub struct CreateUserParams {
@@ -556,14 +565,14 @@ pub trait Store {
     // ────────────────────────────────────── Secrets ───────────────────────────────────────
 
     /// Upsert a secret value (AEAD ciphertext + nonce) in an environment.
-    /// Returns the new environment version after the update.
+    /// Returns the new environment version and whether the secret was created (vs updated).
     async fn upsert_secret(
         &self,
         env_id: &EnvironmentId,
         key: &str,
         nonce: &[u8],      // per-value 24B nonce
         ciphertext: &[u8], // AEAD ciphertext under DEK
-    ) -> Result<i64, StoreError>;
+    ) -> Result<UpsertSecretResult, StoreError>;
 
     /// Fetch a secret row (nonce + ciphertext).
     async fn get_secret(&self, env_id: &EnvironmentId, key: &str) -> Result<SecretRow, StoreError>;
@@ -1147,8 +1156,11 @@ mod tests {
             _key: &str,
             _nonce: &[u8],
             _ciphertext: &[u8],
-        ) -> Result<i64, StoreError> {
-            Ok(1)
+        ) -> Result<UpsertSecretResult, StoreError> {
+            Ok(UpsertSecretResult {
+                version: 1,
+                created: true,
+            })
         }
 
         async fn get_secret(

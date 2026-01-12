@@ -649,7 +649,7 @@ async fn run_principals_use_test(config: BackendConfig) -> Result<(), Box<dyn st
     println!("  Test 1: Create second principal...");
     let second_principal = "device-two";
     alice
-        .exec(&["principal", "add", second_principal])
+        .exec(&["principal", "create", second_principal])
         .success()?;
 
     // Verify both principals exist

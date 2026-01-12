@@ -346,7 +346,7 @@ impl Store for StoreBackend {
         key: &str,
         nonce: &[u8],
         ciphertext: &[u8],
-    ) -> Result<i64, StoreError> {
+    ) -> Result<UpsertSecretResult, StoreError> {
         match self {
             StoreBackend::Sqlite(s) => s.upsert_secret(env_id, key, nonce, ciphertext).await,
             StoreBackend::Postgres(s) => s.upsert_secret(env_id, key, nonce, ciphertext).await,

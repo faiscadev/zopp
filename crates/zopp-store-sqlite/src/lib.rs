@@ -9,9 +9,9 @@ use zopp_storage::{
     AddWorkspacePrincipalParams, CreateEnvParams, CreateInviteParams, CreatePrincipalParams,
     CreateProjectParams, CreateUserParams, CreateWorkspaceParams, EnvName, Environment,
     EnvironmentId, EnvironmentPermission, Invite, InviteId, Principal, PrincipalId, ProjectName,
-    ProjectPermission, Role, SecretRow, Store, StoreError, User, UserEnvironmentPermission, UserId,
-    UserProjectPermission, UserWorkspacePermission, Workspace, WorkspaceId, WorkspacePermission,
-    WorkspacePrincipal,
+    ProjectPermission, Role, SecretRow, Store, StoreError, UpsertSecretResult, User,
+    UserEnvironmentPermission, UserId, UserProjectPermission, UserWorkspacePermission, Workspace,
+    WorkspaceId, WorkspacePermission, WorkspacePrincipal,
 };
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
@@ -1289,7 +1289,7 @@ impl Store for SqliteStore {
         key: &str,
         nonce: &[u8],
         ciphertext: &[u8],
-    ) -> Result<i64, StoreError> {
+    ) -> Result<UpsertSecretResult, StoreError> {
         let env_id_str = env_id.0.to_string();
 
         let mut tx = self
@@ -1309,6 +1309,19 @@ impl Store for SqliteStore {
         .ok_or(StoreError::NotFound)?;
 
         let ws_id = env_row.workspace_id;
+
+        // Check if secret already exists
+        let existing = sqlx::query!(
+            "SELECT id FROM secrets WHERE workspace_id = ? AND env_id = ? AND key_name = ?",
+            ws_id,
+            env_id_str,
+            key
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        let created = existing.is_none();
         let secret_id = Uuid::now_v7().to_string();
 
         // Insert/update the secret
@@ -1341,7 +1354,10 @@ impl Store for SqliteStore {
             .await
             .map_err(|e| StoreError::Backend(e.to_string()))?;
 
-        Ok(result.version)
+        Ok(UpsertSecretResult {
+            version: result.version,
+            created,
+        })
     }
 
     async fn get_secret(&self, env_id: &EnvironmentId, key: &str) -> Result<SecretRow, StoreError> {

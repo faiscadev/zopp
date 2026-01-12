@@ -90,7 +90,7 @@ pub async fn upsert_secret(
         )
         .await?;
 
-    let new_version = server
+    let result = server
         .store
         .upsert_secret(&env.id, &req.key, &req.nonce, &req.ciphertext)
         .await
@@ -100,13 +100,13 @@ pub async fn upsert_secret(
     let event = SecretChangeEvent {
         event_type: EventType::Updated,
         key: req.key.clone(),
-        version: new_version,
+        version: result.version,
         timestamp: Utc::now().timestamp(),
     };
     let _ = server.events.publish(&env.id, event).await;
 
-    // Audit log - determine if this was a create or update based on version
-    let action = if new_version == 1 {
+    // Audit log - determine if this was a create or update
+    let action = if result.created {
         AuditAction::SecretCreate
     } else {
         AuditAction::SecretUpdate
