@@ -719,6 +719,36 @@ impl TestEnv {
         Ok(())
     }
 
+    /// Remove a principal from a workspace (revokes all permissions)
+    fn remove_principal_from_workspace(
+        &self,
+        admin: &User,
+        workspace: &str,
+        principal_id: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let output = Command::new(&self.zopp_bin)
+            .env("HOME", &admin.home)
+            .args([
+                "--server",
+                &self.server_url,
+                "principal",
+                "workspace-remove",
+                "-w",
+                workspace,
+                "--principal",
+                principal_id,
+            ])
+            .output()?;
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to remove principal from workspace: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+        Ok(())
+    }
+
     /// Set principal permission at project level (returns Output for checking)
     fn set_principal_project_permission_check(
         &self,
@@ -6221,5 +6251,122 @@ async fn test_project_admin_can_manage_group_project_permissions(
     println!("✓ Bob denied setting group permissions on 'frontend'");
 
     println!("\n✅ test_project_admin_can_manage_group_project_permissions PASSED");
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: Workspace Remove Cleans Up All Permissions
+// ═══════════════════════════════════════════════════════════════════════════
+// This test verifies that removing a principal from a workspace also removes
+// all their permissions at all levels (workspace, project, environment).
+// Regression test for issue #30.
+
+#[tokio::test]
+async fn test_workspace_remove_cleans_up_permissions() -> Result<(), Box<dyn std::error::Error>> {
+    let port = find_available_port()?;
+    let env = TestEnv::setup("ws_remove_cleanup", port).await?;
+
+    let alice = env.create_user("alice");
+
+    // Alice creates workspace, project, and environment
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "acme")?;
+    env.create_project(&alice, "acme", "api")?;
+    env.create_environment(&alice, "acme", "api", "dev")?;
+
+    // Set a secret for testing access
+    let output = env.secret_set(&alice, "acme", "api", "dev", "SECRET", "test-value");
+    assert!(output.status.success(), "Failed to set secret");
+
+    // Create a service principal with permissions at ALL levels
+    let svc_id = env.create_service_principal(&alice, "test-bot")?;
+    println!("✓ Created service principal {}", svc_id);
+
+    // Set workspace-level permission (ADMIN)
+    env.set_principal_permission(&alice, "acme", &svc_id, "admin")?;
+    println!("✓ Granted workspace-level ADMIN permission");
+
+    // Set project-level permission (WRITE)
+    env.set_principal_project_permission_check(&alice, "acme", "api", &svc_id, "write");
+    println!("✓ Granted project-level WRITE permission");
+
+    // Set environment-level permission (READ)
+    env.set_principal_env_permission_check(&alice, "acme", "api", "dev", &svc_id, "read");
+    println!("✓ Granted environment-level READ permission");
+
+    // Verify the service principal can access the workspace
+    let alice_principal = alice.principal.clone();
+    let output = env.principal_use(&alice, "test-bot");
+    assert!(
+        output.status.success(),
+        "Failed to switch to service principal"
+    );
+
+    let output = env.secret_get(&alice, "acme", "api", "dev", "SECRET");
+    assert_success(&output, "Service principal can access workspace");
+    println!("✓ Service principal can access workspace before removal");
+
+    // Switch back to Alice
+    let output = env.principal_use(&alice, &alice_principal);
+    assert!(output.status.success(), "Failed to switch back to Alice");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Remove the service principal from the workspace
+    // This should clean up ALL permissions (workspace, project, environment)
+    // ─────────────────────────────────────────────────────────────────────────
+    env.remove_principal_from_workspace(&alice, "acme", &svc_id)?;
+    println!("✓ Removed service principal from workspace");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Verify: Service principal can NO LONGER access the workspace
+    // If workspace-level permissions weren't cleaned up, the principal might
+    // still have cached/orphaned permissions.
+    // ─────────────────────────────────────────────────────────────────────────
+    let output = env.principal_use(&alice, "test-bot");
+    assert!(
+        output.status.success(),
+        "Failed to switch to service principal"
+    );
+
+    let output = env.secret_get(&alice, "acme", "api", "dev", "SECRET");
+    assert!(
+        !output.status.success(),
+        "Service principal should NOT have access after removal"
+    );
+    println!("✓ Service principal cannot access workspace after removal");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Re-grant access and verify it works (clean slate)
+    // This confirms permissions were properly cleaned up, not just blocked
+    // ─────────────────────────────────────────────────────────────────────────
+    let output = env.principal_use(&alice, &alice_principal);
+    assert!(output.status.success(), "Failed to switch back to Alice");
+
+    // Re-add the service principal to workspace with READ only
+    env.grant_principal_workspace_access(&alice, "acme", &svc_id)?;
+    env.set_principal_permission(&alice, "acme", &svc_id, "read")?;
+    println!("✓ Re-granted workspace access with READ permission");
+
+    // Switch to service principal and verify access
+    let output = env.principal_use(&alice, "test-bot");
+    assert!(
+        output.status.success(),
+        "Failed to switch to service principal"
+    );
+
+    let output = env.secret_get(&alice, "acme", "api", "dev", "SECRET");
+    assert_success(&output, "Service principal can read after re-grant");
+    println!("✓ Service principal can read after re-grant");
+
+    // Should NOT be able to write (only has READ now, not the old ADMIN/WRITE)
+    let output = env.secret_set(&alice, "acme", "api", "dev", "NEW_KEY", "new-value");
+    assert!(
+        !output.status.success(),
+        "Service principal should only have READ after re-grant"
+    );
+    println!("✓ Service principal cannot write (confirms old permissions were cleaned up)");
+
+    println!("\n✅ test_workspace_remove_cleans_up_permissions PASSED");
     Ok(())
 }
