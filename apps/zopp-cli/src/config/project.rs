@@ -149,7 +149,10 @@ mod tests {
         }"#;
 
         let config: ProjectConfig = serde_json::from_str(json_content).unwrap();
-        assert_eq!(config.defaults.workspace, Some("json-workspace".to_string()));
+        assert_eq!(
+            config.defaults.workspace,
+            Some("json-workspace".to_string())
+        );
         assert_eq!(config.defaults.project, Some("json-project".to_string()));
         assert_eq!(config.defaults.environment, Some("dev".to_string()));
     }
@@ -162,7 +165,10 @@ mod tests {
         "#;
 
         let config: ProjectConfig = toml::from_str(toml_content).unwrap();
-        assert_eq!(config.defaults.workspace, Some("only-workspace".to_string()));
+        assert_eq!(
+            config.defaults.workspace,
+            Some("only-workspace".to_string())
+        );
         assert!(config.defaults.project.is_none());
         assert!(config.defaults.environment.is_none());
     }

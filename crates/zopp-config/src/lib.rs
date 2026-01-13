@@ -322,7 +322,9 @@ mod tests {
         };
 
         let result = config.get_principal("nonexistent");
-        assert!(matches!(result, Err(ConfigError::PrincipalNotFound(name)) if name == "nonexistent"));
+        assert!(
+            matches!(result, Err(ConfigError::PrincipalNotFound(name)) if name == "nonexistent")
+        );
     }
 
     #[test]
@@ -342,7 +344,12 @@ mod tests {
         };
 
         let mut temp_file = NamedTempFile::new().unwrap();
-        write!(temp_file, "{}", serde_json::to_string_pretty(&config).unwrap()).unwrap();
+        write!(
+            temp_file,
+            "{}",
+            serde_json::to_string_pretty(&config).unwrap()
+        )
+        .unwrap();
 
         let loaded = CliConfig::load_from(temp_file.path()).unwrap();
         assert_eq!(loaded.user_id, "user-456");
@@ -400,7 +407,11 @@ mod tests {
         };
 
         let temp_dir = tempfile::tempdir().unwrap();
-        let nested_path = temp_dir.path().join("nested").join("dir").join("config.json");
+        let nested_path = temp_dir
+            .path()
+            .join("nested")
+            .join("dir")
+            .join("config.json");
 
         config.save_to(&nested_path).unwrap();
 
@@ -539,7 +550,9 @@ mod tests {
 
         let result = principal.get_x25519_private_key_bytes();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Invalid x25519 private key hex"));
+        assert!(result
+            .unwrap_err()
+            .contains("Invalid x25519 private key hex"));
     }
 
     #[test]

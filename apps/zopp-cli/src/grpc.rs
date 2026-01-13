@@ -213,12 +213,10 @@ mod tests {
         use ed25519_dalek::{SigningKey, Verifier};
 
         // Use a fixed key so we can derive the verifying key
-        let private_key_bytes = hex::decode(
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
-        .unwrap();
-        let signing_key =
-            SigningKey::from_bytes(private_key_bytes.as_slice().try_into().unwrap());
+        let private_key_bytes =
+            hex::decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                .unwrap();
+        let signing_key = SigningKey::from_bytes(private_key_bytes.as_slice().try_into().unwrap());
         let verifying_key = signing_key.verifying_key();
         let private_key_hex = hex::encode(signing_key.to_bytes());
 
