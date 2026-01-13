@@ -8,10 +8,11 @@ mkdir -p coverage
 
 echo "Running unit tests with coverage..."
 
-# Run unit tests with coverage (exclude e2e-tests)
+# Run unit tests with coverage (exclude e2e-tests and xtask)
 cargo llvm-cov \
     --workspace \
     --exclude e2e-tests \
+    --exclude xtask \
     --all-features \
     --html \
     --output-dir coverage/html
@@ -20,6 +21,7 @@ cargo llvm-cov \
 cargo llvm-cov \
     --workspace \
     --exclude e2e-tests \
+    --exclude xtask \
     --all-features \
     --no-run \
     > coverage/summary.txt
