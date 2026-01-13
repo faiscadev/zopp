@@ -253,6 +253,6 @@ Removing access doesn't rotate keys. If you're concerned about a compromised pri
 
 ## Next Steps
 
-- [Core Concepts](/zopp/guides/core-concepts) - Understand the permission hierarchy
-- [CI/CD Integration](/zopp/guides/ci-cd) - Set up service principals for automation
-- [CLI Reference](/zopp/reference/cli) - Full command reference
+- [Core Concepts](/guides/core-concepts) - Understand the permission hierarchy
+- [CI/CD Integration](/guides/ci-cd) - Set up service principals for automation
+- [CLI Reference](/reference/cli) - Full command reference

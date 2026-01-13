@@ -41,7 +41,7 @@ The operator is included in the zopp Helm chart:
 helm install zopp oci://ghcr.io/faiscadev/charts/zopp --version 0.1.0
 ```
 
-See [Kubernetes Installation](/zopp/installation/kubernetes) for configuration options.
+See [Kubernetes Installation](/installation/kubernetes) for configuration options.
 
 ## Setting Up Operator Credentials
 
@@ -336,6 +336,6 @@ operator:
 
 ## Next Steps
 
-- [CI/CD Integration](/zopp/guides/ci-cd) - Automate secret deployment
-- [Self-Hosting](/zopp/self-hosting) - Deploy your own zopp server
-- [CLI Reference](/zopp/reference/cli) - CLI sync reference
+- [CI/CD Integration](/guides/ci-cd) - Automate secret deployment
+- [Self-Hosting](/self-hosting) - Deploy your own zopp server
+- [CLI Reference](/reference/cli) - CLI sync reference

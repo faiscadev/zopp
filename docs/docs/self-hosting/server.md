@@ -114,5 +114,5 @@ curl http://localhost:8080/readyz
 
 ## Next Steps
 
-- [Database Setup](/zopp/self-hosting/database) - Configure SQLite or PostgreSQL
-- [TLS Configuration](/zopp/self-hosting/tls) - Secure your deployment
+- [Database Setup](/self-hosting/database) - Configure SQLite or PostgreSQL
+- [TLS Configuration](/self-hosting/tls) - Secure your deployment

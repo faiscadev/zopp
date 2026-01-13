@@ -218,6 +218,6 @@ zopp permission user-env-set -w acme-corp -p api-backend -e production \
 
 ## Next Steps
 
-- [Team Collaboration](/zopp/guides/team-collaboration) - Invite team members
-- [CI/CD Integration](/zopp/guides/ci-cd) - Set up service principals
-- [CLI Reference](/zopp/reference/cli) - Full command documentation
+- [Team Collaboration](/guides/team-collaboration) - Invite team members
+- [CI/CD Integration](/guides/ci-cd) - Set up service principals
+- [CLI Reference](/reference/cli) - Full command documentation

@@ -10,9 +10,9 @@ zopp is designed to be self-hosted. You maintain full control over your secrets 
 
 ## Deployment Options
 
-- [Server Deployment](/zopp/self-hosting/server) - Deploy the zopp server as a standalone binary or container
-- [Database Setup](/zopp/self-hosting/database) - Choose between SQLite (simple) and PostgreSQL (production)
-- [TLS Configuration](/zopp/self-hosting/tls) - Secure your deployment with TLS and optional mutual TLS
+- [Server Deployment](/self-hosting/server) - Deploy the zopp server as a standalone binary or container
+- [Database Setup](/self-hosting/database) - Choose between SQLite (simple) and PostgreSQL (production)
+- [TLS Configuration](/self-hosting/tls) - Secure your deployment with TLS and optional mutual TLS
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ For Kubernetes deployments, use the Helm chart:
 helm install zopp oci://ghcr.io/faiscadev/charts/zopp
 ```
 
-See [Kubernetes Installation](/zopp/installation/kubernetes) for details.
+See [Kubernetes Installation](/installation/kubernetes) for details.
 
 ## Architecture
 
@@ -119,6 +119,6 @@ zopp is lightweight—a single server can handle thousands of secrets and many c
 
 ## Next Steps
 
-- [Server Deployment](/zopp/self-hosting/server) - Detailed deployment guide
-- [Database Setup](/zopp/self-hosting/database) - SQLite vs PostgreSQL
-- [TLS Configuration](/zopp/self-hosting/tls) - Secure your deployment
+- [Server Deployment](/self-hosting/server) - Detailed deployment guide
+- [Database Setup](/self-hosting/database) - SQLite vs PostgreSQL
+- [TLS Configuration](/self-hosting/tls) - Secure your deployment

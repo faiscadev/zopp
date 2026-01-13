@@ -47,8 +47,9 @@ The Key Encryption Key (KEK) protects all data within a workspace:
 1. Generate ephemeral X25519 keypair
 2. Perform ECDH: shared_secret = ECDH(ephemeral_private, principal_public)
 3. Derive key: wrap_key = HKDF(shared_secret, "zopp-kek-wrap")
-4. Encrypt: wrapped_kek = XChaCha20-Poly1305(wrap_key, kek)
-5. Store: (ephemeral_public, wrapped_kek, nonce)
+4. Generate nonce: nonce = random(24 bytes)
+5. Encrypt: wrapped_kek = XChaCha20-Poly1305(wrap_key, nonce, kek)
+6. Store: (ephemeral_public, wrapped_kek, nonce)
 ```
 
 The server stores only the wrapped form. Unwrapping requires the principal's private key.
@@ -118,5 +119,5 @@ What the server stores:
 
 ## Next Steps
 
-- [Cryptography](/zopp/security/cryptography) - Primitive details
-- [Core Concepts](/zopp/guides/core-concepts) - Key hierarchy overview
+- [Cryptography](/security/cryptography) - Primitive details
+- [Core Concepts](/guides/core-concepts) - Key hierarchy overview

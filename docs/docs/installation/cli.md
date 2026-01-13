@@ -139,6 +139,6 @@ export ZOPP_TLS_CA_CERT=/path/to/ca.crt
 
 ## Next Steps
 
-- [Quickstart](/zopp/quickstart) - Set up your first workspace
-- [Docker Installation](/zopp/installation/docker) - Run the server in Docker
-- [Self-Hosting](/zopp/self-hosting) - Deploy your own server
+- [Quickstart](/quickstart) - Set up your first workspace
+- [Docker Installation](/installation/docker) - Run the server in Docker
+- [Self-Hosting](/self-hosting) - Deploy your own server

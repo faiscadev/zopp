@@ -174,5 +174,5 @@ zopp secret get DATABASE_URL -e production
 
 ## See Also
 
-- [Environment Variables](/zopp/reference/environment-variables) - Configure zopp via environment
-- [CLI Reference](/zopp/reference/cli) - Full command documentation
+- [Environment Variables](/reference/environment-variables) - Configure zopp via environment
+- [CLI Reference](/reference/cli) - Full command documentation

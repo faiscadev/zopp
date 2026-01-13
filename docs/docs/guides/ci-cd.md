@@ -114,7 +114,7 @@ jobs:
 
       - name: Deploy
         run: |
-          source .env
+          . .env
           ./deploy.sh
 ```
 
@@ -207,7 +207,7 @@ RUN --mount=type=secret,id=zopp_config \
 
 # Export secrets and build
 RUN zopp secret export -w myworkspace -p myproject -e production -o .env && \
-    source .env && \
+    . .env && \
     npm run build
 
 # Final image (no secrets included)
@@ -357,5 +357,5 @@ zopp workspace list
 
 ## Next Steps
 
-- [Kubernetes Operator](/zopp/guides/kubernetes-operator) - Sync to Kubernetes
-- [CLI Reference](/zopp/reference/cli) - Full command reference
+- [Kubernetes Operator](/guides/kubernetes-operator) - Sync to Kubernetes
+- [CLI Reference](/reference/cli) - Full command reference

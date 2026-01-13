@@ -242,6 +242,6 @@ kubectl delete pvc -l app.kubernetes.io/instance=zopp
 
 ## Next Steps
 
-- [Kubernetes Operator Guide](/zopp/guides/kubernetes-operator) - Detailed operator usage
-- [Self-Hosting Guide](/zopp/self-hosting) - Production deployment considerations
-- [TLS Configuration](/zopp/self-hosting/tls) - Secure your deployment
+- [Kubernetes Operator Guide](/guides/kubernetes-operator) - Detailed operator usage
+- [Self-Hosting Guide](/self-hosting) - Production deployment considerations
+- [TLS Configuration](/self-hosting/tls) - Secure your deployment

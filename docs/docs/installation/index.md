@@ -64,4 +64,4 @@ zopp --version
 
 ## Next Steps
 
-After installing the CLI, follow the [quickstart guide](/zopp/quickstart) to set up your first workspace.
+After installing the CLI, follow the [quickstart guide](/quickstart) to set up your first workspace.

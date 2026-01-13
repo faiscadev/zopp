@@ -262,5 +262,5 @@ zopp run -- printenv DATABASE_URL
 
 ## Next Steps
 
-- [CLI Reference](/zopp/reference/cli) - Full command reference
-- [Core Concepts](/zopp/guides/core-concepts) - Understand the data model
+- [CLI Reference](/reference/cli) - Full command reference
+- [Core Concepts](/guides/core-concepts) - Understand the data model

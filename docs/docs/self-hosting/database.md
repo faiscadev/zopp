@@ -60,6 +60,9 @@ export DATABASE_URL=postgres://user:password@localhost:5432/zopp
    CREATE DATABASE zopp;
    CREATE USER zopp WITH PASSWORD 'your-password';
    GRANT ALL PRIVILEGES ON DATABASE zopp TO zopp;
+   -- Required for PostgreSQL 15+ (public schema permissions changed)
+   \c zopp
+   GRANT ALL ON SCHEMA public TO zopp;
    ```
 
 2. **Run the server**:
@@ -107,5 +110,5 @@ Never lose your database! While secrets are encrypted, the wrapped keys that all
 
 ## Next Steps
 
-- [TLS Configuration](/zopp/self-hosting/tls) - Secure your deployment
-- [Server Deployment](/zopp/self-hosting/server) - Deployment options
+- [TLS Configuration](/self-hosting/tls) - Secure your deployment
+- [Server Deployment](/self-hosting/server) - Deployment options

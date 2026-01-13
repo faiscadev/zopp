@@ -62,7 +62,7 @@ TOKEN=$(zopp invite create -w mycompany --plain)
 
 ## invite list
 
-List all pending invites for workspaces you have access to.
+List all invites for workspaces you have access to.
 
 ```bash
 zopp invite list

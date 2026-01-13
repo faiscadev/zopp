@@ -147,5 +147,5 @@ server:
 
 ## Next Steps
 
-- [Server Deployment](/zopp/self-hosting/server) - Deployment options
-- [Database Setup](/zopp/self-hosting/database) - Configure storage
+- [Server Deployment](/self-hosting/server) - Deployment options
+- [Database Setup](/self-hosting/database) - Configure storage

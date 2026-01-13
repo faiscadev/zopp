@@ -10,8 +10,8 @@ zopp is built on a zero-knowledge architecture where the server never has access
 
 ## Sections
 
-- [Architecture](/zopp/security/architecture) - Understand how zopp's zero-knowledge encryption works
-- [Cryptography](/zopp/security/cryptography) - Deep dive into the cryptographic primitives used by zopp
+- [Architecture](/security/architecture) - Understand how zopp's zero-knowledge encryption works
+- [Cryptography](/security/cryptography) - Deep dive into the cryptographic primitives used by zopp
 
 ## Zero-Knowledge Design
 
@@ -93,5 +93,5 @@ We'll respond within 48 hours and work with you on coordinated disclosure.
 
 ## Next Steps
 
-- [Architecture](/zopp/security/architecture) - How zero-knowledge encryption works
-- [Cryptography](/zopp/security/cryptography) - Cryptographic details
+- [Architecture](/security/architecture) - How zero-knowledge encryption works
+- [Cryptography](/security/cryptography) - Cryptographic details

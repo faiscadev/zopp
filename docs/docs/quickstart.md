@@ -14,7 +14,7 @@ This guide will get you from zero to managing secrets in about 5 minutes.
 - An invite token from your server admin
 
 :::tip
-Don't have a server yet? Check out the [self-hosting guide](/zopp/self-hosting) to set one up, or run `cargo run --bin zopp-server serve` locally.
+Don't have a server yet? Check out the [self-hosting guide](/self-hosting) to set one up, or run `cargo run --bin zopp-server serve` locally.
 :::
 
 ## Install the CLI
@@ -133,8 +133,8 @@ zopp secret import -i .env
 
 You've got the basics down! Here's where to go next:
 
-- [Core Concepts](/zopp/guides/core-concepts) - Understand workspaces, projects, environments, and the key hierarchy
-- [Team Collaboration](/zopp/guides/team-collaboration) - Invite team members and manage permissions
-- [CI/CD Integration](/zopp/guides/ci-cd) - Use service principals in your pipelines
-- [Kubernetes](/zopp/guides/kubernetes-operator) - Sync secrets to Kubernetes clusters
-- [CLI Reference](/zopp/reference/cli) - Full documentation of all commands
+- [Core Concepts](/guides/core-concepts) - Understand workspaces, projects, environments, and the key hierarchy
+- [Team Collaboration](/guides/team-collaboration) - Invite team members and manage permissions
+- [CI/CD Integration](/guides/ci-cd) - Use service principals in your pipelines
+- [Kubernetes](/guides/kubernetes-operator) - Sync secrets to Kubernetes clusters
+- [CLI Reference](/reference/cli) - Full documentation of all commands

@@ -67,5 +67,5 @@ env:
 
 ## See Also
 
-- [Configuration Reference](/zopp/reference/configuration) - File-based configuration
-- [CLI Reference](/zopp/reference/cli) - Command-line options
+- [Configuration Reference](/reference/configuration) - File-based configuration
+- [CLI Reference](/reference/cli) - Command-line options

@@ -113,5 +113,5 @@ zopp has not yet undergone a formal security audit. The cryptographic design fol
 
 ## Next Steps
 
-- [Architecture](/zopp/security/architecture) - How these primitives are used
-- [Self-Hosting](/zopp/self-hosting) - Production deployment
+- [Architecture](/security/architecture) - How these primitives are used
+- [Self-Hosting](/self-hosting) - Production deployment

@@ -175,6 +175,6 @@ curl http://localhost:8080/readyz
 
 ## Next Steps
 
-- [Kubernetes Installation](/zopp/installation/kubernetes) - Deploy to Kubernetes with Helm
-- [Self-Hosting Guide](/zopp/self-hosting) - Complete deployment guide
-- [TLS Configuration](/zopp/self-hosting/tls) - Secure your deployment
+- [Kubernetes Installation](/installation/kubernetes) - Deploy to Kubernetes with Helm
+- [Self-Hosting Guide](/self-hosting) - Complete deployment guide
+- [TLS Configuration](/self-hosting/tls) - Secure your deployment
