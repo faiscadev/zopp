@@ -257,9 +257,65 @@ See [DOCUMENTING.md](./contributing/DOCUMENTING.md) for docs workflow and guidel
 
 Run docs locally: `cd docs && npm run dev`
 
+## Planning and Implementation
+
+When planning implementation tasks, always consider:
+
+1. **Tests**: What tests are needed?
+   - E2E tests for user-facing features (`apps/e2e-tests/tests/`)
+   - **RBAC tests**: Always consider if the feature needs permission testing (see [TESTING.md](./contributing/TESTING.md#rbac-testing))
+   - Unit tests for new logic in crates
+
+2. **Documentation**: What docs need updating?
+   - CLI command docs (`docs/docs/reference/cli/`)
+   - Feature guides if adding new functionality
+   - Ensure docs match actual implementation
+
+3. **Local Verification**: Before creating a PR, run:
+   ```bash
+   cargo fmt --all
+   cargo clippy --workspace --all-targets --all-features
+   cargo test --workspace --all-features
+   ```
+
+4. **Opening a PR**: Plan should include opening a PR and monitoring CI/Cubic review (see below)
+
+## Pull Request Workflow
+
+When creating PRs and working through CI:
+
+1. **Create the PR**: Use `gh pr create` with a clear title and description
+2. **Monitor CI**: Watch for CI check results
+   - **Ignore docker builds** - they are slow and not required for most PRs
+   - Focus on: clippy, tests, fmt checks
+3. **Wait for Cubic review**: Cubic is an AI code reviewer that runs automatically
+   - Address any comments Cubic makes
+   - Iterate until Cubic has no further comments
+   - Re-run CI after making changes
+4. **Repeat until green**: Keep iterating until CI passes and Cubic is satisfied
+
+Example workflow:
+```bash
+# Create branch and make changes
+git checkout -b feat/my-feature
+# ... make changes ...
+git add -A && git commit -m "Add my feature"
+git push -u origin feat/my-feature
+
+# Create PR
+gh pr create --title "Add my feature" --body "Description..."
+
+# Monitor CI (ignore docker builds)
+gh pr checks
+
+# If Cubic comments, address them and push again
+# Repeat until all checks pass
+```
+
 ## Important Notes
 
 - **No co-authored commits**: Do NOT add "Co-Authored-By: Claude" trailers to commits
+- **No AI attribution**: Do NOT add "Generated with Claude" or similar to PR descriptions
 - **DEMO.md alignment**: Keep DEMO.md steps 1:1 with E2E test steps
 - **Security**: Never log or expose plaintext keys/secrets in server code
 - **Zeroizing types**: Use `zeroize::Zeroize` and `zeroize::ZeroizeOnDrop` for sensitive data (see `zopp-crypto/src/lib.rs`)

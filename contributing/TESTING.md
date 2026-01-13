@@ -95,3 +95,71 @@ DATABASE_URL=postgres://postgres:postgres@localhost/postgres cargo test --packag
 ```
 
 CI uses PostgreSQL services for E2E tests across all backend combinations.
+
+## RBAC Testing
+
+Location: `apps/e2e-tests/tests/rbac.rs`
+
+### When to Add RBAC Tests
+
+Add RBAC tests when implementing features that involve:
+
+- **Permission checks**: Any server handler that checks Admin/Write/Read roles
+- **New CLI commands**: Commands that require specific permission levels
+- **Permission inheritance**: Features where workspace/project/environment permissions cascade
+
+### What to Test
+
+1. **Admin-only operations**: Verify admin can access, write/read cannot
+2. **Write operations**: Verify write+ can perform, read cannot
+3. **Read operations**: Verify read+ can perform, no permission cannot
+4. **Permission delegation**: Verify users can only grant permissions up to their own level
+
+### Example RBAC Test Pattern
+
+```rust
+#[tokio::test]
+async fn test_feature_requires_admin() -> Result<(), Box<dyn std::error::Error>> {
+    let port = find_available_port()?;
+    let env = TestEnv::setup("feature_rbac", port).await?;
+
+    let alice = env.create_user("alice"); // Will be admin (owner)
+    let bob = env.create_user("bob");     // Will be write
+    let charlie = env.create_user("charlie"); // Will be read
+
+    // Setup: Alice creates workspace
+    let invite = env.create_server_invite()?;
+    env.join_server(&alice, &invite)?;
+    env.create_workspace(&alice, "acme")?;
+
+    // Test 1: Admin CAN use feature
+    let output = env.feature_command(&alice, "acme");
+    assert_success(&output, "Admin can use feature");
+
+    // Test 2: Write role CANNOT use feature
+    let ws_invite = env.create_workspace_invite(&alice, "acme")?;
+    env.join_server(&bob, &ws_invite)?;
+    env.set_user_permission(&alice, "acme", &bob.email, "write")?;
+
+    let output = env.feature_command(&bob, "acme");
+    assert_denied(&output, "Write role cannot use feature");
+
+    // Test 3: Read role CANNOT use feature
+    let ws_invite2 = env.create_workspace_invite(&alice, "acme")?;
+    env.join_server(&charlie, &ws_invite2)?;
+    env.set_user_permission(&alice, "acme", &charlie.email, "read")?;
+
+    let output = env.feature_command(&charlie, "acme");
+    assert_denied(&output, "Read role cannot use feature");
+
+    Ok(())
+}
+```
+
+### RBAC Test Helpers
+
+The `TestEnv` struct in `rbac.rs` provides many helper methods:
+- `set_user_permission()`, `set_principal_permission()` - Set workspace permissions
+- `set_user_project_permission()` - Set project permissions
+- `set_principal_env_permission_check()` - Set environment permissions
+- `assert_success()`, `assert_denied()` - Check command results
