@@ -126,8 +126,10 @@ async fn run_test_audit_count(config: BackendConfig) -> Result<(), Box<dyn std::
         .split(':')
         .next_back()
         .map(|s| s.trim())
-        .unwrap_or("0");
-    let count: u32 = count_str.parse().unwrap_or(0);
+        .expect("Failed to parse count from audit output - expected 'Count: N' format");
+    let count: u32 = count_str
+        .parse()
+        .expect("Failed to parse audit count as u32");
     assert!(count > 0, "Expected audit count > 0, got: {}", count);
 
     println!("test_audit_count PASSED");
