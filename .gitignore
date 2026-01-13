@@ -10,3 +10,8 @@
 *.db-*
 
 # .sqlx/ directories are committed per-backend for offline compile checks
+
+# Documentation build output
+docs/dist/
+docs/node_modules/
+docs/.astro/
