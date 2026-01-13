@@ -102,14 +102,18 @@ async fn run_test_invite_revoke(config: BackendConfig) -> Result<(), Box<dyn std
 
     // Revoke the invite using the full invite code
     println!("  Test 4: Revoke invite...");
-    alice
-        .exec(&["invite", "revoke", &invite_token])
-        .success()?;
+    alice.exec(&["invite", "revoke", &invite_token]).success()?;
 
     // Verify revoked invite can't be used
     println!("  Test 5: Verify revoked invite can't be used...");
     let bob = harness.create_user("bob");
-    let result = bob.exec(&["join", &invite_token, &bob.email(), "--principal", &bob.principal()]);
+    let result = bob.exec(&[
+        "join",
+        &invite_token,
+        &bob.email(),
+        "--principal",
+        &bob.principal(),
+    ]);
     assert!(result.failed(), "Should fail to use revoked invite");
 
     println!("test_invite_revoke PASSED");

@@ -56,7 +56,15 @@ async fn run_demo_test(config: BackendConfig) -> Result<(), Box<dyn std::error::
     // Step 5: Alice creates environment
     println!("🌍 Step 5: Alice creates environment 'development'...");
     alice
-        .exec(&["environment", "create", "development", "-w", "acme", "-p", "api"])
+        .exec(&[
+            "environment",
+            "create",
+            "development",
+            "-w",
+            "acme",
+            "-p",
+            "api",
+        ])
         .success()?;
     println!("✓ Environment 'development' created");
 
@@ -133,7 +141,10 @@ async fn run_demo_test(config: BackendConfig) -> Result<(), Box<dyn std::error::
     // Step 11: Bob reads Alice's secret
     println!("🔓 Step 11: Bob reads Alice's secret...");
     let retrieved_value2 = bob
-        .exec_in(harness.test_dir(), &["secret", "get", "PAYFLOW_MERCHANT_ID"])
+        .exec_in(
+            harness.test_dir(),
+            &["secret", "get", "PAYFLOW_MERCHANT_ID"],
+        )
         .success()?;
     assert_eq!(
         retrieved_value2, secret_value2,
