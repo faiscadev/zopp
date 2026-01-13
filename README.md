@@ -127,3 +127,12 @@ alias zopp='docker run --rm -v ~/.zopp:/home/zopp/.zopp ghcr.io/faiscadev/zopp-c
 ```bash
 cargo build --workspace --release
 ```
+
+---
+
+## Contributing
+
+- [Development Guide](./contributing/DEVELOPMENT.md) - Setup, building, running locally
+- [Testing Standards](./contributing/TESTING.md) - Testing philosophy, coverage targets
+- [Documentation](./contributing/DOCUMENTING.md) - Docs workflow and guidelines
+- [Releasing](./contributing/RELEASING.md) - Release process

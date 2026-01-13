@@ -228,17 +228,34 @@ All `-w`, `-p`, `-e` flags are optional when `zopp.toml` (or `.yaml`/`.json`) is
 
 Config stored in `~/.zopp/config.json` with principal credentials.
 
-## Testing Strategy
+## Contributing Guides
 
-1. **Unit tests**: In each crate (e.g., `zopp-crypto`, `zopp-storage`)
-2. **E2E test**: `apps/e2e-test` simulates the full DEMO.md flow:
-   - Server invite → Alice registers → creates workspace
-   - Workspace invite → Bob joins
-   - Both users read/write secrets (validates zero-knowledge)
-   - Export/import `.env` files
-3. **Manual validation**: Follow DEMO.md for exploratory testing
+Detailed standards live in `contributing/`:
 
-**When adding features:** Follow TDD. Write E2E test steps first, then implement CLI commands, then update DEMO.md to match.
+- [DEVELOPMENT.md](./contributing/DEVELOPMENT.md) - Setup, building, running locally
+- [TESTING.md](./contributing/TESTING.md) - Testing philosophy, coverage targets
+- [DOCUMENTING.md](./contributing/DOCUMENTING.md) - Docs workflow and guidelines
+- [RELEASING.md](./contributing/RELEASING.md) - Release process
+
+### Testing
+
+See [TESTING.md](./contributing/TESTING.md) for full testing standards.
+
+**Use real implementations, only mock to reproduce specific error conditions.**
+- Every user-facing feature must have an E2E test
+- Aim for 100% unit test coverage (some code is impractical to unit test—use E2E instead)
+- Test trait implementations with real dependencies (real SQLite, real PostgreSQL)
+
+### Documentation
+
+See [DOCUMENTING.md](./contributing/DOCUMENTING.md) for docs workflow and guidelines.
+
+**Documentation is product.** Always consider whether code changes require doc updates:
+- New CLI commands/flags → update `docs/docs/reference/cli/`
+- New features → add or update guides
+- Changed behavior → update relevant docs
+
+Run docs locally: `cd docs && npm run dev`
 
 ## Important Notes
 
