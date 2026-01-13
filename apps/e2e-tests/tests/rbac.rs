@@ -5611,7 +5611,10 @@ async fn test_invite_revocation_requires_admin() -> Result<(), Box<dyn std::erro
     // Alice creates a new invite to be revoked
     let target_invite = env.create_workspace_invite(&alice, "acme")?;
     // Extract just the token part (first line before any newlines)
-    let target_token = target_invite.lines().next().unwrap_or(&target_invite);
+    let target_token = target_invite
+        .lines()
+        .next()
+        .expect("Invite token should not be empty");
 
     println!("Setup complete: Alice (owner), Bob (write), pending invite exists");
 
@@ -5718,7 +5721,10 @@ async fn test_service_account_cannot_revoke_invite() -> Result<(), Box<dyn std::
 
     // Create an invite to be revoked
     let target_invite = env.create_workspace_invite(&alice, "acme")?;
-    let target_token = target_invite.lines().next().unwrap_or(&target_invite);
+    let target_token = target_invite
+        .lines()
+        .next()
+        .expect("Invite token should not be empty");
 
     println!(
         "Setup complete: Service principal {} with ADMIN, pending invite",
