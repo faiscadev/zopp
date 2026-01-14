@@ -713,7 +713,7 @@ async fn invite_crud_operations() {
     assert_eq!(fetched.id, invite.id);
 
     // List invites for user
-    let invites = s.list_invites(Some(&user_id)).await.unwrap();
+    let invites = s.list_invites(Some(user_id.clone())).await.unwrap();
     assert_eq!(invites.len(), 1);
 
     // Create server invite (no user)
@@ -742,7 +742,7 @@ async fn invite_crud_operations() {
     assert!(matches!(err, StoreError::NotFound));
 
     // List should be empty now
-    let invites = s.list_invites(Some(&user_id)).await.unwrap();
+    let invites = s.list_invites(Some(user_id)).await.unwrap();
     assert_eq!(invites.len(), 0);
 }
 
@@ -900,9 +900,13 @@ async fn group_crud_operations() {
     assert_eq!(groups.len(), 2);
 
     // Update group
-    s.update_group(&group_id, "senior-developers", Some("Senior dev team"))
-        .await
-        .unwrap();
+    s.update_group(
+        &group_id,
+        "senior-developers",
+        Some("Senior dev team".to_string()),
+    )
+    .await
+    .unwrap();
     let group = s.get_group(&group_id).await.unwrap();
     assert_eq!(group.name, "senior-developers");
     assert_eq!(group.description, Some("Senior dev team".to_string()));

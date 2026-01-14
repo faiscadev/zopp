@@ -215,4 +215,96 @@ mod tests {
             OperatorCredentials::from_file(Some(PathBuf::from("/nonexistent/path/config.json")));
         assert!(result.is_err());
     }
+
+    fn create_test_credentials() -> OperatorCredentials {
+        let principal = PrincipalConfig {
+            id: "test-id".to_string(),
+            name: "test-principal".to_string(),
+            private_key: "0".repeat(64), // 32 bytes in hex
+            public_key: "1".repeat(64),
+            x25519_private_key: Some("2".repeat(64)),
+            x25519_public_key: Some("3".repeat(64)),
+        };
+        OperatorCredentials::new(principal)
+    }
+
+    #[tokio::test]
+    async fn test_dek_cache_store_and_retrieve() {
+        let creds = create_test_credentials();
+        let dek = [42u8; 32];
+
+        // Cache should be empty initially
+        let cached = creds.get_cached_dek("ws", "proj", "env").await;
+        assert!(cached.is_none());
+
+        // Cache a DEK
+        creds.cache_dek("ws", "proj", "env", dek).await;
+
+        // Should be retrievable
+        let cached = creds.get_cached_dek("ws", "proj", "env").await;
+        assert!(cached.is_some());
+        assert_eq!(cached.unwrap(), dek);
+    }
+
+    #[tokio::test]
+    async fn test_dek_cache_different_environments() {
+        let creds = create_test_credentials();
+        let dek1 = [1u8; 32];
+        let dek2 = [2u8; 32];
+
+        // Cache DEKs for different environments
+        creds.cache_dek("ws", "proj", "dev", dek1).await;
+        creds.cache_dek("ws", "proj", "prod", dek2).await;
+
+        // Each should return the correct DEK
+        assert_eq!(
+            creds.get_cached_dek("ws", "proj", "dev").await.unwrap(),
+            dek1
+        );
+        assert_eq!(
+            creds.get_cached_dek("ws", "proj", "prod").await.unwrap(),
+            dek2
+        );
+
+        // Non-existent environment should return None
+        assert!(creds
+            .get_cached_dek("ws", "proj", "staging")
+            .await
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn test_dek_cache_overwrite() {
+        let creds = create_test_credentials();
+        let dek1 = [1u8; 32];
+        let dek2 = [2u8; 32];
+
+        // Cache a DEK
+        creds.cache_dek("ws", "proj", "env", dek1).await;
+        assert_eq!(
+            creds.get_cached_dek("ws", "proj", "env").await.unwrap(),
+            dek1
+        );
+
+        // Overwrite with new DEK
+        creds.cache_dek("ws", "proj", "env", dek2).await;
+        assert_eq!(
+            creds.get_cached_dek("ws", "proj", "env").await.unwrap(),
+            dek2
+        );
+    }
+
+    #[test]
+    fn test_credentials_debug_redacts_secrets() {
+        let creds = create_test_credentials();
+        let debug_str = format!("{:?}", creds);
+
+        // Should contain non-sensitive info
+        assert!(debug_str.contains("test-id"));
+        assert!(debug_str.contains("test-principal"));
+
+        // Should NOT contain private keys in the debug output
+        assert!(debug_str.contains("[REDACTED]"));
+        assert!(!debug_str.contains(&"2".repeat(64))); // x25519 private key value
+    }
 }

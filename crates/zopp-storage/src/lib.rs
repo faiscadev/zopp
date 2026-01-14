@@ -379,8 +379,9 @@ pub struct Environment {
 /// The storage trait `zopp-core` depends on.
 ///
 /// All methods that act on project/env/secrets are **scoped by workspace**.
+#[cfg_attr(feature = "test-support", mockall::automock)]
 #[async_trait::async_trait]
-pub trait Store {
+pub trait Store: Send + Sync {
     // ───────────────────────────────────── Users ──────────────────────────────────────────
 
     /// Create a new user (returns generated ID, and optional principal ID if principal was provided).
@@ -426,7 +427,7 @@ pub trait Store {
     async fn get_invite_by_token(&self, token: &str) -> Result<Invite, StoreError>;
 
     /// List all active invites for a user (None = server invites).
-    async fn list_invites(&self, user_id: Option<&UserId>) -> Result<Vec<Invite>, StoreError>;
+    async fn list_invites(&self, user_id: Option<UserId>) -> Result<Vec<Invite>, StoreError>;
 
     /// Revoke an invite.
     async fn revoke_invite(&self, invite_id: &InviteId) -> Result<(), StoreError>;
@@ -796,7 +797,7 @@ pub trait Store {
         &self,
         group_id: &GroupId,
         name: &str,
-        description: Option<&str>,
+        description: Option<String>,
     ) -> Result<(), StoreError>;
 
     /// Delete a group (and all its memberships and permissions)
@@ -979,7 +980,7 @@ mod tests {
             Err(StoreError::NotFound)
         }
 
-        async fn list_invites(&self, _user_id: Option<&UserId>) -> Result<Vec<Invite>, StoreError> {
+        async fn list_invites(&self, _user_id: Option<UserId>) -> Result<Vec<Invite>, StoreError> {
             Ok(vec![])
         }
 
@@ -1412,7 +1413,7 @@ mod tests {
             &self,
             _group_id: &GroupId,
             _name: &str,
-            _description: Option<&str>,
+            _description: Option<String>,
         ) -> Result<(), StoreError> {
             Ok(())
         }

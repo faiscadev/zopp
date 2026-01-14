@@ -479,7 +479,7 @@ impl Store for SqliteStore {
         }
     }
 
-    async fn list_invites(&self, user_id: Option<&UserId>) -> Result<Vec<Invite>, StoreError> {
+    async fn list_invites(&self, user_id: Option<UserId>) -> Result<Vec<Invite>, StoreError> {
         let user_id_str = user_id.map(|id| id.0.to_string());
 
         // Query for either user-created invites or server invites (where created_by_user_id IS NULL)
@@ -1961,7 +1961,7 @@ impl Store for SqliteStore {
         &self,
         group_id: &zopp_storage::GroupId,
         name: &str,
-        description: Option<&str>,
+        description: Option<String>,
     ) -> Result<(), StoreError> {
         let g_id = group_id.0.to_string();
 

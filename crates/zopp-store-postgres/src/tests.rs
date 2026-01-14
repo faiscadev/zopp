@@ -523,7 +523,7 @@ async fn test_invite_creation_and_revocation() {
     assert_eq!(retrieved.kek_encrypted, Some(vec![7; 48]));
 
     // List invites for user
-    let invites = store.list_invites(Some(&user_id)).await.unwrap();
+    let invites = store.list_invites(Some(user_id)).await.unwrap();
     assert_eq!(invites.len(), 1);
     assert_eq!(invites[0].token, token_hash);
 
@@ -783,7 +783,11 @@ async fn test_group_crud_operations() {
 
     // Update group
     store
-        .update_group(&group_id, "senior-developers", Some("Senior team"))
+        .update_group(
+            &group_id,
+            "senior-developers",
+            Some("Senior team".to_string()),
+        )
         .await
         .unwrap();
     let group = store.get_group(&group_id).await.unwrap();
