@@ -1,49 +1,29 @@
-use crate::config::PrincipalConfig;
 use crate::grpc::{add_auth_metadata, setup_client};
-
-#[cfg(test)]
-use crate::client::MockWorkspaceClient;
-
 use zopp_proto::{
     CreateWorkspaceRequest, Empty, GetPrincipalRequest, GetWorkspaceKeysRequest,
-    GrantPrincipalWorkspaceAccessRequest, WorkspaceList,
+    GrantPrincipalWorkspaceAccessRequest,
 };
-
-/// Inner implementation for workspace list that accepts a trait-bounded client.
-/// This function is testable with mock clients.
-pub async fn workspace_list_inner<C>(
-    client: &mut C,
-    principal: &PrincipalConfig,
-) -> Result<WorkspaceList, Box<dyn std::error::Error>>
-where
-    C: crate::client::WorkspaceClient,
-{
-    let mut request = tonic::Request::new(Empty {});
-    add_auth_metadata(&mut request, principal, "/zopp.ZoppService/ListWorkspaces")?;
-
-    let response = client.list_workspaces(request).await?.into_inner();
-    Ok(response)
-}
-
-/// Print workspace list results.
-pub fn print_workspace_list(workspaces: &WorkspaceList) {
-    if workspaces.workspaces.is_empty() {
-        println!("No workspaces found.");
-    } else {
-        println!("Workspaces:");
-        for ws in &workspaces.workspaces {
-            println!("  {}", ws.name);
-        }
-    }
-}
 
 pub async fn cmd_workspace_list(
     server: &str,
     tls_ca_cert: Option<&std::path::Path>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut client, principal) = setup_client(server, tls_ca_cert).await?;
-    let workspaces = workspace_list_inner(&mut client, &principal).await?;
-    print_workspace_list(&workspaces);
+
+    let mut request = tonic::Request::new(Empty {});
+    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/ListWorkspaces")?;
+
+    let response = client.list_workspaces(request).await?.into_inner();
+
+    if response.workspaces.is_empty() {
+        println!("No workspaces found.");
+    } else {
+        println!("Workspaces:");
+        for ws in response.workspaces {
+            println!("  {}", ws.name);
+        }
+    }
+
     Ok(())
 }
 
@@ -179,153 +159,4 @@ pub async fn cmd_workspace_grant_principal_access(
     println!("  Principal name: {}", target_principal.name);
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tonic::{Response, Status};
-    use zopp_proto::{Workspace, WorkspaceList};
-
-    // Create a test principal config with valid hex keys
-    fn create_test_principal() -> PrincipalConfig {
-        PrincipalConfig {
-            id: "test-principal-id".to_string(),
-            name: "test-principal".to_string(),
-            private_key: "0".repeat(64),
-            public_key: "1".repeat(64),
-            x25519_private_key: Some("2".repeat(64)),
-            x25519_public_key: Some("3".repeat(64)),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_workspace_list_inner_success() {
-        let mut mock = MockWorkspaceClient::new();
-
-        mock.expect_list_workspaces().returning(|_| {
-            Ok(Response::new(WorkspaceList {
-                workspaces: vec![
-                    Workspace {
-                        id: "ws-1".to_string(),
-                        name: "workspace-one".to_string(),
-                    },
-                    Workspace {
-                        id: "ws-2".to_string(),
-                        name: "workspace-two".to_string(),
-                    },
-                ],
-            }))
-        });
-
-        let principal = create_test_principal();
-        let result = workspace_list_inner(&mut mock, &principal).await;
-
-        assert!(result.is_ok());
-        let workspaces = result.unwrap();
-        assert_eq!(workspaces.workspaces.len(), 2);
-        assert_eq!(workspaces.workspaces[0].name, "workspace-one");
-        assert_eq!(workspaces.workspaces[1].name, "workspace-two");
-    }
-
-    #[tokio::test]
-    async fn test_workspace_list_inner_empty() {
-        let mut mock = MockWorkspaceClient::new();
-
-        mock.expect_list_workspaces()
-            .returning(|_| Ok(Response::new(WorkspaceList { workspaces: vec![] })));
-
-        let principal = create_test_principal();
-        let result = workspace_list_inner(&mut mock, &principal).await;
-
-        assert!(result.is_ok());
-        let workspaces = result.unwrap();
-        assert!(workspaces.workspaces.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_workspace_list_inner_grpc_error() {
-        let mut mock = MockWorkspaceClient::new();
-
-        mock.expect_list_workspaces()
-            .returning(|_| Err(Status::unavailable("Server unavailable")));
-
-        let principal = create_test_principal();
-        let result = workspace_list_inner(&mut mock, &principal).await;
-
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("unavailable"));
-    }
-
-    #[tokio::test]
-    async fn test_workspace_list_inner_permission_denied() {
-        let mut mock = MockWorkspaceClient::new();
-
-        mock.expect_list_workspaces()
-            .returning(|_| Err(Status::permission_denied("Not authorized")));
-
-        let principal = create_test_principal();
-        let result = workspace_list_inner(&mut mock, &principal).await;
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_print_workspace_list_empty() {
-        // This is a simple print test - just verify it doesn't panic
-        let workspaces = WorkspaceList { workspaces: vec![] };
-        print_workspace_list(&workspaces);
-    }
-
-    #[test]
-    fn test_print_workspace_list_with_items() {
-        let workspaces = WorkspaceList {
-            workspaces: vec![
-                Workspace {
-                    id: "1".to_string(),
-                    name: "first".to_string(),
-                },
-                Workspace {
-                    id: "2".to_string(),
-                    name: "second".to_string(),
-                },
-            ],
-        };
-        print_workspace_list(&workspaces);
-    }
-
-    #[tokio::test]
-    async fn test_workspace_list_inner_internal_error() {
-        let mut mock = MockWorkspaceClient::new();
-
-        mock.expect_list_workspaces()
-            .returning(|_| Err(Status::internal("Database error")));
-
-        let principal = create_test_principal();
-        let result = workspace_list_inner(&mut mock, &principal).await;
-
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_workspace_list_inner_single_workspace() {
-        let mut mock = MockWorkspaceClient::new();
-
-        mock.expect_list_workspaces().returning(|_| {
-            Ok(Response::new(WorkspaceList {
-                workspaces: vec![Workspace {
-                    id: "only-ws".to_string(),
-                    name: "only-workspace".to_string(),
-                }],
-            }))
-        });
-
-        let principal = create_test_principal();
-        let result = workspace_list_inner(&mut mock, &principal).await;
-
-        assert!(result.is_ok());
-        let workspaces = result.unwrap();
-        assert_eq!(workspaces.workspaces.len(), 1);
-    }
 }
