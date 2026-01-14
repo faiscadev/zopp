@@ -627,18 +627,25 @@ pub async fn cmd_principal_import(input: Option<&Path>) -> Result<(), Box<dyn st
         .into());
     }
 
-    // Check if name conflicts
+    // Check if name conflicts and find a unique name
     let final_name = if config
         .principals
         .iter()
         .any(|p| p.name == export.principal.name)
     {
-        let new_name = format!("{}-imported", export.principal.name);
+        // Find a unique name by appending -imported, -imported-2, etc.
+        let base_name = format!("{}-imported", export.principal.name);
+        let mut candidate = base_name.clone();
+        let mut counter = 2;
+        while config.principals.iter().any(|p| p.name == candidate) {
+            candidate = format!("{}-{}", base_name, counter);
+            counter += 1;
+        }
         eprintln!(
             "Note: Principal name '{}' already exists, importing as '{}'",
-            export.principal.name, new_name
+            export.principal.name, candidate
         );
-        new_name
+        candidate
     } else {
         export.principal.name.clone()
     };

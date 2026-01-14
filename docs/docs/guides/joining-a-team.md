@@ -167,15 +167,15 @@ zopp principal import -i principal.enc
 
 ### Option 2: Self-Invite
 
-Create a self-invite that only you can use. This is useful when you don't have physical access to your existing device (e.g., adding a new work laptop without your personal laptop nearby):
+Create a self-invite that only you can use. This is useful when you can't easily transfer the encrypted export file (e.g., setting up a new work laptop via remote SSH to your existing machine, or pre-creating an invite before traveling):
 
 ```bash
-# On your existing device - create a self-invite
+# On your existing device (or via SSH) - create a self-invite
 zopp invite create-self -w acme-corp --plain
 # Returns: inv_xxx...
 ```
 
-On your new device, use the invite with your email:
+Save the invite token somewhere secure. On your new device, use it with your email:
 
 ```bash
 # On your new device

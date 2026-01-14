@@ -32,7 +32,7 @@ pub async fn join(
             .await
             .map_err(|_| Status::not_found("Target user for self-invite not found"))?;
 
-        if target_user.email != req.email {
+        if !target_user.email.eq_ignore_ascii_case(&req.email) {
             return Err(Status::permission_denied(
                 "This invite can only be used by the user who created it",
             ));
