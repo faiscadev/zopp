@@ -15114,4 +15114,924 @@ mod handler_tests {
         assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
     }
 
+    // ============== Principal Permission Error Path Tests ==============
+
+    #[tokio::test]
+    async fn handler_get_workspace_permission_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gwp1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetWorkspacePermission",
+            zopp_proto::GetWorkspacePermissionRequest {
+                workspace_name: "nonexistent".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_workspace_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_workspace_permission_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gwp2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetWorkspacePermission",
+            zopp_proto::GetWorkspacePermissionRequest {
+                workspace_name: "ws".to_string(),
+                principal_id: "invalid-uuid".to_string(),
+            },
+        );
+
+        let result = server.get_workspace_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_get_workspace_permission_perm_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gwp3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another principal without permission
+        let other_signing_key = ed25519_dalek::SigningKey::generate(&mut rand_core::OsRng);
+        let other_principal_id = server
+            .store
+            .create_principal(&zopp_storage::CreatePrincipalParams {
+                user_id: None,
+                name: "other".to_string(),
+                public_key: other_signing_key.verifying_key().to_bytes().to_vec(),
+                x25519_public_key: None,
+            })
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetWorkspacePermission",
+            zopp_proto::GetWorkspacePermissionRequest {
+                workspace_name: "ws".to_string(),
+                principal_id: other_principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_workspace_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_workspace_permissions_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lwp1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListWorkspacePermissions",
+            zopp_proto::ListWorkspacePermissionsRequest {
+                workspace_name: "nonexistent".to_string(),
+            },
+        );
+
+        let result = server.list_workspace_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_workspace_permission_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rwp1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveWorkspacePermission",
+            zopp_proto::RemoveWorkspacePermissionRequest {
+                workspace_name: "nonexistent".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_workspace_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_workspace_permission_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rwp2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveWorkspacePermission",
+            zopp_proto::RemoveWorkspacePermissionRequest {
+                workspace_name: "ws".to_string(),
+                principal_id: "invalid-uuid".to_string(),
+            },
+        );
+
+        let result = server.remove_workspace_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    // Project level principal permission error path tests
+
+    #[tokio::test]
+    async fn handler_set_project_permission_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-spp1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/SetProjectPermission",
+            zopp_proto::SetProjectPermissionRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: principal_id.0.to_string(),
+                role: zopp_proto::Role::Read as i32,
+            },
+        );
+
+        let result = server.set_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_set_project_permission_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-spp2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/SetProjectPermission",
+            zopp_proto::SetProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                principal_id: principal_id.0.to_string(),
+                role: zopp_proto::Role::Read as i32,
+            },
+        );
+
+        let result = server.set_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_set_project_permission_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-spp3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/SetProjectPermission",
+            zopp_proto::SetProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: "invalid-uuid".to_string(),
+                role: zopp_proto::Role::Read as i32,
+            },
+        );
+
+        let result = server.set_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_set_project_permission_invalid_role() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-spp4@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/SetProjectPermission",
+            zopp_proto::SetProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: principal_id.0.to_string(),
+                role: 999, // Invalid role
+            },
+        );
+
+        let result = server.set_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_get_project_permission_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gpp1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetProjectPermission",
+            zopp_proto::GetProjectPermissionRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_project_permission_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gpp2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetProjectPermission",
+            zopp_proto::GetProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_project_permission_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gpp3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetProjectPermission",
+            zopp_proto::GetProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: "invalid-uuid".to_string(),
+            },
+        );
+
+        let result = server.get_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_get_project_permission_perm_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gpp4@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another principal without project permission
+        let other_signing_key = ed25519_dalek::SigningKey::generate(&mut rand_core::OsRng);
+        let other_principal_id = server
+            .store
+            .create_principal(&zopp_storage::CreatePrincipalParams {
+                user_id: None,
+                name: "other".to_string(),
+                public_key: other_signing_key.verifying_key().to_bytes().to_vec(),
+                x25519_public_key: None,
+            })
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetProjectPermission",
+            zopp_proto::GetProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: other_principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_project_permissions_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lpp1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListProjectPermissions",
+            zopp_proto::ListProjectPermissionsRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.list_project_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_project_permissions_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lpp2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListProjectPermissions",
+            zopp_proto::ListProjectPermissionsRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+            },
+        );
+
+        let result = server.list_project_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_project_permission_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rpp1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveProjectPermission",
+            zopp_proto::RemoveProjectPermissionRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_project_permission_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rpp2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveProjectPermission",
+            zopp_proto::RemoveProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_project_permission_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rpp3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveProjectPermission",
+            zopp_proto::RemoveProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: "invalid-uuid".to_string(),
+            },
+        );
+
+        let result = server.remove_project_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    // Environment level principal permission error path tests
+
+    #[tokio::test]
+    async fn handler_set_environment_permission_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-sep1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/SetEnvironmentPermission",
+            zopp_proto::SetEnvironmentPermissionRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: principal_id.0.to_string(),
+                role: zopp_proto::Role::Read as i32,
+            },
+        );
+
+        let result = server.set_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_set_environment_permission_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-sep2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/SetEnvironmentPermission",
+            zopp_proto::SetEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: principal_id.0.to_string(),
+                role: zopp_proto::Role::Read as i32,
+            },
+        );
+
+        let result = server.set_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_set_environment_permission_env_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-sep3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/SetEnvironmentPermission",
+            zopp_proto::SetEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "nonexistent".to_string(),
+                principal_id: principal_id.0.to_string(),
+                role: zopp_proto::Role::Read as i32,
+            },
+        );
+
+        let result = server.set_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_set_environment_permission_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-sep4@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/SetEnvironmentPermission",
+            zopp_proto::SetEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: "invalid-uuid".to_string(),
+                role: zopp_proto::Role::Read as i32,
+            },
+        );
+
+        let result = server.set_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_set_environment_permission_invalid_role() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-sep5@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/SetEnvironmentPermission",
+            zopp_proto::SetEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: principal_id.0.to_string(),
+                role: 999, // Invalid role
+            },
+        );
+
+        let result = server.set_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_permission_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gep1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEnvironmentPermission",
+            zopp_proto::GetEnvironmentPermissionRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_permission_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gep2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEnvironmentPermission",
+            zopp_proto::GetEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_permission_env_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gep3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEnvironmentPermission",
+            zopp_proto::GetEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "nonexistent".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_permission_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gep4@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEnvironmentPermission",
+            zopp_proto::GetEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: "invalid-uuid".to_string(),
+            },
+        );
+
+        let result = server.get_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_permission_perm_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gep5@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another principal without env permission
+        let other_signing_key = ed25519_dalek::SigningKey::generate(&mut rand_core::OsRng);
+        let other_principal_id = server
+            .store
+            .create_principal(&zopp_storage::CreatePrincipalParams {
+                user_id: None,
+                name: "other".to_string(),
+                public_key: other_signing_key.verifying_key().to_bytes().to_vec(),
+                x25519_public_key: None,
+            })
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEnvironmentPermission",
+            zopp_proto::GetEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: other_principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_environment_permissions_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lep1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListEnvironmentPermissions",
+            zopp_proto::ListEnvironmentPermissionsRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.list_environment_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_environment_permissions_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lep2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListEnvironmentPermissions",
+            zopp_proto::ListEnvironmentPermissionsRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.list_environment_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_environment_permissions_env_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lep3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListEnvironmentPermissions",
+            zopp_proto::ListEnvironmentPermissionsRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "nonexistent".to_string(),
+            },
+        );
+
+        let result = server.list_environment_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_environment_permission_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rep1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveEnvironmentPermission",
+            zopp_proto::RemoveEnvironmentPermissionRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_environment_permission_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rep2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveEnvironmentPermission",
+            zopp_proto::RemoveEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_environment_permission_env_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rep3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveEnvironmentPermission",
+            zopp_proto::RemoveEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "nonexistent".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_environment_permission_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rep4@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveEnvironmentPermission",
+            zopp_proto::RemoveEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: "invalid-uuid".to_string(),
+            },
+        );
+
+        let result = server.remove_environment_permission(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
 }
