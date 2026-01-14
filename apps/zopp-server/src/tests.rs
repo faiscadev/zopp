@@ -127,6 +127,23 @@ async fn create_test_environment(
         .unwrap()
 }
 
+/// Test helper: Create a group in a workspace
+async fn create_test_group(
+    server: &ZoppServer,
+    workspace_id: &WorkspaceId,
+    name: &str,
+) -> zopp_storage::GroupId {
+    server
+        .store
+        .create_group(&zopp_storage::CreateGroupParams {
+            workspace_id: workspace_id.clone(),
+            name: name.to_string(),
+            description: None,
+        })
+        .await
+        .unwrap()
+}
+
 /// Test helper: Add a principal to a workspace (in workspace_principals table)
 async fn add_principal_to_workspace(
     server: &ZoppServer,
@@ -16771,6 +16788,506 @@ mod handler_tests {
         assert!(result.is_ok());
         let invites = result.unwrap().into_inner();
         assert!(!invites.invites.is_empty());
+    }
+
+    // ================== Project Handler Service Account Tests ==================
+
+    #[tokio::test]
+    async fn handler_create_project_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-cproj-s1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "project-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/CreateProject",
+            zopp_proto::CreateProjectRequest {
+                workspace_name: "ws".to_string(),
+                name: "my-project".to_string(),
+            },
+        );
+
+        let result = server.create_project(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_list_projects_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-lproj-s1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "project-list-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/ListProjects",
+            zopp_proto::ListProjectsRequest {
+                workspace_name: "ws".to_string(),
+            },
+        );
+
+        let result = server.list_projects(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_get_project_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-gproj-s1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "project-get-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/GetProject",
+            zopp_proto::GetProjectRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.get_project(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_delete_project_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-dproj-s1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "project-delete-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/DeleteProject",
+            zopp_proto::DeleteProjectRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.delete_project(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_list_projects_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lproj-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListProjects",
+            zopp_proto::ListProjectsRequest {
+                workspace_name: "nonexistent".to_string(),
+            },
+        );
+
+        let result = server.list_projects(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_project_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gproj-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetProject",
+            zopp_proto::GetProjectRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.get_project(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_delete_project_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-dproj-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/DeleteProject",
+            zopp_proto::DeleteProjectRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.delete_project(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_projects_permission_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-lproj-pd1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Create another user without any permission
+        let (other_user_id, other_principal_id, other_signing_key) =
+            create_test_user(&server, "other-lproj-pd1@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        // No permission granted
+
+        let request = create_signed_request(
+            &other_principal_id,
+            &other_signing_key,
+            "/zopp.ZoppService/ListProjects",
+            zopp_proto::ListProjectsRequest {
+                workspace_name: "ws".to_string(),
+            },
+        );
+
+        let result = server.list_projects(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn handler_delete_project_permission_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-dproj-pd1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+
+        // Create another user with READ permission (not ADMIN)
+        let (other_user_id, other_principal_id, other_signing_key) =
+            create_test_user(&server, "other-dproj-pd1@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &other_principal_id,
+            &other_signing_key,
+            "/zopp.ZoppService/DeleteProject",
+            zopp_proto::DeleteProjectRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.delete_project(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::PermissionDenied);
+    }
+
+    // ================== Group Handler Additional Tests ==================
+
+    #[tokio::test]
+    async fn handler_get_group_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-ggrp-s1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _group_id = create_test_group(&server, &ws_id, "my-group").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "group-get-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/GetGroup",
+            zopp_proto::GetGroupRequest {
+                workspace_name: "ws".to_string(),
+                group_name: "my-group".to_string(),
+            },
+        );
+
+        let result = server.get_group(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_list_groups_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-lgrp-s1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "group-list-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/ListGroups",
+            zopp_proto::ListGroupsRequest {
+                workspace_name: "ws".to_string(),
+            },
+        );
+
+        let result = server.list_groups(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_get_group_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-ggrp-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetGroup",
+            zopp_proto::GetGroupRequest {
+                workspace_name: "nonexistent".to_string(),
+                group_name: "my-group".to_string(),
+            },
+        );
+
+        let result = server.get_group(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_groups_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lgrp-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListGroups",
+            zopp_proto::ListGroupsRequest {
+                workspace_name: "nonexistent".to_string(),
+            },
+        );
+
+        let result = server.list_groups(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_create_group_permission_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-cgrp-pd1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Create another user with READ permission (not ADMIN)
+        let (other_user_id, other_principal_id, other_signing_key) =
+            create_test_user(&server, "other-cgrp-pd1@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &other_principal_id,
+            &other_signing_key,
+            "/zopp.ZoppService/CreateGroup",
+            zopp_proto::CreateGroupRequest {
+                workspace_name: "ws".to_string(),
+                name: "new-group".to_string(),
+                description: String::new(),
+            },
+        );
+
+        let result = server.create_group(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn handler_delete_group_permission_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-dgrp-pd1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _group_id = create_test_group(&server, &ws_id, "my-group").await;
+
+        // Create another user with READ permission (not ADMIN)
+        let (other_user_id, other_principal_id, other_signing_key) =
+            create_test_user(&server, "other-dgrp-pd1@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &other_principal_id,
+            &other_signing_key,
+            "/zopp.ZoppService/DeleteGroup",
+            zopp_proto::DeleteGroupRequest {
+                workspace_name: "ws".to_string(),
+                group_name: "my-group".to_string(),
+            },
+        );
+
+        let result = server.delete_group(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn handler_update_group_permission_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-ugrp-pd1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _group_id = create_test_group(&server, &ws_id, "my-group").await;
+
+        // Create another user with READ permission (not ADMIN)
+        let (other_user_id, other_principal_id, other_signing_key) =
+            create_test_user(&server, "other-ugrp-pd1@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &other_principal_id,
+            &other_signing_key,
+            "/zopp.ZoppService/UpdateGroup",
+            zopp_proto::UpdateGroupRequest {
+                workspace_name: "ws".to_string(),
+                group_name: "my-group".to_string(),
+                new_name: "renamed-group".to_string(),
+                new_description: String::new(),
+            },
+        );
+
+        let result = server.update_group(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn handler_update_group_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-ugrp-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/UpdateGroup",
+            zopp_proto::UpdateGroupRequest {
+                workspace_name: "nonexistent".to_string(),
+                group_name: "my-group".to_string(),
+                new_name: "renamed".to_string(),
+                new_description: String::new(),
+            },
+        );
+
+        let result = server.update_group(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_delete_group_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-dgrp-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/DeleteGroup",
+            zopp_proto::DeleteGroupRequest {
+                workspace_name: "nonexistent".to_string(),
+                group_name: "my-group".to_string(),
+            },
+        );
+
+        let result = server.delete_group(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
     }
 
 }
