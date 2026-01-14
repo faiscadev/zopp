@@ -1,11 +1,94 @@
+use crate::config::PrincipalConfig;
 use crate::grpc::{add_auth_metadata, setup_client};
+
 use zopp_proto::{
-    AddGroupMemberRequest, CreateGroupRequest, DeleteGroupRequest, ListGroupMembersRequest,
-    ListGroupsRequest, RemoveGroupEnvironmentPermissionRequest, RemoveGroupMemberRequest,
-    RemoveGroupProjectPermissionRequest, RemoveGroupWorkspacePermissionRequest, Role,
-    SetGroupEnvironmentPermissionRequest, SetGroupProjectPermissionRequest,
-    SetGroupWorkspacePermissionRequest, UpdateGroupRequest,
+    AddGroupMemberRequest, CreateGroupRequest, DeleteGroupRequest, GroupList,
+    ListGroupMembersRequest, ListGroupsRequest, RemoveGroupEnvironmentPermissionRequest,
+    RemoveGroupMemberRequest, RemoveGroupProjectPermissionRequest,
+    RemoveGroupWorkspacePermissionRequest, Role, SetGroupEnvironmentPermissionRequest,
+    SetGroupProjectPermissionRequest, SetGroupWorkspacePermissionRequest, UpdateGroupRequest,
 };
+
+/// Inner implementation for group list that accepts a trait-bounded client.
+pub async fn group_list_inner<C>(
+    client: &mut C,
+    principal: &PrincipalConfig,
+    workspace_name: &str,
+) -> Result<GroupList, Box<dyn std::error::Error>>
+where
+    C: crate::client::GroupClient,
+{
+    let mut request = tonic::Request::new(ListGroupsRequest {
+        workspace_name: workspace_name.to_string(),
+    });
+    add_auth_metadata(&mut request, principal, "/zopp.ZoppService/ListGroups")?;
+
+    let response = client.list_groups(request).await?.into_inner();
+    Ok(response)
+}
+
+/// Print group list results.
+pub fn print_group_list(groups: &GroupList) {
+    if groups.groups.is_empty() {
+        println!("No groups found");
+    } else {
+        println!("Groups:");
+        for group in &groups.groups {
+            println!("  {} - {}", group.name, group.description);
+        }
+    }
+}
+
+/// Inner implementation for group create that accepts a trait-bounded client.
+pub async fn group_create_inner<C>(
+    client: &mut C,
+    principal: &PrincipalConfig,
+    workspace_name: &str,
+    name: &str,
+    description: &str,
+) -> Result<zopp_proto::Group, Box<dyn std::error::Error>>
+where
+    C: crate::client::GroupClient,
+{
+    let mut request = tonic::Request::new(CreateGroupRequest {
+        workspace_name: workspace_name.to_string(),
+        name: name.to_string(),
+        description: description.to_string(),
+    });
+    add_auth_metadata(&mut request, principal, "/zopp.ZoppService/CreateGroup")?;
+
+    let response = client.create_group(request).await?.into_inner();
+    Ok(response)
+}
+
+/// Print group creation result.
+pub fn print_group_created(group: &zopp_proto::Group) {
+    println!("Created group: {}", group.name);
+    println!("  ID: {}", group.id);
+    if !group.description.is_empty() {
+        println!("  Description: {}", group.description);
+    }
+}
+
+/// Inner implementation for group delete that accepts a trait-bounded client.
+pub async fn group_delete_inner<C>(
+    client: &mut C,
+    principal: &PrincipalConfig,
+    workspace_name: &str,
+    name: &str,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    C: crate::client::GroupClient,
+{
+    let mut request = tonic::Request::new(DeleteGroupRequest {
+        workspace_name: workspace_name.to_string(),
+        group_name: name.to_string(),
+    });
+    add_auth_metadata(&mut request, principal, "/zopp.ZoppService/DeleteGroup")?;
+
+    client.delete_group(request).await?;
+    Ok(())
+}
 
 pub async fn cmd_group_create(
     server: &str,
@@ -20,20 +103,15 @@ pub async fn cmd_group_create(
         .map(|s| s.to_string())
         .ok_or("Workspace name required (use -w or --workspace)")?;
 
-    let mut request = tonic::Request::new(CreateGroupRequest {
-        workspace_name,
-        name,
-        description: description.unwrap_or_default(),
-    });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/CreateGroup")?;
-
-    let response = client.create_group(request).await?.into_inner();
-
-    println!("Created group: {}", response.name);
-    println!("  ID: {}", response.id);
-    if !response.description.is_empty() {
-        println!("  Description: {}", response.description);
-    }
+    let group = group_create_inner(
+        &mut client,
+        &principal,
+        &workspace_name,
+        &name,
+        &description.unwrap_or_default(),
+    )
+    .await?;
+    print_group_created(&group);
 
     Ok(())
 }
@@ -49,21 +127,8 @@ pub async fn cmd_group_list(
         .map(|s| s.to_string())
         .ok_or("Workspace name required (use -w or --workspace)")?;
 
-    let mut request = tonic::Request::new(ListGroupsRequest { workspace_name });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/ListGroups")?;
-
-    let response = client.list_groups(request).await?.into_inner();
-
-    if response.groups.is_empty() {
-        println!("No groups found");
-        return Ok(());
-    }
-
-    println!("Groups:");
-    for group in response.groups {
-        println!("  {} - {}", group.name, group.description);
-    }
-
+    let groups = group_list_inner(&mut client, &principal, &workspace_name).await?;
+    print_group_list(&groups);
     Ok(())
 }
 
@@ -79,13 +144,7 @@ pub async fn cmd_group_delete(
         .map(|s| s.to_string())
         .ok_or("Workspace name required (use -w or --workspace)")?;
 
-    let mut request = tonic::Request::new(DeleteGroupRequest {
-        workspace_name,
-        group_name: name.clone(),
-    });
-    add_auth_metadata(&mut request, &principal, "/zopp.ZoppService/DeleteGroup")?;
-
-    client.delete_group(request).await?;
+    group_delete_inner(&mut client, &principal, &workspace_name, &name).await?;
     println!("Deleted group: {}", name);
 
     Ok(())
@@ -724,4 +783,315 @@ pub async fn cmd_group_list_environment_permissions(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::MockGroupClient;
+    use tonic::{Response, Status};
+    use zopp_proto::{Group, GroupList};
+
+    // Create a test principal config with valid hex keys
+    fn create_test_principal() -> PrincipalConfig {
+        PrincipalConfig {
+            id: "test-principal-id".to_string(),
+            name: "test-principal".to_string(),
+            private_key: "0".repeat(64),
+            public_key: "1".repeat(64),
+            x25519_private_key: Some("2".repeat(64)),
+            x25519_public_key: Some("3".repeat(64)),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_group_list_inner_success() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_list_groups().returning(|_| {
+            Ok(Response::new(GroupList {
+                groups: vec![
+                    Group {
+                        id: "group-1".to_string(),
+                        name: "developers".to_string(),
+                        description: "Development team".to_string(),
+                        workspace_id: "ws-1".to_string(),
+                        created_at: "2024-01-01T00:00:00Z".to_string(),
+                        updated_at: "2024-01-01T00:00:00Z".to_string(),
+                    },
+                    Group {
+                        id: "group-2".to_string(),
+                        name: "admins".to_string(),
+                        description: "Admin team".to_string(),
+                        workspace_id: "ws-1".to_string(),
+                        created_at: "2024-01-01T00:00:00Z".to_string(),
+                        updated_at: "2024-01-01T00:00:00Z".to_string(),
+                    },
+                ],
+            }))
+        });
+
+        let principal = create_test_principal();
+        let result = group_list_inner(&mut mock, &principal, "test-workspace").await;
+
+        assert!(result.is_ok());
+        let groups = result.unwrap();
+        assert_eq!(groups.groups.len(), 2);
+        assert_eq!(groups.groups[0].name, "developers");
+        assert_eq!(groups.groups[1].name, "admins");
+    }
+
+    #[tokio::test]
+    async fn test_group_list_inner_empty() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_list_groups()
+            .returning(|_| Ok(Response::new(GroupList { groups: vec![] })));
+
+        let principal = create_test_principal();
+        let result = group_list_inner(&mut mock, &principal, "test-workspace").await;
+
+        assert!(result.is_ok());
+        let groups = result.unwrap();
+        assert!(groups.groups.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_group_list_inner_grpc_error() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_list_groups()
+            .returning(|_| Err(Status::unavailable("Server unavailable")));
+
+        let principal = create_test_principal();
+        let result = group_list_inner(&mut mock, &principal, "test-workspace").await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("unavailable"));
+    }
+
+    #[tokio::test]
+    async fn test_group_list_inner_permission_denied() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_list_groups()
+            .returning(|_| Err(Status::permission_denied("Not authorized")));
+
+        let principal = create_test_principal();
+        let result = group_list_inner(&mut mock, &principal, "test-workspace").await;
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_print_group_list_empty() {
+        // This is a simple print test - just verify it doesn't panic
+        let groups = GroupList { groups: vec![] };
+        print_group_list(&groups);
+    }
+
+    #[test]
+    fn test_print_group_list_with_items() {
+        let groups = GroupList {
+            groups: vec![
+                Group {
+                    id: "1".to_string(),
+                    name: "team-a".to_string(),
+                    description: "Team A".to_string(),
+                    workspace_id: "ws".to_string(),
+                    created_at: "2024-01-01T00:00:00Z".to_string(),
+                    updated_at: "2024-01-01T00:00:00Z".to_string(),
+                },
+                Group {
+                    id: "2".to_string(),
+                    name: "team-b".to_string(),
+                    description: "Team B".to_string(),
+                    workspace_id: "ws".to_string(),
+                    created_at: "2024-01-01T00:00:00Z".to_string(),
+                    updated_at: "2024-01-01T00:00:00Z".to_string(),
+                },
+            ],
+        };
+        print_group_list(&groups);
+    }
+
+    #[tokio::test]
+    async fn test_group_list_inner_internal_error() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_list_groups()
+            .returning(|_| Err(Status::internal("Database error")));
+
+        let principal = create_test_principal();
+        let result = group_list_inner(&mut mock, &principal, "test-workspace").await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_group_list_inner_single_group() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_list_groups().returning(|_| {
+            Ok(Response::new(GroupList {
+                groups: vec![Group {
+                    id: "only-group".to_string(),
+                    name: "only-group".to_string(),
+                    description: "Only group".to_string(),
+                    workspace_id: "ws".to_string(),
+                    created_at: "2024-01-01T00:00:00Z".to_string(),
+                    updated_at: "2024-01-01T00:00:00Z".to_string(),
+                }],
+            }))
+        });
+
+        let principal = create_test_principal();
+        let result = group_list_inner(&mut mock, &principal, "test-workspace").await;
+
+        assert!(result.is_ok());
+        let groups = result.unwrap();
+        assert_eq!(groups.groups.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_group_create_inner_success() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_create_group().returning(|_| {
+            Ok(Response::new(Group {
+                id: "new-group-id".to_string(),
+                name: "new-group".to_string(),
+                description: "A new group".to_string(),
+                workspace_id: "ws-1".to_string(),
+                created_at: "2024-01-01T00:00:00Z".to_string(),
+                updated_at: "2024-01-01T00:00:00Z".to_string(),
+            }))
+        });
+
+        let principal = create_test_principal();
+        let result = group_create_inner(
+            &mut mock,
+            &principal,
+            "test-workspace",
+            "new-group",
+            "A new group",
+        )
+        .await;
+
+        assert!(result.is_ok());
+        let group = result.unwrap();
+        assert_eq!(group.name, "new-group");
+        assert_eq!(group.description, "A new group");
+    }
+
+    #[tokio::test]
+    async fn test_group_create_inner_permission_denied() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_create_group()
+            .returning(|_| Err(Status::permission_denied("Not authorized")));
+
+        let principal = create_test_principal();
+        let result = group_create_inner(
+            &mut mock,
+            &principal,
+            "test-workspace",
+            "new-group",
+            "A new group",
+        )
+        .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_group_create_inner_already_exists() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_create_group()
+            .returning(|_| Err(Status::already_exists("Group already exists")));
+
+        let principal = create_test_principal();
+        let result = group_create_inner(
+            &mut mock,
+            &principal,
+            "test-workspace",
+            "existing-group",
+            "",
+        )
+        .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_group_delete_inner_success() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_delete_group()
+            .returning(|_| Ok(Response::new(zopp_proto::Empty {})));
+
+        let principal = create_test_principal();
+        let result =
+            group_delete_inner(&mut mock, &principal, "test-workspace", "group-to-delete").await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_group_delete_inner_not_found() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_delete_group()
+            .returning(|_| Err(Status::not_found("Group not found")));
+
+        let principal = create_test_principal();
+        let result =
+            group_delete_inner(&mut mock, &principal, "test-workspace", "nonexistent-group").await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_group_delete_inner_permission_denied() {
+        let mut mock = MockGroupClient::new();
+
+        mock.expect_delete_group()
+            .returning(|_| Err(Status::permission_denied("Not authorized")));
+
+        let principal = create_test_principal();
+        let result =
+            group_delete_inner(&mut mock, &principal, "test-workspace", "some-group").await;
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_print_group_created() {
+        // Test print function doesn't panic
+        let group = Group {
+            id: "test-id".to_string(),
+            name: "test-group".to_string(),
+            description: "Test description".to_string(),
+            workspace_id: "ws".to_string(),
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+        print_group_created(&group);
+    }
+
+    #[test]
+    fn test_print_group_created_no_description() {
+        // Test print function doesn't panic with empty description
+        let group = Group {
+            id: "test-id".to_string(),
+            name: "test-group".to_string(),
+            description: "".to_string(),
+            workspace_id: "ws".to_string(),
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+        print_group_created(&group);
+    }
 }
