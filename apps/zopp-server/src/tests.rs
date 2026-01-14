@@ -9736,7 +9736,7 @@ mod handler_tests {
 
         let result = server.create_project(request).await;
         assert!(result.is_err());
-        // Should be an error (either AlreadyExists or Conflict)
+        assert_eq!(result.unwrap_err().code(), tonic::Code::AlreadyExists);
     }
 
     #[tokio::test]
@@ -9765,7 +9765,7 @@ mod handler_tests {
 
         let result = server.create_environment(request).await;
         assert!(result.is_err());
-        // Should be an error (either AlreadyExists or Conflict)
+        assert_eq!(result.unwrap_err().code(), tonic::Code::AlreadyExists);
     }
 
     #[tokio::test]
