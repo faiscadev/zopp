@@ -3692,7 +3692,7 @@ mod tests {
 
         // Get should fail now
         let err = s.get_secret(&env_id, "API_KEY").await.unwrap_err();
-        matches!(err, StoreError::NotFound);
+        assert!(matches!(err, StoreError::NotFound));
     }
 
     #[tokio::test]

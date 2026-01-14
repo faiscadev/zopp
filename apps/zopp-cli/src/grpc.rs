@@ -183,9 +183,10 @@ mod tests {
         let (_, sig1) = sign_request_with_body(private_key_hex, method, &hash1).unwrap();
         let (_, sig2) = sign_request_with_body(private_key_hex, method, &hash2).unwrap();
 
-        // Different hashes should produce different signatures (ignoring timestamp effects)
+        // Different hashes should produce different signatures
         assert_eq!(sig1.len(), 64);
         assert_eq!(sig2.len(), 64);
+        assert_ne!(sig1, sig2);
     }
 
     #[test]

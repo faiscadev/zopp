@@ -1600,10 +1600,12 @@ async fn user_workspace_membership() {
     // Add user to workspace
     s.add_user_to_workspace(&ws, &user_id2).await.unwrap();
 
-    // List workspaces for user2 - they should see the workspace
-    let _workspaces = s.list_workspaces(&user_id2).await.unwrap();
-    // Note: list_workspaces may require principal membership, this tests user-level membership
-    // The actual behavior depends on implementation
+    // List workspaces for user2 - they should see the workspace after being added
+    let workspaces = s.list_workspaces(&user_id2).await.unwrap();
+    assert!(
+        workspaces.iter().any(|w| w.id == ws),
+        "User added to workspace should see it in their workspace list"
+    );
 }
 
 #[tokio::test]

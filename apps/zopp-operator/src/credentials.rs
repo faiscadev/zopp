@@ -305,6 +305,7 @@ mod tests {
 
         // Should NOT contain private keys in the debug output
         assert!(debug_str.contains("[REDACTED]"));
+        assert!(!debug_str.contains(&"0".repeat(64))); // ed25519 private key value
         assert!(!debug_str.contains(&"2".repeat(64))); // x25519 private key value
     }
 
