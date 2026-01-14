@@ -6,10 +6,19 @@ use zopp_secrets::SecretContext;
 
 /// Parse .env content into key-value pairs using dotenvy.
 /// Handles quoted values, comments, and edge cases properly.
-pub fn parse_env_content(content: &str) -> Vec<(String, String)> {
-    dotenvy::from_read_iter(Cursor::new(content))
-        .filter_map(|result| result.ok())
-        .collect()
+/// Returns parsed secrets and any parsing errors encountered.
+pub fn parse_env_content(content: &str) -> (Vec<(String, String)>, Vec<String>) {
+    let mut secrets = Vec::new();
+    let mut errors = Vec::new();
+
+    for (line_num, result) in dotenvy::from_read_iter(Cursor::new(content)).enumerate() {
+        match result {
+            Ok((key, value)) => secrets.push((key, value)),
+            Err(e) => errors.push(format!("line {}: {}", line_num + 1, e)),
+        }
+    }
+
+    (secrets, errors)
 }
 
 /// Format secrets as .env content (KEY=value, one per line).
@@ -256,7 +265,12 @@ pub async fn cmd_secret_import(
     };
 
     // Parse .env format (KEY=value, skip comments and empty lines)
-    let secrets = parse_env_content(&content);
+    let (secrets, errors) = parse_env_content(&content);
+
+    // Report any parsing errors to stderr
+    for error in &errors {
+        eprintln!("Warning: failed to parse {}", error);
+    }
 
     if secrets.is_empty() {
         return Err("No secrets found in input".into());
@@ -335,7 +349,8 @@ mod tests {
     #[test]
     fn test_parse_env_content_simple() {
         let content = "API_KEY=secret123\nDB_PASSWORD=pass456";
-        let secrets = parse_env_content(content);
+        let (secrets, errors) = parse_env_content(content);
+        assert!(errors.is_empty());
         assert_eq!(secrets.len(), 2);
         assert_eq!(secrets[0], ("API_KEY".to_string(), "secret123".to_string()));
         assert_eq!(
@@ -347,27 +362,35 @@ mod tests {
     #[test]
     fn test_parse_env_content_with_comments() {
         let content = "# Comment\nAPI_KEY=secret\n# Another\nDB=pass";
-        let secrets = parse_env_content(content);
+        let (secrets, errors) = parse_env_content(content);
+        assert!(errors.is_empty());
         assert_eq!(secrets.len(), 2);
     }
 
     #[test]
     fn test_parse_env_content_with_empty_lines() {
         let content = "API_KEY=secret\n\n\nDB=pass\n";
-        let secrets = parse_env_content(content);
+        let (secrets, errors) = parse_env_content(content);
+        assert!(errors.is_empty());
         assert_eq!(secrets.len(), 2);
     }
 
     #[test]
     fn test_parse_env_content_empty() {
-        assert!(parse_env_content("").is_empty());
-        assert!(parse_env_content("# only comments").is_empty());
+        let (secrets, errors) = parse_env_content("");
+        assert!(secrets.is_empty());
+        assert!(errors.is_empty());
+
+        let (secrets, errors) = parse_env_content("# only comments");
+        assert!(secrets.is_empty());
+        assert!(errors.is_empty());
     }
 
     #[test]
     fn test_parse_env_content_value_with_equals() {
         let content = "URL=postgres://user:pass@host/db?ssl=true";
-        let secrets = parse_env_content(content);
+        let (secrets, errors) = parse_env_content(content);
+        assert!(errors.is_empty());
         assert_eq!(secrets.len(), 1);
         assert_eq!(secrets[0].1, "postgres://user:pass@host/db?ssl=true");
     }
@@ -376,9 +399,21 @@ mod tests {
     fn test_parse_env_content_quoted_with_whitespace() {
         // dotenvy preserves whitespace inside quoted values
         let content = r#"API_KEY=" secret with spaces ""#;
-        let secrets = parse_env_content(content);
+        let (secrets, errors) = parse_env_content(content);
+        assert!(errors.is_empty());
         assert_eq!(secrets.len(), 1);
         assert_eq!(secrets[0].1, " secret with spaces ");
+    }
+
+    #[test]
+    fn test_parse_env_content_reports_errors() {
+        // Unclosed quote should result in a parsing error
+        let content = "VALID=value\nINVALID=\"unclosed";
+        let (secrets, errors) = parse_env_content(content);
+        assert_eq!(secrets.len(), 1);
+        assert_eq!(secrets[0].0, "VALID");
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("line 2"));
     }
 
     #[test]
