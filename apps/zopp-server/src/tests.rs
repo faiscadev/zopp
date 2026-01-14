@@ -8285,4 +8285,863 @@ mod handler_tests {
         assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
     }
 
+    // ================== max_role and min_role unit tests ==================
+
+    #[tokio::test]
+    async fn max_role_none_returns_b() {
+        let server = create_test_server().await;
+        let result = server.max_role(None, Role::Read);
+        assert_eq!(result, Role::Read);
+    }
+
+    #[tokio::test]
+    async fn max_role_read_vs_write_returns_write() {
+        let server = create_test_server().await;
+        let result = server.max_role(Some(Role::Read), Role::Write);
+        assert_eq!(result, Role::Write);
+    }
+
+    #[tokio::test]
+    async fn max_role_write_vs_read_returns_write() {
+        let server = create_test_server().await;
+        let result = server.max_role(Some(Role::Write), Role::Read);
+        assert_eq!(result, Role::Write);
+    }
+
+    #[tokio::test]
+    async fn max_role_admin_vs_write_returns_admin() {
+        let server = create_test_server().await;
+        let result = server.max_role(Some(Role::Admin), Role::Write);
+        assert_eq!(result, Role::Admin);
+    }
+
+    #[tokio::test]
+    async fn max_role_read_vs_admin_returns_admin() {
+        let server = create_test_server().await;
+        let result = server.max_role(Some(Role::Read), Role::Admin);
+        assert_eq!(result, Role::Admin);
+    }
+
+    #[tokio::test]
+    async fn max_role_same_role_returns_same() {
+        let server = create_test_server().await;
+        let result = server.max_role(Some(Role::Write), Role::Write);
+        assert_eq!(result, Role::Write);
+    }
+
+    #[tokio::test]
+    async fn min_role_read_vs_write_returns_read() {
+        let server = create_test_server().await;
+        let result = server.min_role(Role::Read, Role::Write);
+        assert_eq!(result, Role::Read);
+    }
+
+    #[tokio::test]
+    async fn min_role_write_vs_read_returns_read() {
+        let server = create_test_server().await;
+        let result = server.min_role(Role::Write, Role::Read);
+        assert_eq!(result, Role::Read);
+    }
+
+    #[tokio::test]
+    async fn min_role_admin_vs_write_returns_write() {
+        let server = create_test_server().await;
+        let result = server.min_role(Role::Admin, Role::Write);
+        assert_eq!(result, Role::Write);
+    }
+
+    #[tokio::test]
+    async fn min_role_write_vs_admin_returns_write() {
+        let server = create_test_server().await;
+        let result = server.min_role(Role::Write, Role::Admin);
+        assert_eq!(result, Role::Write);
+    }
+
+    #[tokio::test]
+    async fn min_role_same_role_returns_same() {
+        let server = create_test_server().await;
+        let result = server.min_role(Role::Admin, Role::Admin);
+        assert_eq!(result, Role::Admin);
+    }
+
+    // ================== get_effective_workspace_role tests ==================
+
+    #[tokio::test]
+    async fn get_effective_workspace_role_owner_returns_admin() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
+        add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
+
+        let role = server
+            .get_effective_workspace_role(&principal_id, &workspace_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Admin));
+    }
+
+    #[tokio::test]
+    async fn get_effective_workspace_role_user_with_read_permission() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+
+        // Create another user with Read permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &workspace_id, &other_user_id, Role::Read).await;
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        let role = server
+            .get_effective_workspace_role(&other_principal_id, &workspace_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Read));
+    }
+
+    #[tokio::test]
+    async fn get_effective_workspace_role_user_with_no_permission() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+
+        // Create another user without permission (just add to workspace_members without setting role)
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&workspace_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        let role = server
+            .get_effective_workspace_role(&other_principal_id, &workspace_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, None);
+    }
+
+    #[tokio::test]
+    async fn get_effective_workspace_role_service_account_with_permission() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+
+        let (service_principal_id, _) = create_service_principal(&server, "my-service").await;
+        add_principal_to_workspace(&server, &workspace_id, &service_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&workspace_id, &service_principal_id, Role::Write)
+            .await
+            .unwrap();
+
+        let role = server
+            .get_effective_workspace_role(&service_principal_id, &workspace_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Write));
+    }
+
+    #[tokio::test]
+    async fn get_effective_workspace_role_service_account_without_permission() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+
+        let (service_principal_id, _) = create_service_principal(&server, "my-service").await;
+        add_principal_to_workspace(&server, &workspace_id, &service_principal_id).await;
+
+        let role = server
+            .get_effective_workspace_role(&service_principal_id, &workspace_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, None);
+    }
+
+    #[tokio::test]
+    async fn get_effective_workspace_role_user_with_group_permission() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+
+        // Create another user
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&workspace_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        // Create a group with Write permission
+        let group_id = server
+            .store
+            .create_group(&CreateGroupParams {
+                workspace_id: workspace_id.clone(),
+                name: "devs".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+        server
+            .store
+            .add_group_member(&group_id, &other_user_id)
+            .await
+            .unwrap();
+        server
+            .store
+            .set_group_workspace_permission(&workspace_id, &group_id, Role::Write)
+            .await
+            .unwrap();
+
+        let role = server
+            .get_effective_workspace_role(&other_principal_id, &workspace_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Write));
+    }
+
+    #[tokio::test]
+    async fn get_effective_workspace_role_principal_restricts() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+
+        // Create another user with Admin permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &workspace_id, &other_user_id, Role::Admin).await;
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        // But restrict the principal to Read
+        server
+            .store
+            .set_workspace_permission(&workspace_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let role = server
+            .get_effective_workspace_role(&other_principal_id, &workspace_id)
+            .await
+            .unwrap();
+
+        // Principal ceiling restricts Admin to Read
+        assert_eq!(role, Some(Role::Read));
+    }
+
+    // ================== get_effective_project_role tests ==================
+
+    #[tokio::test]
+    async fn get_effective_project_role_owner_returns_admin() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
+
+        let role = server
+            .get_effective_project_role(&principal_id, &workspace_id, &project_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Admin));
+    }
+
+    #[tokio::test]
+    async fn get_effective_project_role_inherits_from_workspace() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+
+        // Create another user with workspace-level Write permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &workspace_id, &other_user_id, Role::Write).await;
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        let role = server
+            .get_effective_project_role(&other_principal_id, &workspace_id, &project_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Write));
+    }
+
+    #[tokio::test]
+    async fn get_effective_project_role_project_permission_overrides() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+
+        // Create another user with workspace-level Read permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &workspace_id, &other_user_id, Role::Read).await;
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        // Give them project-level Admin permission
+        server
+            .store
+            .set_user_project_permission(&project_id, &other_user_id, Role::Admin)
+            .await
+            .unwrap();
+
+        let role = server
+            .get_effective_project_role(&other_principal_id, &workspace_id, &project_id)
+            .await
+            .unwrap();
+
+        // max(Read, Admin) = Admin
+        assert_eq!(role, Some(Role::Admin));
+    }
+
+    #[tokio::test]
+    async fn get_effective_project_role_service_account() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+
+        let (service_principal_id, _) = create_service_principal(&server, "my-service").await;
+        add_principal_to_workspace(&server, &workspace_id, &service_principal_id).await;
+        server
+            .store
+            .set_project_permission(&project_id, &service_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let role = server
+            .get_effective_project_role(&service_principal_id, &workspace_id, &project_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Read));
+    }
+
+    // ================== get_effective_environment_role tests ==================
+
+    #[tokio::test]
+    async fn get_effective_environment_role_owner_returns_admin() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+        add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
+
+        let role = server
+            .get_effective_environment_role(&principal_id, &workspace_id, &project_id, &env_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Admin));
+    }
+
+    #[tokio::test]
+    async fn get_effective_environment_role_inherits_from_workspace() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Create another user with workspace-level Read permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &workspace_id, &other_user_id, Role::Read).await;
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        let role = server
+            .get_effective_environment_role(&other_principal_id, &workspace_id, &project_id, &env_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Read));
+    }
+
+    #[tokio::test]
+    async fn get_effective_environment_role_env_permission_overrides() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Create another user with workspace-level Read permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &workspace_id, &other_user_id, Role::Read).await;
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        // Give them environment-level Admin permission
+        server
+            .store
+            .set_user_environment_permission(&env_id, &other_user_id, Role::Admin)
+            .await
+            .unwrap();
+
+        let role = server
+            .get_effective_environment_role(&other_principal_id, &workspace_id, &project_id, &env_id)
+            .await
+            .unwrap();
+
+        // max(Read, Admin) = Admin
+        assert_eq!(role, Some(Role::Admin));
+    }
+
+    #[tokio::test]
+    async fn get_effective_environment_role_service_account() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        let (service_principal_id, _) = create_service_principal(&server, "my-service").await;
+        add_principal_to_workspace(&server, &workspace_id, &service_principal_id).await;
+        server
+            .store
+            .set_environment_permission(&env_id, &service_principal_id, Role::Write)
+            .await
+            .unwrap();
+
+        let role = server
+            .get_effective_environment_role(&service_principal_id, &workspace_id, &project_id, &env_id)
+            .await
+            .unwrap();
+
+        assert_eq!(role, Some(Role::Write));
+    }
+
+    // ================== check_project_permission tests ==================
+
+    #[tokio::test]
+    async fn check_project_permission_owner() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
+
+        let result = server
+            .check_project_permission(&principal_id, &workspace_id, &project_id, Role::Admin)
+            .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn check_project_permission_user_with_project_permission() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+
+        // Create another user with project-level Write permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&workspace_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+        server
+            .store
+            .set_user_project_permission(&project_id, &other_user_id, Role::Write)
+            .await
+            .unwrap();
+
+        // Should pass for Write
+        let result = server
+            .check_project_permission(&other_principal_id, &workspace_id, &project_id, Role::Write)
+            .await;
+        assert!(result.is_ok());
+
+        // Should pass for Read (lower than Write)
+        let result = server
+            .check_project_permission(&other_principal_id, &workspace_id, &project_id, Role::Read)
+            .await;
+        assert!(result.is_ok());
+
+        // Should fail for Admin (higher than Write)
+        let result = server
+            .check_project_permission(&other_principal_id, &workspace_id, &project_id, Role::Admin)
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn check_project_permission_inherits_from_workspace() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+
+        // Create another user with workspace-level Admin permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &workspace_id, &other_user_id, Role::Admin).await;
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        // Should pass for Admin (inherited from workspace)
+        let result = server
+            .check_project_permission(&other_principal_id, &workspace_id, &project_id, Role::Admin)
+            .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn check_project_permission_service_account() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+
+        let (service_principal_id, _) = create_service_principal(&server, "my-service").await;
+        add_principal_to_workspace(&server, &workspace_id, &service_principal_id).await;
+        server
+            .store
+            .set_project_permission(&project_id, &service_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        // Should pass for Read
+        let result = server
+            .check_project_permission(&service_principal_id, &workspace_id, &project_id, Role::Read)
+            .await;
+        assert!(result.is_ok());
+
+        // Should fail for Write
+        let result = server
+            .check_project_permission(&service_principal_id, &workspace_id, &project_id, Role::Write)
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn check_project_permission_service_account_no_permission() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+
+        let (service_principal_id, _) = create_service_principal(&server, "my-service").await;
+        add_principal_to_workspace(&server, &workspace_id, &service_principal_id).await;
+
+        // Should fail - no permission
+        let result = server
+            .check_project_permission(&service_principal_id, &workspace_id, &project_id, Role::Read)
+            .await;
+        assert!(result.is_err());
+    }
+
+    // ================== check_environment_permission tests ==================
+
+    #[tokio::test]
+    async fn check_environment_permission_owner() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+        add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
+
+        let result = server
+            .check_environment_permission(&principal_id, &workspace_id, &project_id, &env_id, Role::Admin)
+            .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn check_environment_permission_user_with_env_permission() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Create another user with env-level Write permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&workspace_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+        server
+            .store
+            .set_user_environment_permission(&env_id, &other_user_id, Role::Write)
+            .await
+            .unwrap();
+
+        // Should pass for Write
+        let result = server
+            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Write)
+            .await;
+        assert!(result.is_ok());
+
+        // Should pass for Read
+        let result = server
+            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Read)
+            .await;
+        assert!(result.is_ok());
+
+        // Should fail for Admin
+        let result = server
+            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Admin)
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn check_environment_permission_inherits_from_project() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Create another user with project-level Admin permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&workspace_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+        server
+            .store
+            .set_user_project_permission(&project_id, &other_user_id, Role::Admin)
+            .await
+            .unwrap();
+
+        // Should pass for Admin (inherited from project)
+        let result = server
+            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Admin)
+            .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn check_environment_permission_inherits_from_workspace() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Create another user with workspace-level Write permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &workspace_id, &other_user_id, Role::Write).await;
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        // Should pass for Write (inherited from workspace)
+        let result = server
+            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Write)
+            .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn check_environment_permission_service_account() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        let (service_principal_id, _) = create_service_principal(&server, "my-service").await;
+        add_principal_to_workspace(&server, &workspace_id, &service_principal_id).await;
+        server
+            .store
+            .set_environment_permission(&env_id, &service_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        // Should pass for Read
+        let result = server
+            .check_environment_permission(&service_principal_id, &workspace_id, &project_id, &env_id, Role::Read)
+            .await;
+        assert!(result.is_ok());
+
+        // Should fail for Write
+        let result = server
+            .check_environment_permission(&service_principal_id, &workspace_id, &project_id, &env_id, Role::Write)
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn check_environment_permission_via_group() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+        let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Create another user
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&workspace_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        // Create a group with env Write permission
+        let group_id = server
+            .store
+            .create_group(&CreateGroupParams {
+                workspace_id: workspace_id.clone(),
+                name: "devs".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+        server
+            .store
+            .add_group_member(&group_id, &other_user_id)
+            .await
+            .unwrap();
+        server
+            .store
+            .set_group_environment_permission(&env_id, &group_id, Role::Write)
+            .await
+            .unwrap();
+
+        // Should pass for Write (via group)
+        let result = server
+            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Write)
+            .await;
+        assert!(result.is_ok());
+    }
+
+    // ================== check_permission_workspace_only tests ==================
+
+    #[tokio::test]
+    async fn check_permission_workspace_only_owner() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
+        add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
+
+        let result = server
+            .check_permission_workspace_only(&principal_id, &workspace_id, Role::Admin)
+            .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn check_permission_workspace_only_user_with_permission() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+
+        // Create another user with Write permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &workspace_id, &other_user_id, Role::Write).await;
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        // Should pass for Write
+        let result = server
+            .check_permission_workspace_only(&other_principal_id, &workspace_id, Role::Write)
+            .await;
+        assert!(result.is_ok());
+
+        // Should fail for Admin
+        let result = server
+            .check_permission_workspace_only(&other_principal_id, &workspace_id, Role::Admin)
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn check_permission_workspace_only_service_account() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+
+        let (service_principal_id, _) = create_service_principal(&server, "my-service").await;
+        add_principal_to_workspace(&server, &workspace_id, &service_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&workspace_id, &service_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        // Should pass for Read
+        let result = server
+            .check_permission_workspace_only(&service_principal_id, &workspace_id, Role::Read)
+            .await;
+        assert!(result.is_ok());
+
+        // Should fail for Write
+        let result = server
+            .check_permission_workspace_only(&service_principal_id, &workspace_id, Role::Write)
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn check_permission_workspace_only_via_group() {
+        let server = create_test_server().await;
+        let (owner_id, _, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let workspace_id = create_test_workspace(&server, &owner_id, "test-ws").await;
+
+        // Create another user
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&workspace_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
+
+        // Create a group with Admin permission
+        let group_id = server
+            .store
+            .create_group(&CreateGroupParams {
+                workspace_id: workspace_id.clone(),
+                name: "admins".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+        server
+            .store
+            .add_group_member(&group_id, &other_user_id)
+            .await
+            .unwrap();
+        server
+            .store
+            .set_group_workspace_permission(&workspace_id, &group_id, Role::Admin)
+            .await
+            .unwrap();
+
+        // Should pass for Admin (via group)
+        let result = server
+            .check_permission_workspace_only(&other_principal_id, &workspace_id, Role::Admin)
+            .await;
+        assert!(result.is_ok());
+    }
+
 }
