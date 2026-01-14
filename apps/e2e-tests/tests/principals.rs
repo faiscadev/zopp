@@ -18,6 +18,7 @@ backend_test!(
 );
 backend_test!(principals_current, run_principals_current_test);
 backend_test!(principals_use, run_principals_use_test);
+backend_test!(principals_export_import, run_principals_export_import_test);
 
 /// Test service principal creation and management
 async fn run_principals_test(config: BackendConfig) -> Result<(), Box<dyn std::error::Error>> {
@@ -696,5 +697,90 @@ async fn run_principals_use_test(config: BackendConfig) -> Result<(), Box<dyn st
     );
 
     println!("test_principals_use PASSED");
+    Ok(())
+}
+
+/// Test principal export/import for multi-device support
+async fn run_principals_export_import_test(
+    config: BackendConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let harness = TestHarness::new("prin_export", config).await?;
+
+    // Setup - alice joins with a principal
+    let invite = harness.create_server_invite()?;
+    let alice = harness.create_user("alice");
+    alice.join(&invite, &alice.email(), "alice-laptop")?;
+
+    // Create a workspace so we can verify access after import
+    alice.exec(&["workspace", "create", "exportws"]).success()?;
+
+    // Test 1: Export the principal
+    println!("  Test 1: Export principal...");
+    let export_file = harness.test_dir().join("alice-laptop.enc");
+    let passphrase = "test-passphrase-123";
+
+    let result = alice.exec_with_env(
+        &[
+            "principal",
+            "export",
+            "alice-laptop",
+            "-o",
+            export_file.to_str().unwrap(),
+        ],
+        &[("ZOPP_EXPORT_PASSPHRASE", passphrase)],
+    );
+    result.success()?;
+    assert!(export_file.exists(), "Export file should be created");
+
+    // Test 2: Create a second user (simulating new device) and import
+    println!("  Test 2: Import principal on new device...");
+    let bob = harness.create_user("bob");
+
+    // Bob imports alice's principal
+    let result = bob.exec_with_env(
+        &["principal", "import", "-i", export_file.to_str().unwrap()],
+        &[("ZOPP_EXPORT_PASSPHRASE", passphrase)],
+    );
+    result.success()?;
+
+    // Test 3: Verify bob can use the imported principal
+    println!("  Test 3: Verify imported principal works...");
+    let output = bob.exec(&["principal", "list"]).success()?;
+    assert!(
+        output.contains("alice-laptop"),
+        "Bob should have alice-laptop principal, got: {}",
+        output
+    );
+
+    // Test 4: Verify bob can access alice's workspace
+    println!("  Test 4: Verify workspace access...");
+    let output = bob.exec(&["workspace", "list"]).success()?;
+    assert!(
+        output.contains("exportws"),
+        "Bob should see exportws workspace, got: {}",
+        output
+    );
+
+    // Test 5: Test wrong passphrase
+    println!("  Test 5: Test wrong passphrase...");
+    let carol = harness.create_user("carol");
+    let result = carol.exec_with_env(
+        &["principal", "import", "-i", export_file.to_str().unwrap()],
+        &[("ZOPP_EXPORT_PASSPHRASE", "wrong-passphrase")],
+    );
+    assert!(result.failed(), "Import with wrong passphrase should fail");
+
+    // Test 6: Test duplicate import (should fail)
+    println!("  Test 6: Test duplicate import...");
+    let result = bob.exec_with_env(
+        &["principal", "import", "-i", export_file.to_str().unwrap()],
+        &[("ZOPP_EXPORT_PASSPHRASE", passphrase)],
+    );
+    assert!(
+        result.failed(),
+        "Duplicate import should fail (principal already exists)"
+    );
+
+    println!("test_principals_export_import PASSED");
     Ok(())
 }

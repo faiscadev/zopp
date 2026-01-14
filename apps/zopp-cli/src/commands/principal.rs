@@ -475,14 +475,22 @@ pub async fn cmd_principal_export(
         .find(|p| p.name == name)
         .ok_or_else(|| format!("Principal '{}' not found", name))?;
 
-    // Prompt for passphrase
-    let passphrase = rpassword::prompt_password("Enter passphrase to encrypt export: ")?;
+    // Get passphrase from env (for testing) or prompt
+    let passphrase = if let Ok(p) = std::env::var("ZOPP_EXPORT_PASSPHRASE") {
+        p
+    } else {
+        let p = rpassword::prompt_password("Enter passphrase to encrypt export: ")?;
+        if p.len() < 8 {
+            return Err("Passphrase must be at least 8 characters".into());
+        }
+        let p_confirm = rpassword::prompt_password("Confirm passphrase: ")?;
+        if p != p_confirm {
+            return Err("Passphrases do not match".into());
+        }
+        p
+    };
     if passphrase.len() < 8 {
         return Err("Passphrase must be at least 8 characters".into());
-    }
-    let passphrase_confirm = rpassword::prompt_password("Confirm passphrase: ")?;
-    if passphrase != passphrase_confirm {
-        return Err("Passphrases do not match".into());
     }
 
     // Create export structure
@@ -569,8 +577,12 @@ pub async fn cmd_principal_import(input: Option<&Path>) -> Result<(), Box<dyn st
     nonce_array.copy_from_slice(nonce_bytes);
     let nonce = zopp_crypto::Nonce(nonce_array);
 
-    // Prompt for passphrase
-    let passphrase = rpassword::prompt_password("Enter passphrase to decrypt: ")?;
+    // Get passphrase from env (for testing) or prompt
+    let passphrase = if let Ok(p) = std::env::var("ZOPP_EXPORT_PASSPHRASE") {
+        p
+    } else {
+        rpassword::prompt_password("Enter passphrase to decrypt: ")?
+    };
 
     // Derive key and decrypt
     let key = derive_export_key(&passphrase, salt)?;

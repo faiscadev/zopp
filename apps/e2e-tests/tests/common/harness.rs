@@ -389,6 +389,19 @@ impl TestUser {
         CommandResult { output }
     }
 
+    /// Execute a zopp CLI command with additional environment variables
+    pub fn exec_with_env(&self, args: &[&str], env_vars: &[(&str, &str)]) -> CommandResult {
+        let mut cmd = Command::new(&self.zopp_bin);
+        cmd.env("HOME", &self.home_dir)
+            .args(["--server", &self.server_url])
+            .args(args);
+        for (key, value) in env_vars {
+            cmd.env(key, value);
+        }
+        let output = cmd.output().expect("Failed to execute command");
+        CommandResult { output }
+    }
+
     /// Join the server with an invite
     pub fn join(
         &self,
