@@ -16034,4 +16034,743 @@ mod handler_tests {
         assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
     }
 
+    // ================== Environment Handler Service Account Tests ==================
+
+    #[tokio::test]
+    async fn handler_create_environment_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-cenv-s1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "env-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/CreateEnvironment",
+            zopp_proto::CreateEnvironmentRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                name: "dev".to_string(),
+                dek_wrapped: vec![0u8; 32],
+                dek_nonce: vec![0u8; 24],
+            },
+        );
+
+        let result = server.create_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_list_environments_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-lenv-s1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "env-list-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/ListEnvironments",
+            zopp_proto::ListEnvironmentsRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.list_environments(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_delete_environment_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-denv-s1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _env_id = create_test_environment(&server, &proj_id, "dev").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "env-delete-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/DeleteEnvironment",
+            zopp_proto::DeleteEnvironmentRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.delete_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_service_principal_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, _signing_key) =
+            create_test_user(&server, "owner-genv-sp1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "env-get-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        // Grant read permission to service principal at workspace level
+        server
+            .store
+            .set_workspace_permission(&ws_id, &service_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/GetEnvironment",
+            zopp_proto::GetEnvironmentRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.get_environment(request).await;
+        assert!(result.is_ok());
+        let env = result.unwrap().into_inner();
+        assert_eq!(env.name, "dev");
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_service_principal_workspace_not_found() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-genv-sp2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Create a service principal but don't add to workspace
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "env-get-service-bot2").await;
+        // Note: not adding principal to workspace - they won't have access
+
+        // Still grant permission (though won't matter without workspace access)
+        server
+            .store
+            .set_workspace_permission(&ws_id, &service_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/GetEnvironment",
+            zopp_proto::GetEnvironmentRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.get_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    // ================== Additional Environment Handler Tests ==================
+
+    #[tokio::test]
+    async fn handler_create_environment_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-cenv-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/CreateEnvironment",
+            zopp_proto::CreateEnvironmentRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                name: "dev".to_string(),
+                dek_wrapped: vec![0u8; 32],
+                dek_nonce: vec![0u8; 24],
+            },
+        );
+
+        let result = server.create_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_create_environment_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-cenv-nf2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/CreateEnvironment",
+            zopp_proto::CreateEnvironmentRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                name: "dev".to_string(),
+                dek_wrapped: vec![0u8; 32],
+                dek_nonce: vec![0u8; 24],
+            },
+        );
+
+        let result = server.create_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_environments_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lenv-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListEnvironments",
+            zopp_proto::ListEnvironmentsRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.list_environments(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_list_environments_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lenv-nf2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListEnvironments",
+            zopp_proto::ListEnvironmentsRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+            },
+        );
+
+        let result = server.list_environments(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_delete_environment_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-denv-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/DeleteEnvironment",
+            zopp_proto::DeleteEnvironmentRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.delete_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_delete_environment_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-denv-nf2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/DeleteEnvironment",
+            zopp_proto::DeleteEnvironmentRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.delete_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-genv-nf1@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEnvironment",
+            zopp_proto::GetEnvironmentRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.get_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_project_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-genv-nf2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEnvironment",
+            zopp_proto::GetEnvironmentRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "nonexistent".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.get_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_create_environment_permission_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-cenv-pd1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+
+        // Create another user with only READ permission (not ADMIN which is required for create)
+        let (other_user_id, other_principal_id, other_signing_key) =
+            create_test_user(&server, "other-cenv-pd1@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &other_principal_id,
+            &other_signing_key,
+            "/zopp.ZoppService/CreateEnvironment",
+            zopp_proto::CreateEnvironmentRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                name: "dev".to_string(),
+                dek_wrapped: vec![0u8; 32],
+                dek_nonce: vec![0u8; 24],
+            },
+        );
+
+        let result = server.create_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn handler_delete_environment_permission_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-denv-pd1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _env_id = create_test_environment(&server, &proj_id, "dev").await;
+
+        // Create another user with only READ permission (not ADMIN which is required for delete)
+        let (other_user_id, other_principal_id, other_signing_key) =
+            create_test_user(&server, "other-denv-pd1@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &other_principal_id,
+            &other_signing_key,
+            "/zopp.ZoppService/DeleteEnvironment",
+            zopp_proto::DeleteEnvironmentRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.delete_environment(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn handler_list_environments_permission_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-lenv-pd1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
+
+        // Create another user without any permissions
+        let (other_user_id, other_principal_id, other_signing_key) =
+            create_test_user(&server, "other-lenv-pd1@example.com", "laptop").await;
+        // Add them to workspace membership (so they can look it up) but don't grant any permission
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+
+        let request = create_signed_request(
+            &other_principal_id,
+            &other_signing_key,
+            "/zopp.ZoppService/ListEnvironments",
+            zopp_proto::ListEnvironmentsRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.list_environments(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::PermissionDenied);
+    }
+
+    // ================== Invite Handler Tests ==================
+
+    #[tokio::test]
+    async fn handler_create_invite_invalid_workspace_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-cinv1@example.com", "laptop").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &_ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/CreateInvite",
+            zopp_proto::CreateInviteRequest {
+                workspace_ids: vec!["not-a-uuid".to_string()],
+                token: "test-token".to_string(),
+                kek_encrypted: vec![],
+                kek_nonce: vec![],
+                expires_at: chrono::Utc::now().timestamp() + 3600,
+            },
+        );
+
+        let result = server.create_invite(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_create_invite_invalid_expires_at() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-cinv2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/CreateInvite",
+            zopp_proto::CreateInviteRequest {
+                workspace_ids: vec![ws_id.0.to_string()],
+                token: "test-token".to_string(),
+                kek_encrypted: vec![],
+                kek_nonce: vec![],
+                expires_at: i64::MIN, // Invalid timestamp
+            },
+        );
+
+        let result = server.create_invite(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_create_invite_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-cinv3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "invite-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/CreateInvite",
+            zopp_proto::CreateInviteRequest {
+                workspace_ids: vec![ws_id.0.to_string()],
+                token: "test-token".to_string(),
+                kek_encrypted: vec![],
+                kek_nonce: vec![],
+                expires_at: chrono::Utc::now().timestamp() + 3600,
+            },
+        );
+
+        let result = server.create_invite(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_list_invites_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-linv1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "invite-list-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/ListInvites",
+            zopp_proto::Empty {},
+        );
+
+        let result = server.list_invites(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_revoke_invite_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-rinv1@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Create a service principal
+        let (service_principal_id, service_signing_key) =
+            create_service_principal(&server, "invite-revoke-service-bot").await;
+        add_principal_to_workspace(&server, &ws_id, &service_principal_id).await;
+
+        let request = create_signed_request(
+            &service_principal_id,
+            &service_signing_key,
+            "/zopp.ZoppService/RevokeInvite",
+            zopp_proto::RevokeInviteRequest {
+                token: "some-token".to_string(),
+            },
+        );
+
+        let result = server.revoke_invite(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_revoke_invite_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rinv2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RevokeInvite",
+            zopp_proto::RevokeInviteRequest {
+                token: "nonexistent-token".to_string(),
+            },
+        );
+
+        let result = server.revoke_invite(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_revoke_invite_no_admin_permission() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rinv3@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create an invite first
+        let invite = server
+            .store
+            .create_invite(&zopp_storage::CreateInviteParams {
+                workspace_ids: vec![ws_id.clone()],
+                token: "test-revoke-token".to_string(),
+                kek_encrypted: None,
+                kek_nonce: None,
+                expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+                created_by_user_id: Some(user_id.clone()),
+            })
+            .await
+            .unwrap();
+
+        // Create another user without admin permission
+        let (other_user_id, other_principal_id, other_signing_key) =
+            create_test_user(&server, "other-rinv3@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        // Grant only READ permission (not ADMIN)
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &other_principal_id,
+            &other_signing_key,
+            "/zopp.ZoppService/RevokeInvite",
+            zopp_proto::RevokeInviteRequest {
+                token: invite.token,
+            },
+        );
+
+        let result = server.revoke_invite(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn handler_create_invite_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-cinv4@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/CreateInvite",
+            zopp_proto::CreateInviteRequest {
+                workspace_ids: vec![ws_id.0.to_string()],
+                token: "test-token-success".to_string(),
+                kek_encrypted: vec![1, 2, 3],
+                kek_nonce: vec![4, 5, 6],
+                expires_at: chrono::Utc::now().timestamp() + 3600,
+            },
+        );
+
+        let result = server.create_invite(request).await;
+        assert!(result.is_ok());
+        let invite = result.unwrap().into_inner();
+        assert!(!invite.id.is_empty());
+        assert_eq!(invite.workspace_ids.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn handler_list_invites_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-linv2@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create an invite
+        server
+            .store
+            .create_invite(&zopp_storage::CreateInviteParams {
+                workspace_ids: vec![ws_id.clone()],
+                token: "test-list-token".to_string(),
+                kek_encrypted: None,
+                kek_nonce: None,
+                expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+                created_by_user_id: Some(user_id.clone()),
+            })
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListInvites",
+            zopp_proto::Empty {},
+        );
+
+        let result = server.list_invites(request).await;
+        assert!(result.is_ok());
+        let invites = result.unwrap().into_inner();
+        assert!(!invites.invites.is_empty());
+    }
+
 }
