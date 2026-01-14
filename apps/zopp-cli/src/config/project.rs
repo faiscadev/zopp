@@ -321,7 +321,10 @@ mod tests {
             let has_defaults = config.defaults.workspace.is_some()
                 || config.defaults.project.is_some()
                 || config.defaults.environment.is_some();
-            assert!(has_defaults, "Found config should have at least one default value");
+            assert!(
+                has_defaults,
+                "Found config should have at least one default value"
+            );
         }
         // If not found, that's also valid - no assertion needed for None case
     }
