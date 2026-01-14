@@ -9696,4 +9696,729 @@ mod handler_tests {
         assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
     }
 
+    // ================== Additional permission handler tests ==================
+
+    #[tokio::test]
+    async fn handler_list_workspace_permissions_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Set a permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &ws_id, &other_user_id, Role::Read).await;
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListWorkspacePermissions",
+            zopp_proto::ListWorkspacePermissionsRequest {
+                workspace_name: "ws".to_string(),
+            },
+        );
+
+        let result = server.list_workspace_permissions(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_list_project_permissions_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Set a project permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_user_project_permission(&proj_id, &other_user_id, Role::Write)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListProjectPermissions",
+            zopp_proto::ListProjectPermissionsRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+            },
+        );
+
+        let result = server.list_project_permissions(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_get_workspace_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another principal and set explicit permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, Role::Write)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetWorkspacePermission",
+            zopp_proto::GetWorkspacePermissionRequest {
+                workspace_name: "ws".to_string(),
+                principal_id: other_principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_workspace_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_get_project_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+        server
+            .store
+            .set_project_permission(&proj_id, &principal_id, Role::Admin)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetProjectPermission",
+            zopp_proto::GetProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_project_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_get_environment_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+        server
+            .store
+            .set_environment_permission(&env_id, &principal_id, Role::Admin)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEnvironmentPermission",
+            zopp_proto::GetEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_environment_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_remove_workspace_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another user with permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveWorkspacePermission",
+            zopp_proto::RemoveWorkspacePermissionRequest {
+                workspace_name: "ws".to_string(),
+                principal_id: other_principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_workspace_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_remove_project_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another user with permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_project_permission(&proj_id, &other_principal_id, Role::Write)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveProjectPermission",
+            zopp_proto::RemoveProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                principal_id: other_principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_project_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_remove_environment_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another user with permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_environment_permission(&env_id, &other_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveEnvironmentPermission",
+            zopp_proto::RemoveEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                principal_id: other_principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_environment_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    // ================== User permission handler tests ==================
+
+    #[tokio::test]
+    async fn handler_get_user_workspace_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another user with explicit permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &ws_id, &other_user_id, Role::Read).await;
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetUserWorkspacePermission",
+            zopp_proto::GetUserWorkspacePermissionRequest {
+                workspace_name: "ws".to_string(),
+                user_email: "other@example.com".to_string(),
+            },
+        );
+
+        let result = server.get_user_workspace_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_get_user_project_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Give user project permission
+        server
+            .store
+            .set_user_project_permission(&proj_id, &user_id, Role::Write)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetUserProjectPermission",
+            zopp_proto::GetUserProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                user_email: "owner@example.com".to_string(),
+            },
+        );
+
+        let result = server.get_user_project_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_get_user_environment_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Give user environment permission
+        server
+            .store
+            .set_user_environment_permission(&env_id, &user_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetUserEnvironmentPermission",
+            zopp_proto::GetUserEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                user_email: "owner@example.com".to_string(),
+            },
+        );
+
+        let result = server.get_user_environment_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_remove_user_workspace_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another user with permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        add_user_to_workspace(&server, &ws_id, &other_user_id, Role::Write).await;
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveUserWorkspacePermission",
+            zopp_proto::RemoveUserWorkspacePermissionRequest {
+                workspace_name: "ws".to_string(),
+                user_email: "other@example.com".to_string(),
+            },
+        );
+
+        let result = server.remove_user_workspace_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_remove_user_project_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another user with project permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_user_project_permission(&proj_id, &other_user_id, Role::Write)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveUserProjectPermission",
+            zopp_proto::RemoveUserProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                user_email: "other@example.com".to_string(),
+            },
+        );
+
+        let result = server.remove_user_project_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_remove_user_environment_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create another user with environment permission
+        let (other_user_id, other_principal_id, _) =
+            create_test_user(&server, "other@example.com", "laptop").await;
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
+        add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
+        server
+            .store
+            .set_user_environment_permission(&env_id, &other_user_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveUserEnvironmentPermission",
+            zopp_proto::RemoveUserEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                user_email: "other@example.com".to_string(),
+            },
+        );
+
+        let result = server.remove_user_environment_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    // ================== Group permission handler tests ==================
+
+    #[tokio::test]
+    async fn handler_get_group_workspace_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create a group with workspace permission
+        let group_id = server
+            .store
+            .create_group(&CreateGroupParams {
+                workspace_id: ws_id.clone(),
+                name: "devs".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+        server
+            .store
+            .set_group_workspace_permission(&ws_id, &group_id, Role::Write)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetGroupWorkspacePermission",
+            zopp_proto::GetGroupWorkspacePermissionRequest {
+                workspace_name: "ws".to_string(),
+                group_name: "devs".to_string(),
+            },
+        );
+
+        let result = server.get_group_workspace_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_get_group_project_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create a group with project permission
+        let group_id = server
+            .store
+            .create_group(&CreateGroupParams {
+                workspace_id: ws_id.clone(),
+                name: "devs".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+        server
+            .store
+            .set_group_project_permission(&proj_id, &group_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetGroupProjectPermission",
+            zopp_proto::GetGroupProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                group_name: "devs".to_string(),
+            },
+        );
+
+        let result = server.get_group_project_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_get_group_environment_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create a group with environment permission
+        let group_id = server
+            .store
+            .create_group(&CreateGroupParams {
+                workspace_id: ws_id.clone(),
+                name: "devs".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+        server
+            .store
+            .set_group_environment_permission(&env_id, &group_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetGroupEnvironmentPermission",
+            zopp_proto::GetGroupEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                group_name: "devs".to_string(),
+            },
+        );
+
+        let result = server.get_group_environment_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_remove_group_workspace_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create a group with workspace permission
+        let group_id = server
+            .store
+            .create_group(&CreateGroupParams {
+                workspace_id: ws_id.clone(),
+                name: "devs".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+        server
+            .store
+            .set_group_workspace_permission(&ws_id, &group_id, Role::Write)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveGroupWorkspacePermission",
+            zopp_proto::RemoveGroupWorkspacePermissionRequest {
+                workspace_name: "ws".to_string(),
+                group_name: "devs".to_string(),
+            },
+        );
+
+        let result = server.remove_group_workspace_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_remove_group_project_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create a group with project permission
+        let group_id = server
+            .store
+            .create_group(&CreateGroupParams {
+                workspace_id: ws_id.clone(),
+                name: "devs".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+        server
+            .store
+            .set_group_project_permission(&proj_id, &group_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveGroupProjectPermission",
+            zopp_proto::RemoveGroupProjectPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                group_name: "devs".to_string(),
+            },
+        );
+
+        let result = server.remove_group_project_permission(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_remove_group_environment_permission_success() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let env_id = create_test_environment(&server, &proj_id, "dev").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create a group with environment permission
+        let group_id = server
+            .store
+            .create_group(&CreateGroupParams {
+                workspace_id: ws_id.clone(),
+                name: "devs".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+        server
+            .store
+            .set_group_environment_permission(&env_id, &group_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemoveGroupEnvironmentPermission",
+            zopp_proto::RemoveGroupEnvironmentPermissionRequest {
+                workspace_name: "ws".to_string(),
+                project_name: "proj".to_string(),
+                environment_name: "dev".to_string(),
+                group_name: "devs".to_string(),
+            },
+        );
+
+        let result = server.remove_group_environment_permission(request).await;
+        assert!(result.is_ok());
+    }
+
 }
