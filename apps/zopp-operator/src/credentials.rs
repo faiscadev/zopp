@@ -307,4 +307,223 @@ mod tests {
         assert!(debug_str.contains("[REDACTED]"));
         assert!(!debug_str.contains(&"2".repeat(64))); // x25519 private key value
     }
+
+    #[test]
+    #[serial]
+    fn test_from_env_success() {
+        // Set all required environment variables
+        std::env::set_var(env_vars::PRINCIPAL_ID, "test-id");
+        std::env::set_var(env_vars::PRINCIPAL_NAME, "test-principal");
+        std::env::set_var(env_vars::PRIVATE_KEY, "0".repeat(64));
+        std::env::set_var(env_vars::PUBLIC_KEY, "1".repeat(64));
+        std::env::set_var(env_vars::X25519_PRIVATE_KEY, "2".repeat(64));
+        std::env::set_var(env_vars::X25519_PUBLIC_KEY, "3".repeat(64));
+
+        let result = OperatorCredentials::from_env();
+        assert!(result.is_ok());
+
+        let creds = result.unwrap();
+        assert_eq!(creds.principal.id, "test-id");
+        assert_eq!(creds.principal.name, "test-principal");
+
+        // Clean up environment variables
+        std::env::remove_var(env_vars::PRINCIPAL_ID);
+        std::env::remove_var(env_vars::PRINCIPAL_NAME);
+        std::env::remove_var(env_vars::PRIVATE_KEY);
+        std::env::remove_var(env_vars::PUBLIC_KEY);
+        std::env::remove_var(env_vars::X25519_PRIVATE_KEY);
+        std::env::remove_var(env_vars::X25519_PUBLIC_KEY);
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_env_missing_principal_name() {
+        std::env::set_var(env_vars::PRINCIPAL_ID, "test-id");
+        std::env::remove_var(env_vars::PRINCIPAL_NAME);
+
+        let result = OperatorCredentials::from_env();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, CredentialError::MissingEnvVar(_)));
+        if let CredentialError::MissingEnvVar(name) = err {
+            assert_eq!(name, env_vars::PRINCIPAL_NAME);
+        }
+
+        std::env::remove_var(env_vars::PRINCIPAL_ID);
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_env_missing_private_key() {
+        std::env::set_var(env_vars::PRINCIPAL_ID, "test-id");
+        std::env::set_var(env_vars::PRINCIPAL_NAME, "test");
+        std::env::remove_var(env_vars::PRIVATE_KEY);
+
+        let result = OperatorCredentials::from_env();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, CredentialError::MissingEnvVar(_)));
+        if let CredentialError::MissingEnvVar(name) = err {
+            assert_eq!(name, env_vars::PRIVATE_KEY);
+        }
+
+        std::env::remove_var(env_vars::PRINCIPAL_ID);
+        std::env::remove_var(env_vars::PRINCIPAL_NAME);
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_env_missing_public_key() {
+        std::env::set_var(env_vars::PRINCIPAL_ID, "test-id");
+        std::env::set_var(env_vars::PRINCIPAL_NAME, "test");
+        std::env::set_var(env_vars::PRIVATE_KEY, "a".repeat(64));
+        std::env::remove_var(env_vars::PUBLIC_KEY);
+
+        let result = OperatorCredentials::from_env();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, CredentialError::MissingEnvVar(_)));
+        if let CredentialError::MissingEnvVar(name) = err {
+            assert_eq!(name, env_vars::PUBLIC_KEY);
+        }
+
+        std::env::remove_var(env_vars::PRINCIPAL_ID);
+        std::env::remove_var(env_vars::PRINCIPAL_NAME);
+        std::env::remove_var(env_vars::PRIVATE_KEY);
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_env_missing_x25519_private_key() {
+        std::env::set_var(env_vars::PRINCIPAL_ID, "test-id");
+        std::env::set_var(env_vars::PRINCIPAL_NAME, "test");
+        std::env::set_var(env_vars::PRIVATE_KEY, "a".repeat(64));
+        std::env::set_var(env_vars::PUBLIC_KEY, "b".repeat(64));
+        std::env::remove_var(env_vars::X25519_PRIVATE_KEY);
+
+        let result = OperatorCredentials::from_env();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, CredentialError::MissingEnvVar(_)));
+        if let CredentialError::MissingEnvVar(name) = err {
+            assert_eq!(name, env_vars::X25519_PRIVATE_KEY);
+        }
+
+        std::env::remove_var(env_vars::PRINCIPAL_ID);
+        std::env::remove_var(env_vars::PRINCIPAL_NAME);
+        std::env::remove_var(env_vars::PRIVATE_KEY);
+        std::env::remove_var(env_vars::PUBLIC_KEY);
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_env_missing_x25519_public_key() {
+        std::env::set_var(env_vars::PRINCIPAL_ID, "test-id");
+        std::env::set_var(env_vars::PRINCIPAL_NAME, "test");
+        std::env::set_var(env_vars::PRIVATE_KEY, "a".repeat(64));
+        std::env::set_var(env_vars::PUBLIC_KEY, "b".repeat(64));
+        std::env::set_var(env_vars::X25519_PRIVATE_KEY, "c".repeat(64));
+        std::env::remove_var(env_vars::X25519_PUBLIC_KEY);
+
+        let result = OperatorCredentials::from_env();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, CredentialError::MissingEnvVar(_)));
+        if let CredentialError::MissingEnvVar(name) = err {
+            assert_eq!(name, env_vars::X25519_PUBLIC_KEY);
+        }
+
+        std::env::remove_var(env_vars::PRINCIPAL_ID);
+        std::env::remove_var(env_vars::PRINCIPAL_NAME);
+        std::env::remove_var(env_vars::PRIVATE_KEY);
+        std::env::remove_var(env_vars::PUBLIC_KEY);
+        std::env::remove_var(env_vars::X25519_PRIVATE_KEY);
+    }
+
+    #[test]
+    #[serial]
+    fn test_load_prefers_env_over_file() {
+        // Set environment variables
+        std::env::set_var(env_vars::PRINCIPAL_ID, "env-id");
+        std::env::set_var(env_vars::PRINCIPAL_NAME, "env-principal");
+        std::env::set_var(env_vars::PRIVATE_KEY, "0".repeat(64));
+        std::env::set_var(env_vars::PUBLIC_KEY, "1".repeat(64));
+        std::env::set_var(env_vars::X25519_PRIVATE_KEY, "2".repeat(64));
+        std::env::set_var(env_vars::X25519_PUBLIC_KEY, "3".repeat(64));
+
+        // Even if file path is provided, env vars take precedence
+        let result = OperatorCredentials::load(Some(PathBuf::from("/nonexistent/path")));
+        assert!(result.is_ok());
+
+        let creds = result.unwrap();
+        assert_eq!(creds.principal.id, "env-id");
+
+        // Clean up
+        std::env::remove_var(env_vars::PRINCIPAL_ID);
+        std::env::remove_var(env_vars::PRINCIPAL_NAME);
+        std::env::remove_var(env_vars::PRIVATE_KEY);
+        std::env::remove_var(env_vars::PUBLIC_KEY);
+        std::env::remove_var(env_vars::X25519_PRIVATE_KEY);
+        std::env::remove_var(env_vars::X25519_PUBLIC_KEY);
+    }
+
+    #[test]
+    #[serial]
+    fn test_load_falls_back_to_file_when_no_env() {
+        // Ensure no env vars are set
+        std::env::remove_var(env_vars::PRINCIPAL_ID);
+
+        // Should try file-based loading (which will fail with NoCredentials for nonexistent file)
+        let result = OperatorCredentials::load(Some(PathBuf::from("/nonexistent/path")));
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::NoCredentials
+        ));
+    }
+
+    #[test]
+    fn test_credentials_new() {
+        let principal = PrincipalConfig {
+            id: "id".to_string(),
+            name: "name".to_string(),
+            private_key: "priv".to_string(),
+            public_key: "pub".to_string(),
+            x25519_private_key: None,
+            x25519_public_key: None,
+        };
+
+        let creds = OperatorCredentials::new(principal.clone());
+        assert_eq!(creds.principal.id, principal.id);
+        assert_eq!(creds.principal.name, principal.name);
+    }
+
+    #[test]
+    fn test_credentials_debug_no_x25519_keys() {
+        let principal = PrincipalConfig {
+            id: "test-id".to_string(),
+            name: "test-principal".to_string(),
+            private_key: "0".repeat(64),
+            public_key: "1".repeat(64),
+            x25519_private_key: None,
+            x25519_public_key: None,
+        };
+        let creds = OperatorCredentials::new(principal);
+        let debug_str = format!("{:?}", creds);
+
+        // Should show [NOT SET] for missing x25519 public key
+        assert!(debug_str.contains("[NOT SET]"));
+    }
+
+    #[test]
+    fn test_credential_error_display() {
+        let err1 = CredentialError::MissingEnvVar("TEST_VAR".to_string());
+        assert_eq!(err1.to_string(), "Missing environment variable: TEST_VAR");
+
+        let err2 = CredentialError::ConfigFile("File not found".to_string());
+        assert_eq!(err2.to_string(), "Config file error: File not found");
+
+        let err3 = CredentialError::NoCredentials;
+        assert!(err3.to_string().contains("No credentials found"));
+    }
 }

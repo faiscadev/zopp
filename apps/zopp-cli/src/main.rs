@@ -1,19 +1,11 @@
 use clap::Parser;
-
-mod cli;
-mod commands;
-mod config;
-mod crypto;
-mod grpc;
-mod k8s;
-
-use cli::{
+use zopp_cli::cli::{
     AuditCommand, Cli, Command, DiffCommand, EnvironmentCommand, GroupCommand, InviteCommand,
     PermissionCommand, PrincipalCommand, ProjectCommand, SecretCommand, SyncCommand,
     WorkspaceCommand,
 };
-use commands::*;
-use config::{resolve_context, resolve_workspace, resolve_workspace_project};
+use zopp_cli::commands::*;
+use zopp_cli::config::{resolve_context, resolve_workspace, resolve_workspace_project};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -402,7 +394,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 principal,
                 role,
             } => {
-                commands::permission::cmd_principal_project_permission_set(
+                zopp_cli::commands::permission::cmd_principal_project_permission_set(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -417,7 +409,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 project,
                 principal,
             } => {
-                commands::permission::cmd_principal_project_permission_get(
+                zopp_cli::commands::permission::cmd_principal_project_permission_get(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -427,7 +419,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
             PermissionCommand::ProjectList { workspace, project } => {
-                commands::permission::cmd_principal_project_permission_list(
+                zopp_cli::commands::permission::cmd_principal_project_permission_list(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -440,7 +432,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 project,
                 principal,
             } => {
-                commands::permission::cmd_principal_project_permission_remove(
+                zopp_cli::commands::permission::cmd_principal_project_permission_remove(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -456,7 +448,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 principal,
                 role,
             } => {
-                commands::permission::cmd_principal_environment_permission_set(
+                zopp_cli::commands::permission::cmd_principal_environment_permission_set(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -473,7 +465,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 environment,
                 principal,
             } => {
-                commands::permission::cmd_principal_environment_permission_get(
+                zopp_cli::commands::permission::cmd_principal_environment_permission_get(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -488,7 +480,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 project,
                 environment,
             } => {
-                commands::permission::cmd_principal_environment_permission_list(
+                zopp_cli::commands::permission::cmd_principal_environment_permission_list(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -503,7 +495,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 environment,
                 principal,
             } => {
-                commands::permission::cmd_principal_environment_permission_remove(
+                zopp_cli::commands::permission::cmd_principal_environment_permission_remove(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -555,7 +547,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 email,
                 role,
             } => {
-                commands::permission::cmd_user_project_permission_set(
+                zopp_cli::commands::permission::cmd_user_project_permission_set(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -570,7 +562,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 project,
                 email,
             } => {
-                commands::permission::cmd_user_project_permission_remove(
+                zopp_cli::commands::permission::cmd_user_project_permission_remove(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -584,7 +576,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 project,
                 email,
             } => {
-                commands::permission::cmd_user_project_permission_get(
+                zopp_cli::commands::permission::cmd_user_project_permission_get(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -600,7 +592,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 email,
                 role,
             } => {
-                commands::permission::cmd_user_environment_permission_set(
+                zopp_cli::commands::permission::cmd_user_environment_permission_set(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -617,7 +609,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 environment,
                 email,
             } => {
-                commands::permission::cmd_user_environment_permission_remove(
+                zopp_cli::commands::permission::cmd_user_environment_permission_remove(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -633,7 +625,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 environment,
                 email,
             } => {
-                commands::permission::cmd_user_environment_permission_get(
+                zopp_cli::commands::permission::cmd_user_environment_permission_get(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -644,7 +636,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
             PermissionCommand::UserProjectList { workspace, project } => {
-                commands::permission::cmd_user_project_permission_list(
+                zopp_cli::commands::permission::cmd_user_project_permission_list(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -657,7 +649,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 project,
                 environment,
             } => {
-                commands::permission::cmd_user_environment_permission_list(
+                zopp_cli::commands::permission::cmd_user_environment_permission_list(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -670,7 +662,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 workspace,
                 principal,
             } => {
-                commands::cmd_permission_effective(
+                zopp_cli::commands::cmd_permission_effective(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     &workspace,
@@ -685,7 +677,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 name,
                 description,
             } => {
-                commands::cmd_group_create(
+                zopp_cli::commands::cmd_group_create(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -695,7 +687,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
             GroupCommand::List { workspace } => {
-                commands::cmd_group_list(
+                zopp_cli::commands::cmd_group_list(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -703,7 +695,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
             GroupCommand::Delete { workspace, name } => {
-                commands::cmd_group_delete(
+                zopp_cli::commands::cmd_group_delete(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -717,7 +709,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 new_name,
                 description,
             } => {
-                commands::cmd_group_update(
+                zopp_cli::commands::cmd_group_update(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -732,7 +724,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 group,
                 email,
             } => {
-                commands::cmd_group_add_member(
+                zopp_cli::commands::cmd_group_add_member(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -746,7 +738,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 group,
                 email,
             } => {
-                commands::cmd_group_remove_member(
+                zopp_cli::commands::cmd_group_remove_member(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -756,7 +748,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
             GroupCommand::ListMembers { workspace, group } => {
-                commands::cmd_group_list_members(
+                zopp_cli::commands::cmd_group_list_members(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -769,7 +761,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 group,
                 role,
             } => {
-                commands::cmd_group_set_permission(
+                zopp_cli::commands::cmd_group_set_permission(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -779,7 +771,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
             GroupCommand::RemovePermission { workspace, group } => {
-                commands::cmd_group_remove_permission(
+                zopp_cli::commands::cmd_group_remove_permission(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -788,7 +780,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
             GroupCommand::GetPermission { workspace, group } => {
-                commands::cmd_group_get_permission(
+                zopp_cli::commands::cmd_group_get_permission(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -797,7 +789,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
             GroupCommand::ListPermissions { workspace } => {
-                commands::cmd_group_list_permissions(
+                zopp_cli::commands::cmd_group_list_permissions(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -810,7 +802,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 group,
                 role,
             } => {
-                commands::cmd_group_set_project_permission(
+                zopp_cli::commands::cmd_group_set_project_permission(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -825,7 +817,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 project,
                 group,
             } => {
-                commands::cmd_group_remove_project_permission(
+                zopp_cli::commands::cmd_group_remove_project_permission(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -839,7 +831,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 project,
                 group,
             } => {
-                commands::cmd_group_get_project_permission(
+                zopp_cli::commands::cmd_group_get_project_permission(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -849,7 +841,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
             GroupCommand::ListProjectPermissions { workspace, project } => {
-                commands::cmd_group_list_project_permissions(
+                zopp_cli::commands::cmd_group_list_project_permissions(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -864,7 +856,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 group,
                 role,
             } => {
-                commands::cmd_group_set_environment_permission(
+                zopp_cli::commands::cmd_group_set_environment_permission(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -881,7 +873,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 environment,
                 group,
             } => {
-                commands::cmd_group_remove_environment_permission(
+                zopp_cli::commands::cmd_group_remove_environment_permission(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -897,7 +889,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 environment,
                 group,
             } => {
-                commands::cmd_group_get_environment_permission(
+                zopp_cli::commands::cmd_group_get_environment_permission(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),
@@ -912,7 +904,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 project,
                 environment,
             } => {
-                commands::cmd_group_list_environment_permissions(
+                zopp_cli::commands::cmd_group_list_environment_permissions(
                     &cli.server,
                     cli.tls_ca_cert.as_deref(),
                     workspace.as_deref(),

@@ -7,6 +7,10 @@ repository.workspace = true
 homepage.workspace = true
 description = "Command-line interface for zopp secrets manager"
 
+[lib]
+name = "zopp_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "zopp"
 path = "src/main.rs"
@@ -36,7 +40,18 @@ kube = { workspace = true }
 k8s-openapi = { workspace = true }
 base64 = { workspace = true }
 url = { workspace = true }
+async-trait = "0.1"
+
+[features]
+default = []
+test-support = ["mockall"]
+
+[dependencies.mockall]
+version = "0.13"
+optional = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros"] }
 sqlx = { workspace = true, features = ["postgres", "runtime-tokio-native-tls"] }
+mockall = "0.13"
+async-trait = "0.1"

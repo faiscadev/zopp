@@ -144,6 +144,28 @@ async fn create_test_group(
         .unwrap()
 }
 
+/// Test helper: Create a service principal (no user_id)
+async fn create_test_service_principal(
+    server: &ZoppServer,
+    name: &str,
+) -> (PrincipalId, SigningKey) {
+    let (public_key, signing_key) = generate_keypair();
+    let (x25519_public, _) = generate_x25519_keypair();
+
+    let principal_id = server
+        .store
+        .create_principal(&CreatePrincipalParams {
+            user_id: None, // Service principal has no user
+            name: name.to_string(),
+            public_key,
+            x25519_public_key: Some(x25519_public),
+        })
+        .await
+        .unwrap();
+
+    (principal_id, signing_key)
+}
+
 /// Test helper: Add a principal to a workspace (in workspace_principals table)
 async fn add_principal_to_workspace(
     server: &ZoppServer,
@@ -186,10 +208,7 @@ async fn add_user_to_workspace(
 }
 
 /// Test helper: Create a service principal (no associated user)
-async fn create_service_principal(
-    server: &ZoppServer,
-    name: &str,
-) -> (PrincipalId, SigningKey) {
+async fn create_service_principal(server: &ZoppServer, name: &str) -> (PrincipalId, SigningKey) {
     let (public_key, signing_key) = generate_keypair();
     let (x25519_public, _) = generate_x25519_keypair();
 
@@ -1183,7 +1202,7 @@ mod handler_tests {
     #[tokio::test]
     async fn handler_create_workspace() {
         let server = create_test_server().await;
-        let (user_id, principal_id, signing_key) =
+        let (_user_id, principal_id, signing_key) =
             create_test_user(&server, "test@example.com", "laptop").await;
 
         // Create workspace using gRPC handler
@@ -1717,7 +1736,7 @@ mod handler_tests {
         let server = create_test_server().await;
 
         // Create owner with workspace
-        let (owner_user_id, owner_principal_id, owner_signing_key) =
+        let (owner_user_id, _owner_principal_id, _owner_signing_key) =
             create_test_user(&server, "owner@example.com", "owner").await;
         let ws_id = create_test_workspace(&server, &owner_user_id, "private-ws").await;
         let proj_id = create_test_project(&server, &ws_id, "private-proj").await;
@@ -1856,7 +1875,7 @@ mod handler_tests {
         let (user_id, principal_id, signing_key) =
             create_test_user(&server, "test@example.com", "laptop").await;
 
-        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         // Create group
         let request = create_signed_request(
@@ -1897,7 +1916,7 @@ mod handler_tests {
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         // Create a group
-        let group_id = server
+        let _group_id = server
             .store
             .create_group(&CreateGroupParams {
                 workspace_id: ws_id.clone(),
@@ -2007,7 +2026,7 @@ mod handler_tests {
             .await
             .unwrap()
             .into_inner();
-        assert!(list_response.invites.len() >= 1);
+        assert!(!list_response.invites.is_empty());
     }
 
     // ---- Audit log handlers ----
@@ -2018,7 +2037,7 @@ mod handler_tests {
         let (user_id, principal_id, signing_key) =
             create_test_user(&server, "test@example.com", "laptop").await;
 
-        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         let request = create_signed_request(
             &principal_id,
@@ -2050,7 +2069,7 @@ mod handler_tests {
         let (user_id, principal_id, signing_key) =
             create_test_user(&server, "test@example.com", "laptop").await;
 
-        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         let request = create_signed_request(
             &principal_id,
@@ -2082,7 +2101,7 @@ mod handler_tests {
         let (user_id, principal_id, signing_key) =
             create_test_user(&server, "admin@example.com", "admin").await;
 
-        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         // Create a service principal to grant permission to
         let service_principal_id = server
@@ -3196,7 +3215,7 @@ mod handler_tests {
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         // Create group
-        let group_id = server
+        let _group_id = server
             .store
             .create_group(&CreateGroupParams {
                 workspace_id: ws_id.clone(),
@@ -4178,7 +4197,7 @@ mod handler_tests {
         let (user_id, principal_id, signing_key) =
             create_test_user(&server, "admin@example.com", "admin").await;
 
-        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         // Create a service principal
         let service_principal_id = server
@@ -4247,7 +4266,7 @@ mod handler_tests {
         let (user_id, principal_id, signing_key) =
             create_test_user(&server, "test@example.com", "laptop").await;
 
-        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         let request = create_signed_request(
             &principal_id,
@@ -4271,7 +4290,7 @@ mod handler_tests {
             create_test_user(&server, "test@example.com", "laptop").await;
 
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
-        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
 
         let request = create_signed_request(
             &principal_id,
@@ -4409,7 +4428,7 @@ mod handler_tests {
         let server = create_test_server().await;
 
         // Create first user (owner)
-        let (owner_user_id, owner_principal_id, _) =
+        let (owner_user_id, _owner_principal_id, _) =
             create_test_user(&server, "owner@example.com", "owner").await;
 
         let ws_id = create_test_workspace(&server, &owner_user_id, "shared-ws").await;
@@ -4496,7 +4515,7 @@ mod handler_tests {
         let (user_id, principal_id, signing_key) =
             create_test_user(&server, "admin@example.com", "admin").await;
 
-        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         // List with various filters (will just test the filter parsing, even if no results)
         let request = create_signed_request(
@@ -4529,7 +4548,7 @@ mod handler_tests {
         let (user_id, principal_id, signing_key) =
             create_test_user(&server, "admin@example.com", "admin").await;
 
-        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         let request = create_signed_request(
             &principal_id,
@@ -4556,7 +4575,7 @@ mod handler_tests {
     #[tokio::test]
     async fn handler_get_invite() {
         let server = create_test_server().await;
-        let (user_id, principal_id, signing_key) =
+        let (user_id, _principal_id, _signing_key) =
             create_test_user(&server, "test@example.com", "laptop").await;
 
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
@@ -4700,7 +4719,7 @@ mod handler_tests {
     #[tokio::test]
     async fn handler_workspace_create_with_kek() {
         let server = create_test_server().await;
-        let (user_id, principal_id, signing_key) =
+        let (_user_id, principal_id, signing_key) =
             create_test_user(&server, "test@example.com", "laptop").await;
 
         let ws_id = uuid::Uuid::now_v7();
@@ -4741,7 +4760,7 @@ mod handler_tests {
     #[tokio::test]
     async fn handler_workspace_create_missing_kek_nonce() {
         let server = create_test_server().await;
-        let (user_id, principal_id, signing_key) =
+        let (_user_id, principal_id, signing_key) =
             create_test_user(&server, "test@example.com", "laptop").await;
 
         let ws_id = uuid::Uuid::now_v7();
@@ -4771,7 +4790,7 @@ mod handler_tests {
             create_test_user(&server, "test@example.com", "laptop").await;
 
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
-        let proj_id = create_test_project(&server, &ws_id, "proj").await;
+        let _proj_id = create_test_project(&server, &ws_id, "proj").await;
 
         // Create environment with DEK
         let request = create_signed_request(
@@ -4879,7 +4898,7 @@ mod handler_tests {
     #[tokio::test]
     async fn handler_permission_hierarchy_principal_restricts() {
         let server = create_test_server().await;
-        let (user_id, principal_id, signing_key) =
+        let (user_id, _principal_id, _signing_key) =
             create_test_user(&server, "admin@example.com", "admin").await;
 
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
@@ -5398,7 +5417,11 @@ mod handler_tests {
             },
         );
 
-        let response = server.list_group_members(request).await.unwrap().into_inner();
+        let response = server
+            .list_group_members(request)
+            .await
+            .unwrap()
+            .into_inner();
         assert_eq!(response.members.len(), 1);
         assert_eq!(response.members[0].user_email, "test@example.com");
     }
@@ -5498,7 +5521,11 @@ mod handler_tests {
             },
         );
 
-        let response = server.list_environments(request).await.unwrap().into_inner();
+        let response = server
+            .list_environments(request)
+            .await
+            .unwrap()
+            .into_inner();
         assert!(response.environments.is_empty());
     }
 
@@ -5701,7 +5728,11 @@ mod handler_tests {
             },
         );
 
-        let response = server.list_secrets(list_request).await.unwrap().into_inner();
+        let response = server
+            .list_secrets(list_request)
+            .await
+            .unwrap()
+            .into_inner();
         assert_eq!(response.secrets.len(), 3);
     }
 
@@ -5944,7 +5975,7 @@ mod handler_tests {
         let (user_id, principal_id, signing_key) =
             create_test_user(&server, "test@example.com", "laptop").await;
 
-        let ws_id = create_test_workspace(&server, &user_id, "ws").await;
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
 
         // Create first group
         let request1 = create_signed_request(
@@ -8388,7 +8419,8 @@ mod handler_tests {
     #[tokio::test]
     async fn get_effective_workspace_role_owner_returns_admin() {
         let server = create_test_server().await;
-        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let (user_id, principal_id, _) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
         let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
         add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
 
@@ -8561,7 +8593,8 @@ mod handler_tests {
     #[tokio::test]
     async fn get_effective_project_role_owner_returns_admin() {
         let server = create_test_server().await;
-        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let (user_id, principal_id, _) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
         let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
         let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
         add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
@@ -8652,7 +8685,8 @@ mod handler_tests {
     #[tokio::test]
     async fn get_effective_environment_role_owner_returns_admin() {
         let server = create_test_server().await;
-        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let (user_id, principal_id, _) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
         let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
         let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
         let env_id = create_test_environment(&server, &project_id, "dev").await;
@@ -8681,7 +8715,12 @@ mod handler_tests {
         add_principal_to_workspace(&server, &workspace_id, &other_principal_id).await;
 
         let role = server
-            .get_effective_environment_role(&other_principal_id, &workspace_id, &project_id, &env_id)
+            .get_effective_environment_role(
+                &other_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+            )
             .await
             .unwrap();
 
@@ -8710,7 +8749,12 @@ mod handler_tests {
             .unwrap();
 
         let role = server
-            .get_effective_environment_role(&other_principal_id, &workspace_id, &project_id, &env_id)
+            .get_effective_environment_role(
+                &other_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+            )
             .await
             .unwrap();
 
@@ -8735,7 +8779,12 @@ mod handler_tests {
             .unwrap();
 
         let role = server
-            .get_effective_environment_role(&service_principal_id, &workspace_id, &project_id, &env_id)
+            .get_effective_environment_role(
+                &service_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+            )
             .await
             .unwrap();
 
@@ -8747,7 +8796,8 @@ mod handler_tests {
     #[tokio::test]
     async fn check_project_permission_owner() {
         let server = create_test_server().await;
-        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let (user_id, principal_id, _) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
         let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
         let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
         add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
@@ -8837,13 +8887,23 @@ mod handler_tests {
 
         // Should pass for Read
         let result = server
-            .check_project_permission(&service_principal_id, &workspace_id, &project_id, Role::Read)
+            .check_project_permission(
+                &service_principal_id,
+                &workspace_id,
+                &project_id,
+                Role::Read,
+            )
             .await;
         assert!(result.is_ok());
 
         // Should fail for Write
         let result = server
-            .check_project_permission(&service_principal_id, &workspace_id, &project_id, Role::Write)
+            .check_project_permission(
+                &service_principal_id,
+                &workspace_id,
+                &project_id,
+                Role::Write,
+            )
             .await;
         assert!(result.is_err());
     }
@@ -8860,7 +8920,12 @@ mod handler_tests {
 
         // Should fail - no permission
         let result = server
-            .check_project_permission(&service_principal_id, &workspace_id, &project_id, Role::Read)
+            .check_project_permission(
+                &service_principal_id,
+                &workspace_id,
+                &project_id,
+                Role::Read,
+            )
             .await;
         assert!(result.is_err());
     }
@@ -8870,14 +8935,21 @@ mod handler_tests {
     #[tokio::test]
     async fn check_environment_permission_owner() {
         let server = create_test_server().await;
-        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let (user_id, principal_id, _) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
         let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
         let project_id = create_test_project(&server, &workspace_id, "test-proj").await;
         let env_id = create_test_environment(&server, &project_id, "dev").await;
         add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
 
         let result = server
-            .check_environment_permission(&principal_id, &workspace_id, &project_id, &env_id, Role::Admin)
+            .check_environment_permission(
+                &principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+                Role::Admin,
+            )
             .await;
 
         assert!(result.is_ok());
@@ -8908,19 +8980,37 @@ mod handler_tests {
 
         // Should pass for Write
         let result = server
-            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Write)
+            .check_environment_permission(
+                &other_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+                Role::Write,
+            )
             .await;
         assert!(result.is_ok());
 
         // Should pass for Read
         let result = server
-            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Read)
+            .check_environment_permission(
+                &other_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+                Role::Read,
+            )
             .await;
         assert!(result.is_ok());
 
         // Should fail for Admin
         let result = server
-            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Admin)
+            .check_environment_permission(
+                &other_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+                Role::Admin,
+            )
             .await;
         assert!(result.is_err());
     }
@@ -8950,7 +9040,13 @@ mod handler_tests {
 
         // Should pass for Admin (inherited from project)
         let result = server
-            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Admin)
+            .check_environment_permission(
+                &other_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+                Role::Admin,
+            )
             .await;
         assert!(result.is_ok());
     }
@@ -8971,7 +9067,13 @@ mod handler_tests {
 
         // Should pass for Write (inherited from workspace)
         let result = server
-            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Write)
+            .check_environment_permission(
+                &other_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+                Role::Write,
+            )
             .await;
         assert!(result.is_ok());
     }
@@ -8994,13 +9096,25 @@ mod handler_tests {
 
         // Should pass for Read
         let result = server
-            .check_environment_permission(&service_principal_id, &workspace_id, &project_id, &env_id, Role::Read)
+            .check_environment_permission(
+                &service_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+                Role::Read,
+            )
             .await;
         assert!(result.is_ok());
 
         // Should fail for Write
         let result = server
-            .check_environment_permission(&service_principal_id, &workspace_id, &project_id, &env_id, Role::Write)
+            .check_environment_permission(
+                &service_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+                Role::Write,
+            )
             .await;
         assert!(result.is_err());
     }
@@ -9046,7 +9160,13 @@ mod handler_tests {
 
         // Should pass for Write (via group)
         let result = server
-            .check_environment_permission(&other_principal_id, &workspace_id, &project_id, &env_id, Role::Write)
+            .check_environment_permission(
+                &other_principal_id,
+                &workspace_id,
+                &project_id,
+                &env_id,
+                Role::Write,
+            )
             .await;
         assert!(result.is_ok());
     }
@@ -9056,7 +9176,8 @@ mod handler_tests {
     #[tokio::test]
     async fn check_permission_workspace_only_owner() {
         let server = create_test_server().await;
-        let (user_id, principal_id, _) = create_test_user(&server, "owner@example.com", "laptop").await;
+        let (user_id, principal_id, _) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
         let workspace_id = create_test_workspace(&server, &user_id, "test-ws").await;
         add_principal_to_workspace(&server, &workspace_id, &principal_id).await;
 
@@ -12189,9 +12310,17 @@ mod handler_tests {
         // Create a reader user who will try to grant higher permissions
         let (reader_user_id, reader_principal_id, reader_signing_key) =
             create_test_user(&server, "reader-da1@example.com", "laptop").await;
-        server.store.add_user_to_workspace(&ws_id, &reader_user_id).await.unwrap();
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &reader_user_id)
+            .await
+            .unwrap();
         add_principal_to_workspace(&server, &ws_id, &reader_principal_id).await;
-        server.store.set_workspace_permission(&ws_id, &reader_principal_id, zopp_storage::Role::Read).await.unwrap();
+        server
+            .store
+            .set_workspace_permission(&ws_id, &reader_principal_id, zopp_storage::Role::Read)
+            .await
+            .unwrap();
 
         // Reader tries to grant Admin permission (should fail)
         let request = create_signed_request(
@@ -12221,9 +12350,17 @@ mod handler_tests {
         // Create a reader user
         let (reader_user_id, reader_principal_id, reader_signing_key) =
             create_test_user(&server, "reader-da2@example.com", "laptop").await;
-        server.store.add_user_to_workspace(&ws_id, &reader_user_id).await.unwrap();
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &reader_user_id)
+            .await
+            .unwrap();
         add_principal_to_workspace(&server, &ws_id, &reader_principal_id).await;
-        server.store.set_project_permission(&proj_id, &reader_principal_id, zopp_storage::Role::Read).await.unwrap();
+        server
+            .store
+            .set_project_permission(&proj_id, &reader_principal_id, zopp_storage::Role::Read)
+            .await
+            .unwrap();
 
         // Reader tries to grant Admin permission (should fail)
         let request = create_signed_request(
@@ -12255,9 +12392,17 @@ mod handler_tests {
         // Create a reader user
         let (reader_user_id, reader_principal_id, reader_signing_key) =
             create_test_user(&server, "reader-da3@example.com", "laptop").await;
-        server.store.add_user_to_workspace(&ws_id, &reader_user_id).await.unwrap();
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &reader_user_id)
+            .await
+            .unwrap();
         add_principal_to_workspace(&server, &ws_id, &reader_principal_id).await;
-        server.store.set_environment_permission(&env_id, &reader_principal_id, zopp_storage::Role::Read).await.unwrap();
+        server
+            .store
+            .set_environment_permission(&env_id, &reader_principal_id, zopp_storage::Role::Read)
+            .await
+            .unwrap();
 
         // Reader tries to grant Admin permission (should fail)
         let request = create_signed_request(
@@ -12440,13 +12585,25 @@ mod handler_tests {
 
         let (reader_user_id, reader_principal_id, reader_signing_key) =
             create_test_user(&server, "reader-gwa4@example.com", "reader-laptop").await;
-        server.store.add_user_to_workspace(&ws_id, &reader_user_id).await.unwrap();
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &reader_user_id)
+            .await
+            .unwrap();
         add_principal_to_workspace(&server, &ws_id, &reader_principal_id).await;
-        server.store.set_workspace_permission(&ws_id, &reader_principal_id, zopp_storage::Role::Read).await.unwrap();
+        server
+            .store
+            .set_workspace_permission(&ws_id, &reader_principal_id, zopp_storage::Role::Read)
+            .await
+            .unwrap();
 
         let (other_user_id, other_principal_id, _other_signing_key) =
             create_test_user(&server, "other-gwa4@example.com", "other-laptop").await;
-        server.store.add_user_to_workspace(&ws_id, &other_user_id).await.unwrap();
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
 
         let request = create_signed_request(
             &reader_principal_id,
@@ -12528,7 +12685,11 @@ mod handler_tests {
 
         let (other_user_id, other_principal_id, other_signing_key) =
             create_test_user(&server, "other-ws3@example.com", "laptop").await;
-        server.store.add_user_to_workspace(&ws_id, &other_user_id).await.unwrap();
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
         add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
         // No permission granted
 
@@ -12660,9 +12821,17 @@ mod handler_tests {
 
         let (other_user_id, other_principal_id, _other_signing_key) =
             create_test_user(&server, "other-rap1@example.com", "laptop").await;
-        server.store.add_user_to_workspace(&ws_id, &other_user_id).await.unwrap();
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &other_user_id)
+            .await
+            .unwrap();
         add_principal_to_workspace(&server, &ws_id, &other_principal_id).await;
-        server.store.set_workspace_permission(&ws_id, &other_principal_id, zopp_storage::Role::Write).await.unwrap();
+        server
+            .store
+            .set_workspace_permission(&ws_id, &other_principal_id, zopp_storage::Role::Write)
+            .await
+            .unwrap();
 
         let request = create_signed_request(
             &admin_principal_id,
@@ -12687,13 +12856,25 @@ mod handler_tests {
 
         let (reader_user_id, reader_principal_id, reader_signing_key) =
             create_test_user(&server, "reader-rap2@example.com", "laptop").await;
-        server.store.add_user_to_workspace(&ws_id, &reader_user_id).await.unwrap();
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &reader_user_id)
+            .await
+            .unwrap();
         add_principal_to_workspace(&server, &ws_id, &reader_principal_id).await;
-        server.store.set_workspace_permission(&ws_id, &reader_principal_id, zopp_storage::Role::Read).await.unwrap();
+        server
+            .store
+            .set_workspace_permission(&ws_id, &reader_principal_id, zopp_storage::Role::Read)
+            .await
+            .unwrap();
 
         let (target_user_id, target_principal_id, _target_signing_key) =
             create_test_user(&server, "target-rap2@example.com", "laptop").await;
-        server.store.add_user_to_workspace(&ws_id, &target_user_id).await.unwrap();
+        server
+            .store
+            .add_user_to_workspace(&ws_id, &target_user_id)
+            .await
+            .unwrap();
         add_principal_to_workspace(&server, &ws_id, &target_principal_id).await;
 
         let request = create_signed_request(
@@ -12789,7 +12970,11 @@ mod handler_tests {
             create_test_user(&server, "test-gep1@example.com", "laptop").await;
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
         add_principal_to_workspace(&server, &ws_id, &principal_id).await;
-        server.store.set_workspace_permission(&ws_id, &principal_id, zopp_storage::Role::Admin).await.unwrap();
+        server
+            .store
+            .set_workspace_permission(&ws_id, &principal_id, zopp_storage::Role::Admin)
+            .await
+            .unwrap();
 
         let request = create_signed_request(
             &principal_id,
@@ -12804,7 +12989,10 @@ mod handler_tests {
         let result = server.get_effective_permissions(request).await;
         assert!(result.is_ok());
         let response = result.unwrap().into_inner();
-        assert_eq!(response.workspace_role, Some(zopp_proto::Role::Admin as i32));
+        assert_eq!(
+            response.workspace_role,
+            Some(zopp_proto::Role::Admin as i32)
+        );
     }
 
     #[tokio::test]
@@ -13009,7 +13197,7 @@ mod handler_tests {
     #[tokio::test]
     async fn handler_set_user_workspace_permission_delegated_authority_denied() {
         let server = create_test_server().await;
-        let (user_id, principal_id, signing_key) =
+        let (user_id, principal_id, _signing_key) =
             create_test_user(&server, "owner-sup5@example.com", "laptop").await;
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
         add_principal_to_workspace(&server, &ws_id, &principal_id).await;
@@ -13988,7 +14176,7 @@ mod handler_tests {
         // This is difficult to trigger with a real store, but we can test the join flow
         // with an expired invite to verify the error path
         let server = create_test_server().await;
-        let (user_id, principal_id, signing_key) =
+        let (user_id, principal_id, _signing_key) =
             create_test_user(&server, "owner-jcuo@example.com", "laptop").await;
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
         add_principal_to_workspace(&server, &ws_id, &principal_id).await;
@@ -14088,7 +14276,6 @@ mod handler_tests {
             create_test_user(&server, "user-lis@example.com", "laptop").await;
 
         // Try to login with wrong signature
-        use prost::Message;
         let login_req = zopp_proto::LoginRequest {
             email: "user-lis@example.com".to_string(),
             principal_name: "laptop".to_string(),
@@ -16678,7 +16865,7 @@ mod handler_tests {
     #[tokio::test]
     async fn handler_revoke_invite_no_admin_permission() {
         let server = create_test_server().await;
-        let (user_id, principal_id, signing_key) =
+        let (user_id, principal_id, _signing_key) =
             create_test_user(&server, "owner-rinv3@example.com", "laptop").await;
         let ws_id = create_test_workspace(&server, &user_id, "ws").await;
         add_principal_to_workspace(&server, &ws_id, &principal_id).await;
@@ -17290,4 +17477,790 @@ mod handler_tests {
         assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
     }
 
+    // ────────────────────────────────────── Additional Principal Tests ──────────────────────────────────
+
+    #[tokio::test]
+    async fn handler_list_workspace_service_principals_basic() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lwsp@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-lwsp").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        // Create a service principal and add to workspace
+        let service_principal_id = server
+            .store
+            .create_principal(&zopp_storage::CreatePrincipalParams {
+                user_id: None,
+                name: "service-account".to_string(),
+                public_key: vec![1, 2, 3],
+                x25519_public_key: Some(vec![4, 5, 6]),
+            })
+            .await
+            .unwrap();
+
+        server
+            .store
+            .add_workspace_principal(&zopp_storage::AddWorkspacePrincipalParams {
+                workspace_id: ws_id.clone(),
+                principal_id: service_principal_id.clone(),
+                ephemeral_pub: vec![7, 8, 9],
+                kek_wrapped: vec![10, 11, 12],
+                kek_nonce: vec![13, 14, 15],
+            })
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListWorkspaceServicePrincipals",
+            zopp_proto::ListWorkspaceServicePrincipalsRequest {
+                workspace_name: "ws-lwsp".to_string(),
+            },
+        );
+
+        let result = server.list_workspace_service_principals(request).await;
+        assert!(result.is_ok());
+        let response = result.unwrap().into_inner();
+        assert_eq!(response.service_principals.len(), 1);
+        assert_eq!(response.service_principals[0].name, "service-account");
+    }
+
+    #[tokio::test]
+    async fn handler_list_workspace_service_principals_service_account_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-lwsp-sad@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-lwsp-sad").await;
+
+        // Create a service principal
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-lwsp-sad").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/ListWorkspaceServicePrincipals",
+            zopp_proto::ListWorkspaceServicePrincipalsRequest {
+                workspace_name: "ws-lwsp-sad".to_string(),
+            },
+        );
+
+        let result = server.list_workspace_service_principals(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_list_workspace_service_principals_workspace_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lwsp-nf@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListWorkspaceServicePrincipals",
+            zopp_proto::ListWorkspaceServicePrincipalsRequest {
+                workspace_name: "nonexistent".to_string(),
+            },
+        );
+
+        let result = server.list_workspace_service_principals(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_principal_from_workspace_service_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-rpfw-sd@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-rpfw-sd").await;
+
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-rpfw").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &service_id, Role::Admin)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/RemovePrincipalFromWorkspace",
+            zopp_proto::RemovePrincipalFromWorkspaceRequest {
+                workspace_name: "ws-rpfw-sd".to_string(),
+                principal_id: uuid::Uuid::new_v4().to_string(),
+            },
+        );
+
+        let result = server.remove_principal_from_workspace(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_principal_from_workspace_ws_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rpfw-nf@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemovePrincipalFromWorkspace",
+            zopp_proto::RemovePrincipalFromWorkspaceRequest {
+                workspace_name: "nonexistent".to_string(),
+                principal_id: uuid::Uuid::new_v4().to_string(),
+            },
+        );
+
+        let result = server.remove_principal_from_workspace(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_principal_from_workspace_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rpfw-inv@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-rpfw-inv").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemovePrincipalFromWorkspace",
+            zopp_proto::RemovePrincipalFromWorkspaceRequest {
+                workspace_name: "ws-rpfw-inv".to_string(),
+                principal_id: "not-a-uuid".to_string(),
+            },
+        );
+
+        let result = server.remove_principal_from_workspace(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_principal_from_workspace_principal_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rpfw-pnf@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-rpfw-pnf").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemovePrincipalFromWorkspace",
+            zopp_proto::RemovePrincipalFromWorkspaceRequest {
+                workspace_name: "ws-rpfw-pnf".to_string(),
+                principal_id: uuid::Uuid::new_v4().to_string(),
+            },
+        );
+
+        let result = server.remove_principal_from_workspace(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_remove_principal_from_workspace_cannot_remove_self() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rpfw-self@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-rpfw-self").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RemovePrincipalFromWorkspace",
+            zopp_proto::RemovePrincipalFromWorkspaceRequest {
+                workspace_name: "ws-rpfw-self".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.remove_principal_from_workspace(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_revoke_all_principal_permissions_service_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-rapp-sd@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-rapp-sd").await;
+
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-rapp").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+        server
+            .store
+            .set_workspace_permission(&ws_id, &service_id, Role::Admin)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/RevokeAllPrincipalPermissions",
+            zopp_proto::RevokeAllPrincipalPermissionsRequest {
+                workspace_name: "ws-rapp-sd".to_string(),
+                principal_id: uuid::Uuid::new_v4().to_string(),
+            },
+        );
+
+        let result = server.revoke_all_principal_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_revoke_all_principal_permissions_ws_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rapp-nf@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RevokeAllPrincipalPermissions",
+            zopp_proto::RevokeAllPrincipalPermissionsRequest {
+                workspace_name: "nonexistent".to_string(),
+                principal_id: uuid::Uuid::new_v4().to_string(),
+            },
+        );
+
+        let result = server.revoke_all_principal_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_revoke_all_principal_permissions_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rapp-inv@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-rapp-inv").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RevokeAllPrincipalPermissions",
+            zopp_proto::RevokeAllPrincipalPermissionsRequest {
+                workspace_name: "ws-rapp-inv".to_string(),
+                principal_id: "not-a-uuid".to_string(),
+            },
+        );
+
+        let result = server.revoke_all_principal_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_revoke_all_principal_permissions_principal_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-rapp-pnf@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-rapp-pnf").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/RevokeAllPrincipalPermissions",
+            zopp_proto::RevokeAllPrincipalPermissionsRequest {
+                workspace_name: "ws-rapp-pnf".to_string(),
+                principal_id: uuid::Uuid::new_v4().to_string(),
+            },
+        );
+
+        let result = server.revoke_all_principal_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_effective_permissions_service_denied() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-gep-sd@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-gep-sd").await;
+
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-gep").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/GetEffectivePermissions",
+            zopp_proto::GetEffectivePermissionsRequest {
+                workspace_name: "ws-gep-sd".to_string(),
+                principal_id: service_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_effective_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn handler_get_effective_permissions_ws_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gep-nf@example.com", "laptop").await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEffectivePermissions",
+            zopp_proto::GetEffectivePermissionsRequest {
+                workspace_name: "nonexistent".to_string(),
+                principal_id: uuid::Uuid::new_v4().to_string(),
+            },
+        );
+
+        let result = server.get_effective_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_effective_permissions_invalid_principal_id() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gep-inv@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-gep-inv").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEffectivePermissions",
+            zopp_proto::GetEffectivePermissionsRequest {
+                workspace_name: "ws-gep-inv".to_string(),
+                principal_id: "not-a-uuid".to_string(),
+            },
+        );
+
+        let result = server.get_effective_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn handler_get_effective_permissions_target_principal_not_found() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gep-pnf@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-gep-pnf").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEffectivePermissions",
+            zopp_proto::GetEffectivePermissionsRequest {
+                workspace_name: "ws-gep-pnf".to_string(),
+                principal_id: uuid::Uuid::new_v4().to_string(),
+            },
+        );
+
+        let result = server.get_effective_permissions(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_get_effective_permissions_with_projects_and_envs() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-gep-full@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-gep-full").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+        let project_id = create_test_project(&server, &ws_id, "my-project").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Grant permissions
+        server
+            .store
+            .set_project_permission(&project_id, &principal_id, Role::Write)
+            .await
+            .unwrap();
+        server
+            .store
+            .set_environment_permission(&env_id, &principal_id, Role::Admin)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/GetEffectivePermissions",
+            zopp_proto::GetEffectivePermissionsRequest {
+                workspace_name: "ws-gep-full".to_string(),
+                principal_id: principal_id.0.to_string(),
+            },
+        );
+
+        let result = server.get_effective_permissions(request).await;
+        assert!(result.is_ok());
+        let response = result.unwrap().into_inner();
+        assert_eq!(response.principal_id, principal_id.0.to_string());
+        assert!(!response.is_service_principal);
+        // Should have workspace role from being owner
+        assert!(response.workspace_role.is_some());
+        // Should have projects
+        assert!(!response.projects.is_empty());
+    }
+
+    #[tokio::test]
+    async fn handler_list_workspace_service_principals_with_permissions() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-lwsp-perm@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-lwsp-perm").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+        let project_id = create_test_project(&server, &ws_id, "my-project").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Create a service principal and add to workspace
+        let service_principal_id = server
+            .store
+            .create_principal(&zopp_storage::CreatePrincipalParams {
+                user_id: None,
+                name: "service-with-perms".to_string(),
+                public_key: vec![1, 2, 3],
+                x25519_public_key: Some(vec![4, 5, 6]),
+            })
+            .await
+            .unwrap();
+
+        server
+            .store
+            .add_workspace_principal(&zopp_storage::AddWorkspacePrincipalParams {
+                workspace_id: ws_id.clone(),
+                principal_id: service_principal_id.clone(),
+                ephemeral_pub: vec![7, 8, 9],
+                kek_wrapped: vec![10, 11, 12],
+                kek_nonce: vec![13, 14, 15],
+            })
+            .await
+            .unwrap();
+
+        // Grant permissions to service principal
+        server
+            .store
+            .set_project_permission(&project_id, &service_principal_id, Role::Write)
+            .await
+            .unwrap();
+        server
+            .store
+            .set_environment_permission(&env_id, &service_principal_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/ListWorkspaceServicePrincipals",
+            zopp_proto::ListWorkspaceServicePrincipalsRequest {
+                workspace_name: "ws-lwsp-perm".to_string(),
+            },
+        );
+
+        let result = server.list_workspace_service_principals(request).await;
+        assert!(result.is_ok());
+        let response = result.unwrap().into_inner();
+        assert_eq!(response.service_principals.len(), 1);
+        let sp = &response.service_principals[0];
+        assert_eq!(sp.name, "service-with-perms");
+        // Should have 2 permissions (project + environment)
+        assert_eq!(sp.permissions.len(), 2);
+    }
+
+    // ────────────────────────────────────── Additional Service Principal Secret Tests ──────────────────────────────────
+
+    #[tokio::test]
+    async fn handler_sp_upsert_secret_with_write() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-sp-upsert@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-sp-upsert").await;
+        let project_id = create_test_project(&server, &ws_id, "my-project").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Create a service principal
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-sp-upsert").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+
+        // Grant Write permission
+        server
+            .store
+            .set_environment_permission(&env_id, &service_id, Role::Write)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/UpsertSecret",
+            zopp_proto::UpsertSecretRequest {
+                workspace_name: "ws-sp-upsert".to_string(),
+                project_name: "my-project".to_string(),
+                environment_name: "dev".to_string(),
+                key: "API_KEY".to_string(),
+                nonce: vec![1, 2, 3],
+                ciphertext: vec![4, 5, 6],
+            },
+        );
+
+        let result = server.upsert_secret(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_sp_get_secret_with_read() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-sp-get@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-sp-get").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+        let project_id = create_test_project(&server, &ws_id, "my-project").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // First upsert a secret as the owner
+        let upsert_request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/UpsertSecret",
+            zopp_proto::UpsertSecretRequest {
+                workspace_name: "ws-sp-get".to_string(),
+                project_name: "my-project".to_string(),
+                environment_name: "dev".to_string(),
+                key: "MY_SECRET".to_string(),
+                nonce: vec![1, 2, 3],
+                ciphertext: vec![4, 5, 6],
+            },
+        );
+        server.upsert_secret(upsert_request).await.unwrap();
+
+        // Create a service principal
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-sp-get").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+
+        // Grant Read permission
+        server
+            .store
+            .set_environment_permission(&env_id, &service_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/GetSecret",
+            zopp_proto::GetSecretRequest {
+                workspace_name: "ws-sp-get".to_string(),
+                project_name: "my-project".to_string(),
+                environment_name: "dev".to_string(),
+                key: "MY_SECRET".to_string(),
+            },
+        );
+
+        let result = server.get_secret(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_sp_list_secrets_with_read() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-sp-list@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-sp-list").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+        let project_id = create_test_project(&server, &ws_id, "my-project").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // First upsert a secret as the owner
+        let upsert_request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/UpsertSecret",
+            zopp_proto::UpsertSecretRequest {
+                workspace_name: "ws-sp-list".to_string(),
+                project_name: "my-project".to_string(),
+                environment_name: "dev".to_string(),
+                key: "MY_SECRET".to_string(),
+                nonce: vec![1, 2, 3],
+                ciphertext: vec![4, 5, 6],
+            },
+        );
+        server.upsert_secret(upsert_request).await.unwrap();
+
+        // Create a service principal
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-sp-list").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+
+        // Grant Read permission
+        server
+            .store
+            .set_environment_permission(&env_id, &service_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/ListSecrets",
+            zopp_proto::ListSecretsRequest {
+                workspace_name: "ws-sp-list".to_string(),
+                project_name: "my-project".to_string(),
+                environment_name: "dev".to_string(),
+            },
+        );
+
+        let result = server.list_secrets(request).await;
+        assert!(result.is_ok());
+        let response = result.unwrap().into_inner();
+        assert_eq!(response.secrets.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn handler_sp_delete_secret_with_write() {
+        let server = create_test_server().await;
+        let (user_id, principal_id, signing_key) =
+            create_test_user(&server, "owner-sp-del@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-sp-del").await;
+        add_principal_to_workspace(&server, &ws_id, &principal_id).await;
+        let project_id = create_test_project(&server, &ws_id, "my-project").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // First upsert a secret as the owner
+        let upsert_request = create_signed_request(
+            &principal_id,
+            &signing_key,
+            "/zopp.ZoppService/UpsertSecret",
+            zopp_proto::UpsertSecretRequest {
+                workspace_name: "ws-sp-del".to_string(),
+                project_name: "my-project".to_string(),
+                environment_name: "dev".to_string(),
+                key: "TO_DELETE".to_string(),
+                nonce: vec![1, 2, 3],
+                ciphertext: vec![4, 5, 6],
+            },
+        );
+        server.upsert_secret(upsert_request).await.unwrap();
+
+        // Create a service principal
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-sp-del").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+
+        // Grant Write permission
+        server
+            .store
+            .set_environment_permission(&env_id, &service_id, Role::Write)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/DeleteSecret",
+            zopp_proto::DeleteSecretRequest {
+                workspace_name: "ws-sp-del".to_string(),
+                project_name: "my-project".to_string(),
+                environment_name: "dev".to_string(),
+                key: "TO_DELETE".to_string(),
+            },
+        );
+
+        let result = server.delete_secret(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_sp_watch_secrets_with_read() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-sp-watch@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-sp-watch").await;
+        let project_id = create_test_project(&server, &ws_id, "my-project").await;
+        let env_id = create_test_environment(&server, &project_id, "dev").await;
+
+        // Create a service principal
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-sp-watch").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+
+        // Grant Read permission
+        server
+            .store
+            .set_environment_permission(&env_id, &service_id, Role::Read)
+            .await
+            .unwrap();
+
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/WatchSecrets",
+            zopp_proto::WatchSecretsRequest {
+                workspace_name: "ws-sp-watch".to_string(),
+                project_name: "my-project".to_string(),
+                environment_name: "dev".to_string(),
+                since_version: Some(0),
+            },
+        );
+
+        let result = server.watch_secrets(request).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn handler_service_principal_ws_not_found_in_secrets() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner-sp-nf@example.com", "laptop").await;
+        let ws_id = create_test_workspace(&server, &user_id, "ws-sp-nf").await;
+
+        // Create a service principal
+        let (service_id, service_signing_key) =
+            create_test_service_principal(&server, "service-sp-nf").await;
+        add_principal_to_workspace(&server, &ws_id, &service_id).await;
+
+        // Try to get secret in nonexistent workspace
+        let request = create_signed_request(
+            &service_id,
+            &service_signing_key,
+            "/zopp.ZoppService/GetSecret",
+            zopp_proto::GetSecretRequest {
+                workspace_name: "nonexistent".to_string(),
+                project_name: "my-project".to_string(),
+                environment_name: "dev".to_string(),
+                key: "API_KEY".to_string(),
+            },
+        );
+
+        let result = server.get_secret(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
 }

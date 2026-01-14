@@ -3653,7 +3653,9 @@ mod tests {
                 project_id: project_id.clone(),
                 name: "dev".to_string(),
                 dek_wrapped: vec![4, 5, 6],
-                dek_nonce: vec![7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+                dek_nonce: vec![
+                    7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+                ],
             })
             .await
             .unwrap();
@@ -3715,7 +3717,10 @@ mod tests {
         assert_eq!(user2.email, "user@example.com");
 
         // User not found
-        let err = s.get_user_by_email("notfound@example.com").await.unwrap_err();
+        let err = s
+            .get_user_by_email("notfound@example.com")
+            .await
+            .unwrap_err();
         matches!(err, StoreError::NotFound);
     }
 
@@ -3789,7 +3794,9 @@ mod tests {
                 project_id: project_id.clone(),
                 name: "dev".to_string(),
                 dek_wrapped: vec![4, 5, 6],
-                dek_nonce: vec![7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+                dek_nonce: vec![
+                    7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+                ],
             })
             .await
             .unwrap();
@@ -3834,7 +3841,9 @@ mod tests {
                 project_id: project_id.clone(),
                 name: "dev".to_string(),
                 dek_wrapped: vec![4, 5, 6],
-                dek_nonce: vec![7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+                dek_nonce: vec![
+                    7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+                ],
             })
             .await
             .unwrap();

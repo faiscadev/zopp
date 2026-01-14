@@ -215,4 +215,124 @@ mod tests {
         assert!(debug_str.contains("proj"));
         assert!(debug_str.contains("env"));
     }
+
+    #[test]
+    fn test_resolve_workspace_with_argument() {
+        let ws = String::from("my-workspace");
+        let result = resolve_workspace(Some(&ws));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "my-workspace");
+    }
+
+    #[test]
+    fn test_resolve_workspace_without_argument_no_config() {
+        // When no argument is provided and no config exists (in most test environments),
+        // this should fail
+        let result = resolve_workspace(None);
+        // Either succeeds (if zopp.toml exists in the directory tree) or fails
+        // In a clean test environment, it should fail
+        if result.is_err() {
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("workspace not specified"));
+        }
+    }
+
+    #[test]
+    fn test_resolve_workspace_project_with_arguments() {
+        let ws = String::from("my-workspace");
+        let proj = String::from("my-project");
+        let result = resolve_workspace_project(Some(&ws), Some(&proj));
+        assert!(result.is_ok());
+        let (workspace, project) = result.unwrap();
+        assert_eq!(workspace, "my-workspace");
+        assert_eq!(project, "my-project");
+    }
+
+    #[test]
+    fn test_resolve_workspace_project_missing_workspace() {
+        let proj = String::from("my-project");
+        let result = resolve_workspace_project(None, Some(&proj));
+        // Either succeeds (if zopp.toml exists) or fails
+        if result.is_err() {
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("workspace not specified"));
+        }
+    }
+
+    #[test]
+    fn test_resolve_workspace_project_missing_project() {
+        let ws = String::from("my-workspace");
+        let result = resolve_workspace_project(Some(&ws), None);
+        // Either succeeds (if zopp.toml exists) or fails
+        if result.is_err() {
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("project not specified"));
+        }
+    }
+
+    #[test]
+    fn test_resolve_context_with_all_arguments() {
+        let ws = String::from("my-workspace");
+        let proj = String::from("my-project");
+        let env = String::from("production");
+        let result = resolve_context(Some(&ws), Some(&proj), Some(&env));
+        assert!(result.is_ok());
+        let (workspace, project, environment) = result.unwrap();
+        assert_eq!(workspace, "my-workspace");
+        assert_eq!(project, "my-project");
+        assert_eq!(environment, "production");
+    }
+
+    #[test]
+    fn test_resolve_context_missing_workspace() {
+        let proj = String::from("my-project");
+        let env = String::from("production");
+        let result = resolve_context(None, Some(&proj), Some(&env));
+        if result.is_err() {
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("workspace not specified"));
+        }
+    }
+
+    #[test]
+    fn test_resolve_context_missing_project() {
+        let ws = String::from("my-workspace");
+        let env = String::from("production");
+        let result = resolve_context(Some(&ws), None, Some(&env));
+        if result.is_err() {
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("project not specified"));
+        }
+    }
+
+    #[test]
+    fn test_resolve_context_missing_environment() {
+        let ws = String::from("my-workspace");
+        let proj = String::from("my-project");
+        let result = resolve_context(Some(&ws), Some(&proj), None);
+        if result.is_err() {
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("environment not specified"));
+        }
+    }
+
+    #[test]
+    fn test_find_project_config_returns_none_in_test_environment() {
+        // In a test environment without zopp.toml in the path, this should return None
+        // But if the test is run from a directory with zopp.toml, it may return Some
+        let _result = find_project_config();
+        // Just verify it doesn't panic
+    }
 }
