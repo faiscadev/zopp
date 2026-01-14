@@ -146,8 +146,7 @@ pub async fn cmd_project_get(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut client, principal) = setup_client(server, tls_ca_cert).await?;
 
-    let project =
-        project_get_inner(&mut client, &principal, workspace_name, project_name).await?;
+    let project = project_get_inner(&mut client, &principal, workspace_name, project_name).await?;
     print_project_details(&project);
 
     Ok(())
@@ -343,8 +342,7 @@ mod tests {
         });
 
         let principal = create_test_principal();
-        let result =
-            project_get_inner(&mut mock, &principal, "my-workspace", "my-project").await;
+        let result = project_get_inner(&mut mock, &principal, "my-workspace", "my-project").await;
 
         assert!(result.is_ok());
         let project = result.unwrap();
@@ -360,8 +358,7 @@ mod tests {
             .returning(|_| Err(Status::not_found("Project not found")));
 
         let principal = create_test_principal();
-        let result =
-            project_get_inner(&mut mock, &principal, "my-workspace", "nonexistent").await;
+        let result = project_get_inner(&mut mock, &principal, "my-workspace", "nonexistent").await;
 
         assert!(result.is_err());
     }
@@ -374,8 +371,7 @@ mod tests {
             .returning(|_| Err(Status::permission_denied("Not authorized")));
 
         let principal = create_test_principal();
-        let result =
-            project_get_inner(&mut mock, &principal, "my-workspace", "my-project").await;
+        let result = project_get_inner(&mut mock, &principal, "my-workspace", "my-project").await;
 
         assert!(result.is_err());
     }
