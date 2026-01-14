@@ -2023,8 +2023,8 @@ mod handler_tests {
         );
 
         let response = server.list_audit_logs(request).await.unwrap().into_inner();
-        // May or may not have entries depending on what actions were taken
-        assert!(response.entries.len() >= 0);
+        // Response received successfully - entries may or may not exist
+        let _ = response.entries;
     }
 
     #[tokio::test]
@@ -2053,7 +2053,8 @@ mod handler_tests {
         );
 
         let response = server.count_audit_logs(request).await.unwrap().into_inner();
-        assert!(response.count >= 0);
+        // Response received successfully
+        let _ = response.count;
     }
 
     // ================== Principal Permission Handler Tests ==================
@@ -4531,7 +4532,8 @@ mod handler_tests {
         );
 
         let response = server.count_audit_logs(request).await.unwrap().into_inner();
-        assert!(response.count >= 0);
+        // Response received successfully
+        let _ = response.count;
     }
 
     #[tokio::test]
