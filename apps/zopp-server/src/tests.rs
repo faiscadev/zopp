@@ -6256,4 +6256,99 @@ mod handler_tests {
         assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
     }
 
+    // ================== Login Handler Tests ==================
+
+    // Note: handler_login_success is hard to test because the login handler
+    // includes the signature in the request body hash, creating a circular dependency.
+    // This is tested via E2E tests instead.
+
+    #[tokio::test]
+    async fn handler_login_user_not_found() {
+        let server = create_test_server().await;
+
+        let req = zopp_proto::LoginRequest {
+            email: "nonexistent@example.com".to_string(),
+            principal_name: "laptop".to_string(),
+            timestamp: chrono::Utc::now().timestamp(),
+            signature: vec![0u8; 64],
+        };
+
+        let request = tonic::Request::new(req);
+        let result = server.login(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn handler_login_principal_not_found() {
+        let server = create_test_server().await;
+        let (_user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "test@example.com", "laptop").await;
+
+        let req = zopp_proto::LoginRequest {
+            email: "test@example.com".to_string(),
+            principal_name: "nonexistent-device".to_string(),
+            timestamp: chrono::Utc::now().timestamp(),
+            signature: vec![0u8; 64],
+        };
+
+        let request = tonic::Request::new(req);
+        let result = server.login(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    // ================== Join Handler Edge Cases ==================
+
+    #[tokio::test]
+    async fn handler_join_invalid_token() {
+        let server = create_test_server().await;
+
+        // Try to join with a completely invalid token
+        let req = zopp_proto::JoinRequest {
+            invite_token: "invalid-token-that-does-not-exist".to_string(),
+            email: "newuser@example.com".to_string(),
+            principal_name: "laptop".to_string(),
+            public_key: vec![1u8; 32],
+            x25519_public_key: vec![2u8; 32],
+            ephemeral_pub: vec![],
+            kek_wrapped: vec![],
+            kek_nonce: vec![],
+        };
+
+        let request = tonic::Request::new(req);
+        let result = server.join(request).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    // ================== Register Handler Edge Cases ==================
+
+    #[tokio::test]
+    async fn handler_register_service_principal_without_auth() {
+        let server = create_test_server().await;
+        let (user_id, _principal_id, _signing_key) =
+            create_test_user(&server, "owner@example.com", "laptop").await;
+
+        let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+        // Try to register a service principal without authentication
+        let req = zopp_proto::RegisterRequest {
+            email: String::new(),
+            principal_name: "my-service".to_string(),
+            public_key: vec![1u8; 32],
+            x25519_public_key: vec![2u8; 32],
+            is_service: true,
+            workspace_name: Some("ws".to_string()),
+            ephemeral_pub: None,
+            kek_wrapped: None,
+            kek_nonce: None,
+        };
+
+        let request = tonic::Request::new(req);
+        let result = server.register(request).await;
+        // Should fail because no authentication metadata
+        assert!(result.is_err());
+    }
+
 }
