@@ -231,11 +231,8 @@ mod tests {
         let result = resolve_workspace(None);
         // Either succeeds (if zopp.toml exists in the directory tree) or fails
         // In a clean test environment, it should fail
-        if result.is_err() {
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("workspace not specified"));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("workspace not specified"));
         }
     }
 
