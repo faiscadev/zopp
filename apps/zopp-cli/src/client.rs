@@ -11,10 +11,10 @@ use zopp_proto::{
     CreateWorkspaceRequest, DeleteEnvironmentRequest, DeleteGroupRequest, DeleteProjectRequest,
     DeleteSecretRequest, Empty, Environment, EnvironmentList, GetAuditLogRequest,
     GetEnvironmentRequest, GetInviteRequest, GetPrincipalRequest, GetProjectRequest,
-    GetSecretRequest, GetWorkspaceKeysRequest, Group, GroupList, InviteToken, ListAuditLogsRequest,
-    ListEnvironmentsRequest, ListGroupsRequest, ListProjectsRequest, ListSecretsRequest, Principal,
-    Project, ProjectList, Secret, SecretList, UpsertSecretRequest, Workspace, WorkspaceKeys,
-    WorkspaceList,
+    GetSecretRequest, GetWorkspaceKeysRequest, Group, GroupList, InviteList, InviteToken,
+    ListAuditLogsRequest, ListEnvironmentsRequest, ListGroupsRequest, ListProjectsRequest,
+    ListSecretsRequest, Principal, Project, ProjectList, RevokeInviteRequest, Secret, SecretList,
+    UpsertSecretRequest, Workspace, WorkspaceKeys, WorkspaceList,
 };
 
 #[cfg(test)]
@@ -138,6 +138,16 @@ pub trait InviteClient: Send + Sync {
         &mut self,
         request: Request<GetInviteRequest>,
     ) -> Result<Response<InviteToken>, Status>;
+
+    async fn list_invites(
+        &mut self,
+        request: Request<Empty>,
+    ) -> Result<Response<InviteList>, Status>;
+
+    async fn revoke_invite(
+        &mut self,
+        request: Request<RevokeInviteRequest>,
+    ) -> Result<Response<Empty>, Status>;
 }
 
 /// Trait for group-related operations.
@@ -325,6 +335,20 @@ impl InviteClient for ZoppServiceClient<Channel> {
         request: Request<GetInviteRequest>,
     ) -> Result<Response<InviteToken>, Status> {
         self.get_invite(request).await
+    }
+
+    async fn list_invites(
+        &mut self,
+        request: Request<Empty>,
+    ) -> Result<Response<InviteList>, Status> {
+        self.list_invites(request).await
+    }
+
+    async fn revoke_invite(
+        &mut self,
+        request: Request<RevokeInviteRequest>,
+    ) -> Result<Response<Empty>, Status> {
+        self.revoke_invite(request).await
     }
 }
 
