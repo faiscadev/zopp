@@ -13,8 +13,9 @@ use zopp_proto::{
     GetEnvironmentRequest, GetInviteRequest, GetPrincipalRequest, GetProjectRequest,
     GetSecretRequest, GetWorkspaceKeysRequest, Group, GroupList, InviteList, InviteToken,
     ListAuditLogsRequest, ListEnvironmentsRequest, ListGroupsRequest, ListProjectsRequest,
-    ListSecretsRequest, Principal, Project, ProjectList, RevokeInviteRequest, Secret, SecretList,
-    UpsertSecretRequest, Workspace, WorkspaceKeys, WorkspaceList,
+    ListSecretsRequest, ListWorkspacePermissionsRequest, PermissionList, Principal, Project,
+    ProjectList, RevokeInviteRequest, Secret, SecretList, UpsertSecretRequest, Workspace,
+    WorkspaceKeys, WorkspaceList,
 };
 
 #[cfg(test)]
@@ -188,6 +189,16 @@ pub trait AuditClient: Send + Sync {
         &mut self,
         request: Request<CountAuditLogsRequest>,
     ) -> Result<Response<CountAuditLogsResponse>, Status>;
+}
+
+/// Trait for permission-related operations.
+#[cfg_attr(test, automock)]
+#[async_trait]
+pub trait PermissionClient: Send + Sync {
+    async fn list_workspace_permissions(
+        &mut self,
+        request: Request<ListWorkspacePermissionsRequest>,
+    ) -> Result<Response<PermissionList>, Status>;
 }
 
 // Implementation for the real gRPC client
@@ -397,6 +408,16 @@ impl AuditClient for ZoppServiceClient<Channel> {
         request: Request<CountAuditLogsRequest>,
     ) -> Result<Response<CountAuditLogsResponse>, Status> {
         self.count_audit_logs(request).await
+    }
+}
+
+#[async_trait]
+impl PermissionClient for ZoppServiceClient<Channel> {
+    async fn list_workspace_permissions(
+        &mut self,
+        request: Request<ListWorkspacePermissionsRequest>,
+    ) -> Result<Response<PermissionList>, Status> {
+        self.list_workspace_permissions(request).await
     }
 }
 

@@ -7,6 +7,81 @@ use zopp_proto::{
     RenamePrincipalRequest, RevokeAllPrincipalPermissionsRequest, Role,
 };
 
+/// Validate create principal arguments
+pub fn validate_create_args(
+    is_service: bool,
+    workspace: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if is_service && workspace.is_none() {
+        return Err("Service principals require --workspace flag".into());
+    }
+    if !is_service && workspace.is_some() {
+        return Err("--workspace flag is only valid with --service".into());
+    }
+    Ok(())
+}
+
+/// Check if a principal with the given name already exists
+pub fn principal_exists(principals: &[PrincipalConfig], name: &str) -> bool {
+    principals.iter().any(|p| p.name == name)
+}
+
+/// Find principal by name in the list
+pub fn find_principal_by_name<'a>(
+    principals: &'a [PrincipalConfig],
+    name: &str,
+) -> Option<&'a PrincipalConfig> {
+    principals.iter().find(|p| p.name == name)
+}
+
+/// Validate rename principal arguments
+pub fn validate_rename_args(
+    principals: &[PrincipalConfig],
+    old_name: &str,
+    new_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if !principal_exists(principals, old_name) {
+        return Err(format!("Principal '{}' not found", old_name).into());
+    }
+    if principal_exists(principals, new_name) {
+        return Err(format!("Principal '{}' already exists", new_name).into());
+    }
+    Ok(())
+}
+
+/// Validate that we can delete a principal (must have more than one)
+pub fn validate_delete_args(
+    principals: &[PrincipalConfig],
+    name: &str,
+) -> Result<usize, Box<dyn std::error::Error>> {
+    if principals.len() == 1 {
+        return Err("Cannot delete the only principal".into());
+    }
+    principals
+        .iter()
+        .position(|p| p.name == name)
+        .ok_or_else(|| format!("Principal '{}' not found", name).into())
+}
+
+/// Convert Role enum to display string
+pub fn role_to_display_string(role: i32) -> &'static str {
+    match Role::try_from(role) {
+        Ok(Role::Admin) => "admin",
+        Ok(Role::Write) => "write",
+        Ok(Role::Read) => "read",
+        _ => "unknown",
+    }
+}
+
+/// Get the current principal marker (* for current, space otherwise)
+pub fn get_principal_marker(principal_name: &str, current: Option<&str>) -> &'static str {
+    if Some(principal_name) == current {
+        "*"
+    } else {
+        " "
+    }
+}
+
 pub async fn cmd_principal_list() -> Result<(), Box<dyn std::error::Error>> {
     let config = load_config()?;
     let current = config
@@ -433,4 +508,231 @@ pub async fn cmd_principal_revoke_all(
         response.permissions_revoked, principal_id, workspace
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_principal(name: &str, id: &str) -> PrincipalConfig {
+        PrincipalConfig {
+            id: id.to_string(),
+            name: name.to_string(),
+            private_key: "0".repeat(64),
+            public_key: "1".repeat(64),
+            x25519_private_key: Some("2".repeat(64)),
+            x25519_public_key: Some("3".repeat(64)),
+        }
+    }
+
+    fn create_test_principals() -> Vec<PrincipalConfig> {
+        vec![
+            create_test_principal("laptop", "principal-1"),
+            create_test_principal("desktop", "principal-2"),
+        ]
+    }
+
+    // validate_create_args tests
+    #[test]
+    fn test_validate_create_args_service_with_workspace() {
+        let result = validate_create_args(true, Some("my-workspace"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_create_args_device_without_workspace() {
+        let result = validate_create_args(false, None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_create_args_service_without_workspace() {
+        let result = validate_create_args(true, None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("require --workspace"));
+    }
+
+    #[test]
+    fn test_validate_create_args_device_with_workspace() {
+        let result = validate_create_args(false, Some("my-workspace"));
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("only valid with --service"));
+    }
+
+    // principal_exists tests
+    #[test]
+    fn test_principal_exists_found() {
+        let principals = create_test_principals();
+        assert!(principal_exists(&principals, "laptop"));
+        assert!(principal_exists(&principals, "desktop"));
+    }
+
+    #[test]
+    fn test_principal_exists_not_found() {
+        let principals = create_test_principals();
+        assert!(!principal_exists(&principals, "phone"));
+        assert!(!principal_exists(&principals, ""));
+    }
+
+    #[test]
+    fn test_principal_exists_empty_list() {
+        let principals: Vec<PrincipalConfig> = vec![];
+        assert!(!principal_exists(&principals, "laptop"));
+    }
+
+    #[test]
+    fn test_principal_exists_case_sensitive() {
+        let principals = create_test_principals();
+        assert!(!principal_exists(&principals, "Laptop"));
+        assert!(!principal_exists(&principals, "LAPTOP"));
+    }
+
+    // find_principal_by_name tests
+    #[test]
+    fn test_find_principal_by_name_found() {
+        let principals = create_test_principals();
+        let result = find_principal_by_name(&principals, "laptop");
+        assert!(result.is_some());
+        let principal = result.unwrap();
+        assert_eq!(principal.name, "laptop");
+        assert_eq!(principal.id, "principal-1");
+    }
+
+    #[test]
+    fn test_find_principal_by_name_not_found() {
+        let principals = create_test_principals();
+        let result = find_principal_by_name(&principals, "phone");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_principal_by_name_empty_list() {
+        let principals: Vec<PrincipalConfig> = vec![];
+        let result = find_principal_by_name(&principals, "laptop");
+        assert!(result.is_none());
+    }
+
+    // validate_rename_args tests
+    #[test]
+    fn test_validate_rename_args_success() {
+        let principals = create_test_principals();
+        let result = validate_rename_args(&principals, "laptop", "new-laptop");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_rename_args_old_name_not_found() {
+        let principals = create_test_principals();
+        let result = validate_rename_args(&principals, "phone", "new-phone");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_validate_rename_args_new_name_exists() {
+        let principals = create_test_principals();
+        let result = validate_rename_args(&principals, "laptop", "desktop");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already exists"));
+    }
+
+    #[test]
+    fn test_validate_rename_args_same_name() {
+        let principals = create_test_principals();
+        // This should fail because "laptop" already exists
+        let result = validate_rename_args(&principals, "laptop", "laptop");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already exists"));
+    }
+
+    // validate_delete_args tests
+    #[test]
+    fn test_validate_delete_args_success() {
+        let principals = create_test_principals();
+        let result = validate_delete_args(&principals, "laptop");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0);
+    }
+
+    #[test]
+    fn test_validate_delete_args_returns_correct_index() {
+        let principals = create_test_principals();
+        let result = validate_delete_args(&principals, "desktop");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+    }
+
+    #[test]
+    fn test_validate_delete_args_only_principal() {
+        let principals = vec![create_test_principal("only-one", "principal-1")];
+        let result = validate_delete_args(&principals, "only-one");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("only principal"));
+    }
+
+    #[test]
+    fn test_validate_delete_args_not_found() {
+        let principals = create_test_principals();
+        let result = validate_delete_args(&principals, "phone");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    // role_to_display_string tests
+    #[test]
+    fn test_role_to_display_string_admin() {
+        assert_eq!(role_to_display_string(Role::Admin as i32), "admin");
+    }
+
+    #[test]
+    fn test_role_to_display_string_write() {
+        assert_eq!(role_to_display_string(Role::Write as i32), "write");
+    }
+
+    #[test]
+    fn test_role_to_display_string_read() {
+        assert_eq!(role_to_display_string(Role::Read as i32), "read");
+    }
+
+    #[test]
+    fn test_role_to_display_string_unknown() {
+        assert_eq!(role_to_display_string(999), "unknown");
+    }
+
+    #[test]
+    fn test_role_to_display_string_negative() {
+        assert_eq!(role_to_display_string(-1), "unknown");
+    }
+
+    // get_principal_marker tests
+    #[test]
+    fn test_get_principal_marker_is_current() {
+        assert_eq!(get_principal_marker("laptop", Some("laptop")), "*");
+    }
+
+    #[test]
+    fn test_get_principal_marker_not_current() {
+        assert_eq!(get_principal_marker("laptop", Some("desktop")), " ");
+    }
+
+    #[test]
+    fn test_get_principal_marker_no_current() {
+        assert_eq!(get_principal_marker("laptop", None), " ");
+    }
+
+    #[test]
+    fn test_get_principal_marker_empty_current() {
+        assert_eq!(get_principal_marker("laptop", Some("")), " ");
+    }
+
+    #[test]
+    fn test_get_principal_marker_empty_name_matches_empty_current() {
+        assert_eq!(get_principal_marker("", Some("")), "*");
+    }
 }

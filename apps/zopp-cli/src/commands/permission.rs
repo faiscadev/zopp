@@ -1,11 +1,90 @@
+//! Permission commands: set, get, list, remove for workspace/project/environment
+
+use crate::config::PrincipalConfig;
 use crate::grpc::{add_auth_metadata, setup_client};
+
+#[cfg(test)]
+use crate::client::MockPermissionClient;
+
 use zopp_proto::{
     GetEffectivePermissionsRequest, GetUserWorkspacePermissionRequest,
     GetWorkspacePermissionRequest, ListUserWorkspacePermissionsRequest,
-    ListWorkspacePermissionsRequest, RemoveUserWorkspacePermissionRequest,
+    ListWorkspacePermissionsRequest, PermissionList, RemoveUserWorkspacePermissionRequest,
     RemoveWorkspacePermissionRequest, Role, SetUserWorkspacePermissionRequest,
-    SetWorkspacePermissionRequest,
+    SetWorkspacePermissionRequest, UserPermissionList,
 };
+
+#[cfg(test)]
+use zopp_proto::{Permission, UserPermission};
+
+/// Parse a role string into a Role enum value.
+pub fn parse_role(role: &str) -> Result<i32, Box<dyn std::error::Error>> {
+    match role.to_lowercase().as_str() {
+        "admin" => Ok(Role::Admin as i32),
+        "write" => Ok(Role::Write as i32),
+        "read" => Ok(Role::Read as i32),
+        _ => Err("Invalid role: must be admin, write, or read".into()),
+    }
+}
+
+/// Convert a Role integer to a string for display.
+pub fn role_to_string(role: i32) -> &'static str {
+    match Role::try_from(role) {
+        Ok(Role::Admin) => "admin",
+        Ok(Role::Write) => "write",
+        Ok(Role::Read) => "read",
+        _ => "unknown",
+    }
+}
+
+/// Inner implementation for list workspace permissions.
+pub async fn permission_list_inner<C>(
+    client: &mut C,
+    principal: &PrincipalConfig,
+    workspace_name: &str,
+) -> Result<PermissionList, Box<dyn std::error::Error>>
+where
+    C: crate::client::PermissionClient,
+{
+    let mut request = tonic::Request::new(ListWorkspacePermissionsRequest {
+        workspace_name: workspace_name.to_string(),
+    });
+    add_auth_metadata(
+        &mut request,
+        principal,
+        "/zopp.ZoppService/ListWorkspacePermissions",
+    )?;
+
+    let response = client
+        .list_workspace_permissions(request)
+        .await?
+        .into_inner();
+    Ok(response)
+}
+
+/// Print permission list results.
+pub fn print_permission_list(workspace: &str, permissions: &PermissionList) {
+    if permissions.permissions.is_empty() {
+        println!("No permissions found on workspace {}", workspace);
+    } else {
+        println!("Permissions on workspace {}:", workspace);
+        for perm in &permissions.permissions {
+            println!("  {} - {}", perm.principal_id, role_to_string(perm.role));
+        }
+    }
+}
+
+/// Print user permission list results.
+pub fn print_user_permission_list(scope: &str, permissions: &UserPermissionList) {
+    if permissions.permissions.is_empty() {
+        println!("No user permissions found on {}", scope);
+    } else {
+        println!("User permissions on {}:", scope);
+        for perm in &permissions.permissions {
+            println!("  {} - {}", perm.user_email, role_to_string(perm.role));
+        }
+    }
+}
 
 pub async fn cmd_permission_set(
     server: &str,
@@ -1003,4 +1082,206 @@ pub async fn cmd_permission_effective(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tonic::{Response, Status};
+
+    fn create_test_principal() -> PrincipalConfig {
+        PrincipalConfig {
+            id: "test-principal-id".to_string(),
+            name: "test-principal".to_string(),
+            private_key: "0".repeat(64),
+            public_key: "1".repeat(64),
+            x25519_private_key: Some("2".repeat(64)),
+            x25519_public_key: Some("3".repeat(64)),
+        }
+    }
+
+    #[test]
+    fn test_parse_role_admin() {
+        let result = parse_role("admin");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Role::Admin as i32);
+    }
+
+    #[test]
+    fn test_parse_role_write() {
+        let result = parse_role("write");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Role::Write as i32);
+    }
+
+    #[test]
+    fn test_parse_role_read() {
+        let result = parse_role("read");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Role::Read as i32);
+    }
+
+    #[test]
+    fn test_parse_role_case_insensitive() {
+        assert!(parse_role("ADMIN").is_ok());
+        assert!(parse_role("Admin").is_ok());
+        assert!(parse_role("WRITE").is_ok());
+        assert!(parse_role("Write").is_ok());
+        assert!(parse_role("READ").is_ok());
+        assert!(parse_role("Read").is_ok());
+    }
+
+    #[test]
+    fn test_parse_role_invalid() {
+        let result = parse_role("invalid");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid role"));
+    }
+
+    #[test]
+    fn test_role_to_string_admin() {
+        assert_eq!(role_to_string(Role::Admin as i32), "admin");
+    }
+
+    #[test]
+    fn test_role_to_string_write() {
+        assert_eq!(role_to_string(Role::Write as i32), "write");
+    }
+
+    #[test]
+    fn test_role_to_string_read() {
+        assert_eq!(role_to_string(Role::Read as i32), "read");
+    }
+
+    #[test]
+    fn test_role_to_string_unknown() {
+        assert_eq!(role_to_string(999), "unknown");
+    }
+
+    #[tokio::test]
+    async fn test_permission_list_inner_success() {
+        let mut mock = MockPermissionClient::new();
+
+        mock.expect_list_workspace_permissions().returning(|_| {
+            Ok(Response::new(PermissionList {
+                permissions: vec![
+                    Permission {
+                        principal_id: "principal-1".to_string(),
+                        principal_name: "Principal One".to_string(),
+                        role: Role::Admin as i32,
+                    },
+                    Permission {
+                        principal_id: "principal-2".to_string(),
+                        principal_name: "Principal Two".to_string(),
+                        role: Role::Read as i32,
+                    },
+                ],
+            }))
+        });
+
+        let principal = create_test_principal();
+        let result = permission_list_inner(&mut mock, &principal, "my-workspace").await;
+
+        assert!(result.is_ok());
+        let permissions = result.unwrap();
+        assert_eq!(permissions.permissions.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_permission_list_inner_empty() {
+        let mut mock = MockPermissionClient::new();
+
+        mock.expect_list_workspace_permissions().returning(|_| {
+            Ok(Response::new(PermissionList {
+                permissions: vec![],
+            }))
+        });
+
+        let principal = create_test_principal();
+        let result = permission_list_inner(&mut mock, &principal, "my-workspace").await;
+
+        assert!(result.is_ok());
+        let permissions = result.unwrap();
+        assert!(permissions.permissions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_permission_list_inner_permission_denied() {
+        let mut mock = MockPermissionClient::new();
+
+        mock.expect_list_workspace_permissions()
+            .returning(|_| Err(Status::permission_denied("Not authorized")));
+
+        let principal = create_test_principal();
+        let result = permission_list_inner(&mut mock, &principal, "my-workspace").await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_permission_list_inner_not_found() {
+        let mut mock = MockPermissionClient::new();
+
+        mock.expect_list_workspace_permissions()
+            .returning(|_| Err(Status::not_found("Workspace not found")));
+
+        let principal = create_test_principal();
+        let result = permission_list_inner(&mut mock, &principal, "nonexistent").await;
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_print_permission_list_empty() {
+        let permissions = PermissionList {
+            permissions: vec![],
+        };
+        print_permission_list("my-workspace", &permissions);
+    }
+
+    #[test]
+    fn test_print_permission_list_with_items() {
+        let permissions = PermissionList {
+            permissions: vec![
+                Permission {
+                    principal_id: "p1".to_string(),
+                    principal_name: "Principal 1".to_string(),
+                    role: Role::Admin as i32,
+                },
+                Permission {
+                    principal_id: "p2".to_string(),
+                    principal_name: "Principal 2".to_string(),
+                    role: Role::Write as i32,
+                },
+            ],
+        };
+        print_permission_list("my-workspace", &permissions);
+    }
+
+    #[test]
+    fn test_print_user_permission_list_empty() {
+        let permissions = UserPermissionList {
+            permissions: vec![],
+        };
+        print_user_permission_list("my-workspace", &permissions);
+    }
+
+    #[test]
+    fn test_print_user_permission_list_with_items() {
+        let permissions = UserPermissionList {
+            permissions: vec![
+                UserPermission {
+                    user_id: "u1".to_string(),
+                    user_email: "user1@example.com".to_string(),
+                    role: Role::Admin as i32,
+                },
+                UserPermission {
+                    user_id: "u2".to_string(),
+                    user_email: "user2@example.com".to_string(),
+                    role: Role::Read as i32,
+                },
+            ],
+        };
+        print_user_permission_list("my-workspace", &permissions);
+    }
 }
