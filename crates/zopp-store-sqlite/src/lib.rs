@@ -6,12 +6,12 @@ use zopp_audit::{
     AuditAction, AuditEvent, AuditLog, AuditLogError, AuditLogFilter, AuditLogId, AuditResult,
 };
 use zopp_storage::{
-    AddWorkspacePrincipalParams, CreateEnvParams, CreateInviteParams, CreatePrincipalParams,
-    CreateProjectParams, CreateUserParams, CreateWorkspaceParams, EnvName, Environment,
-    EnvironmentId, EnvironmentPermission, Invite, InviteId, Principal, PrincipalId, ProjectName,
-    ProjectPermission, Role, SecretRow, Store, StoreError, User, UserEnvironmentPermission, UserId,
-    UserProjectPermission, UserWorkspacePermission, Workspace, WorkspaceId, WorkspacePermission,
-    WorkspacePrincipal,
+    AddWorkspacePrincipalParams, CreateEnvParams, CreateInviteParams, CreatePrincipalExportParams,
+    CreatePrincipalParams, CreateProjectParams, CreateUserParams, CreateWorkspaceParams, EnvName,
+    Environment, EnvironmentId, EnvironmentPermission, Invite, InviteId, Principal, PrincipalExport,
+    PrincipalExportId, PrincipalId, ProjectName, ProjectPermission, Role, SecretRow, Store,
+    StoreError, User, UserEnvironmentPermission, UserId, UserProjectPermission,
+    UserWorkspacePermission, Workspace, WorkspaceId, WorkspacePermission, WorkspacePrincipal,
 };
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
@@ -550,6 +550,113 @@ impl Store for SqliteStore {
             .execute(&self.pool)
             .await
             .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            Err(StoreError::NotFound)
+        } else {
+            Ok(())
+        }
+    }
+
+    // ───────────────────────────── Principal Exports ──────────────────────────
+
+    async fn create_principal_export(
+        &self,
+        params: &CreatePrincipalExportParams,
+    ) -> Result<PrincipalExport, StoreError> {
+        let export_id = uuid::Uuid::now_v7();
+        let export_id_str = export_id.to_string();
+        let user_id_str = params.user_id.0.to_string();
+        let principal_id_str = params.principal_id.0.to_string();
+
+        let row = sqlx::query!(
+            r#"INSERT INTO principal_exports(id, token_hash, user_id, principal_id, encrypted_data, salt, nonce, expires_at)
+               VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+               RETURNING created_at as "created_at: DateTime<Utc>""#,
+            export_id_str,
+            params.token_hash,
+            user_id_str,
+            principal_id_str,
+            params.encrypted_data,
+            params.salt,
+            params.nonce,
+            params.expires_at
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        Ok(PrincipalExport {
+            id: PrincipalExportId(export_id),
+            token_hash: params.token_hash.clone(),
+            user_id: params.user_id.clone(),
+            principal_id: params.principal_id.clone(),
+            encrypted_data: params.encrypted_data.clone(),
+            salt: params.salt.clone(),
+            nonce: params.nonce.clone(),
+            expires_at: params.expires_at,
+            created_at: row.created_at,
+            consumed: false,
+        })
+    }
+
+    async fn get_principal_export_by_token(
+        &self,
+        token_hash: &str,
+    ) -> Result<PrincipalExport, StoreError> {
+        let row = sqlx::query!(
+            r#"SELECT id as "id!", token_hash as "token_hash!", user_id as "user_id!",
+               principal_id as "principal_id!", encrypted_data as "encrypted_data!",
+               salt as "salt!", nonce as "nonce!",
+               expires_at as "expires_at!: DateTime<Utc>",
+               created_at as "created_at!: DateTime<Utc>",
+               consumed as "consumed!"
+               FROM principal_exports
+               WHERE token_hash = ? AND consumed = 0 AND expires_at > CURRENT_TIMESTAMP"#,
+            token_hash
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+        match row {
+            None => Err(StoreError::NotFound),
+            Some(row) => {
+                let id =
+                    Uuid::try_parse(&row.id).map_err(|e| StoreError::Backend(e.to_string()))?;
+                let user_id = Uuid::try_parse(&row.user_id)
+                    .map_err(|e| StoreError::Backend(e.to_string()))?;
+                let principal_id = Uuid::try_parse(&row.principal_id)
+                    .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+                Ok(PrincipalExport {
+                    id: PrincipalExportId(id),
+                    token_hash: row.token_hash,
+                    user_id: UserId(user_id),
+                    principal_id: PrincipalId(principal_id),
+                    encrypted_data: row.encrypted_data,
+                    salt: row.salt,
+                    nonce: row.nonce,
+                    expires_at: row.expires_at,
+                    created_at: row.created_at,
+                    consumed: row.consumed,
+                })
+            }
+        }
+    }
+
+    async fn consume_principal_export(
+        &self,
+        export_id: &PrincipalExportId,
+    ) -> Result<(), StoreError> {
+        let export_id_str = export_id.0.to_string();
+        let result = sqlx::query!(
+            "UPDATE principal_exports SET consumed = 1 WHERE id = ? AND consumed = 0",
+            export_id_str
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
 
         if result.rows_affected() == 0 {
             Err(StoreError::NotFound)

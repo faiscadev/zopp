@@ -49,6 +49,9 @@ pub struct EnvName(pub String);
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct GroupId(pub Uuid);
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PrincipalExportId(pub Uuid);
+
 /// Role for RBAC permissions
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Role {
@@ -376,6 +379,33 @@ pub struct Environment {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Principal export record for multi-device transfer
+#[derive(Clone, Debug)]
+pub struct PrincipalExport {
+    pub id: PrincipalExportId,
+    pub token_hash: String,       // SHA256(secret), used for lookup
+    pub user_id: UserId,
+    pub principal_id: PrincipalId,
+    pub encrypted_data: Vec<u8>,  // Encrypted principal JSON
+    pub salt: Vec<u8>,            // Argon2id salt
+    pub nonce: Vec<u8>,           // XChaCha20-Poly1305 nonce
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub consumed: bool,
+}
+
+/// Parameters for creating a principal export
+#[derive(Clone, Debug)]
+pub struct CreatePrincipalExportParams {
+    pub token_hash: String,       // SHA256(secret), used for lookup
+    pub user_id: UserId,
+    pub principal_id: PrincipalId,
+    pub encrypted_data: Vec<u8>,  // Encrypted principal JSON
+    pub salt: Vec<u8>,            // Argon2id salt
+    pub nonce: Vec<u8>,           // XChaCha20-Poly1305 nonce
+    pub expires_at: DateTime<Utc>,
+}
+
 /// The storage trait `zopp-core` depends on.
 ///
 /// All methods that act on project/env/secrets are **scoped by workspace**.
@@ -431,6 +461,26 @@ pub trait Store: Send + Sync {
 
     /// Revoke an invite.
     async fn revoke_invite(&self, invite_id: &InviteId) -> Result<(), StoreError>;
+
+    // ───────────────────────────────────── Principal Exports ──────────────────────────────
+
+    /// Create a principal export for multi-device transfer.
+    async fn create_principal_export(
+        &self,
+        params: &CreatePrincipalExportParams,
+    ) -> Result<PrincipalExport, StoreError>;
+
+    /// Get principal export by token hash.
+    async fn get_principal_export_by_token(
+        &self,
+        token_hash: &str,
+    ) -> Result<PrincipalExport, StoreError>;
+
+    /// Mark a principal export as consumed (can only be used once).
+    async fn consume_principal_export(
+        &self,
+        export_id: &PrincipalExportId,
+    ) -> Result<(), StoreError>;
 
     // ───────────────────────────────────── Workspaces ─────────────────────────────────────
 
@@ -985,6 +1035,38 @@ mod tests {
         }
 
         async fn revoke_invite(&self, _invite_id: &InviteId) -> Result<(), StoreError> {
+            Ok(())
+        }
+
+        async fn create_principal_export(
+            &self,
+            params: &CreatePrincipalExportParams,
+        ) -> Result<PrincipalExport, StoreError> {
+            Ok(PrincipalExport {
+                id: PrincipalExportId(Uuid::new_v4()),
+                token_hash: params.token_hash.clone(),
+                user_id: params.user_id.clone(),
+                principal_id: params.principal_id.clone(),
+                encrypted_data: params.encrypted_data.clone(),
+                salt: params.salt.clone(),
+                nonce: params.nonce.clone(),
+                expires_at: params.expires_at,
+                created_at: Utc::now(),
+                consumed: false,
+            })
+        }
+
+        async fn get_principal_export_by_token(
+            &self,
+            _token_hash: &str,
+        ) -> Result<PrincipalExport, StoreError> {
+            Err(StoreError::NotFound)
+        }
+
+        async fn consume_principal_export(
+            &self,
+            _export_id: &PrincipalExportId,
+        ) -> Result<(), StoreError> {
             Ok(())
         }
 
