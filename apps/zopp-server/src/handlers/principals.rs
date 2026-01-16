@@ -12,8 +12,7 @@ use zopp_proto::{
     ConsumePrincipalExportRequest, CreatePrincipalExportRequest, CreatePrincipalExportResponse,
     EffectivePermissionsResponse, Empty, GetEffectivePermissionsRequest, GetPrincipalExportRequest,
     GetPrincipalExportResponse, GetPrincipalRequest, ListWorkspaceServicePrincipalsRequest,
-    PrincipalList, RecordExportFailedAttemptRequest, RecordExportFailedAttemptResponse,
-    RemovePrincipalFromWorkspaceRequest, RenamePrincipalRequest,
+    PrincipalList, RemovePrincipalFromWorkspaceRequest, RenamePrincipalRequest,
     RevokeAllPrincipalPermissionsRequest, RevokeAllPrincipalPermissionsResponse,
     ServicePrincipalList,
 };
@@ -776,44 +775,14 @@ pub async fn consume_principal_export(
 }
 
 /// Record a failed passphrase attempt for an export.
-/// After 3 failed attempts, the export is automatically deleted (self-destruct).
+/// NOTE: This endpoint is deprecated - failed attempts are now tracked internally
+/// in get_principal_export. This endpoint is kept for proto compatibility but
+/// always returns UNIMPLEMENTED.
 pub async fn record_export_failed_attempt(
-    server: &ZoppServer,
-    request: Request<RecordExportFailedAttemptRequest>,
-) -> Result<Response<RecordExportFailedAttemptResponse>, Status> {
-    let req = request.into_inner();
-
-    let export_id = uuid::Uuid::try_parse(&req.export_id)
-        .map_err(|_| Status::invalid_argument("Invalid export ID"))?;
-
-    let export_id = zopp_storage::PrincipalExportId(export_id);
-
-    // Increment failed attempts
-    let failed_attempts = server
-        .store
-        .increment_export_failed_attempts(&export_id)
-        .await
-        .map_err(|e| match e {
-            zopp_storage::StoreError::NotFound => Status::not_found("Export not found"),
-            _ => Status::internal(format!("Failed to record failed attempt: {}", e)),
-        })?;
-
-    // Self-destruct after max failed attempts
-    if failed_attempts >= MAX_FAILED_ATTEMPTS {
-        server
-            .store
-            .delete_principal_export(&export_id)
-            .await
-            .map_err(|e| Status::internal(format!("Failed to delete export: {}", e)))?;
-
-        return Ok(Response::new(RecordExportFailedAttemptResponse {
-            deleted: true,
-            remaining_attempts: 0,
-        }));
-    }
-
-    Ok(Response::new(RecordExportFailedAttemptResponse {
-        deleted: false,
-        remaining_attempts: MAX_FAILED_ATTEMPTS - failed_attempts,
-    }))
+    _server: &ZoppServer,
+    _request: Request<zopp_proto::RecordExportFailedAttemptRequest>,
+) -> Result<Response<zopp_proto::RecordExportFailedAttemptResponse>, Status> {
+    Err(Status::unimplemented(
+        "Failed attempts are tracked internally - use GetPrincipalExport instead",
+    ))
 }
