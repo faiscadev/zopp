@@ -219,10 +219,11 @@ The passphrase provides approximately 77 bits of entropy (6 words from a 7776-wo
 :::
 
 :::info Security
-- The export is encrypted with a key derived from the passphrase using Argon2id
-- The server only stores the encrypted data and a hash of the passphrase (for lookup)
-- The server cannot decrypt your principal data
+- The export is encrypted with a key derived from the passphrase using Argon2id (64 MiB, 3 iterations)
+- The export code (e.g., `exp_a7k9m2x4`) is used for lookup; the passphrase hash is used for server-side verification
+- The server cannot decrypt your principal data without the passphrase
 - Each export can only be retrieved once (consumed on import)
+- Exports self-destruct after 3 failed passphrase attempts
 :::
 
 ---
