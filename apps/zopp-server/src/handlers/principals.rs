@@ -773,16 +773,3 @@ pub async fn consume_principal_export(
 
     Ok(Response::new(Empty {}))
 }
-
-/// Record a failed passphrase attempt for an export.
-/// NOTE: This endpoint is deprecated - failed attempts are now tracked internally
-/// in get_principal_export. This endpoint is kept for proto compatibility but
-/// always returns UNIMPLEMENTED.
-pub async fn record_export_failed_attempt(
-    _server: &ZoppServer,
-    _request: Request<zopp_proto::RecordExportFailedAttemptRequest>,
-) -> Result<Response<zopp_proto::RecordExportFailedAttemptResponse>, Status> {
-    Err(Status::unimplemented(
-        "Failed attempts are tracked internally - use GetPrincipalExport instead",
-    ))
-}

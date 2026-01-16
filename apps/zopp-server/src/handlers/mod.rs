@@ -187,13 +187,6 @@ impl ZoppService for ZoppServer {
         principals::consume_principal_export(self, request).await
     }
 
-    async fn record_export_failed_attempt(
-        &self,
-        request: Request<RecordExportFailedAttemptRequest>,
-    ) -> Result<Response<RecordExportFailedAttemptResponse>, Status> {
-        principals::record_export_failed_attempt(self, request).await
-    }
-
     // ───────────────────────────────────── Projects ─────────────────────────────────────
 
     async fn create_project(
