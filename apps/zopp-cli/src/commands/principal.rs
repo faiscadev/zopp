@@ -813,8 +813,8 @@ fn compute_verification_hash(
 ) -> Result<String, Box<dyn std::error::Error>> {
     use argon2::{Algorithm, Argon2, Params, Version};
 
-    // Use lighter params for verification (still secure, but faster than encryption KDF)
-    // 64 MiB memory, 3 iterations - same as derive_export_key for consistency
+    // Same Argon2id params as derive_export_key for consistency
+    // 64 MiB memory, 3 iterations - provides strong brute-force resistance
     let params =
         Params::new(64 * 1024, 3, 1, Some(32)).map_err(|e| format!("Argon2 params: {}", e))?;
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);

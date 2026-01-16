@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use rand::Rng;
+use subtle::ConstantTimeEq;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 use zopp_proto::{
@@ -710,8 +711,13 @@ pub async fn get_principal_export(
     }
 
     // Phase 2: Verify token_hash matches stored Argon2id hash
-    // This is a constant-time comparison to prevent timing attacks
-    if !constant_time_eq(export.token_hash.as_bytes(), req.token_hash.as_bytes()) {
+    // Using subtle crate for constant-time comparison to prevent timing attacks
+    let hashes_match: bool = export
+        .token_hash
+        .as_bytes()
+        .ct_eq(req.token_hash.as_bytes())
+        .into();
+    if !hashes_match {
         // Increment failed attempts
         let failed_attempts = server
             .store
@@ -748,17 +754,6 @@ pub async fn get_principal_export(
         nonce: export.nonce,
         expires_at: export.expires_at.timestamp(),
     }))
-}
-
-/// Constant-time byte comparison to prevent timing attacks
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    a.iter()
-        .zip(b.iter())
-        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
-        == 0
 }
 
 /// Mark a principal export as consumed after successful import.
