@@ -22,8 +22,8 @@ zopp principal <COMMAND>
 | `use` | Switch to a different principal |
 | `rename` | Rename a principal |
 | `delete` | Delete a principal |
-| `export` | Export a principal to an encrypted file |
-| `import` | Import a principal from an encrypted file |
+| `export` | Export a principal to the server for retrieval on another device |
+| `import` | Import a principal from the server using a passphrase |
 | `service-list` | List service principals in a workspace |
 | `workspace-remove` | Remove a principal from a workspace |
 | `revoke-all` | Revoke all permissions for a principal |
@@ -95,6 +95,7 @@ zopp principal create [OPTIONS] <NAME>
 |--------|----------|-------------|
 | `--service` | No | Create as service principal (no user association) |
 | `-w, --workspace <WORKSPACE>` | No* | Workspace to add service principal to (*required with `--service`) |
+| `--export` | No | Export the principal immediately after creation for easy setup on another device |
 | `-h, --help` | No | Print help |
 
 ### Examples
@@ -102,6 +103,9 @@ zopp principal create [OPTIONS] <NAME>
 ```bash
 # Create a device principal
 zopp principal create work-laptop
+
+# Create a device principal and immediately export for setup on another device
+zopp principal create new-laptop --export
 
 # Create a service principal for CI/CD
 zopp principal create --service -w mycompany github-actions
@@ -171,10 +175,10 @@ Deleting a principal permanently revokes its access to all workspaces. This cann
 
 ## principal export
 
-Export a principal to an encrypted file for transfer to another device.
+Export a principal to the server for retrieval on another device. A secure 6-word passphrase is generated from the EFF wordlist and displayed. The encrypted principal data is stored on the server for up to 24 hours and can only be retrieved once.
 
 ```bash
-zopp principal export <NAME> [-o <OUTPUT>]
+zopp principal export <NAME> [--expires-hours <HOURS>]
 ```
 
 ### Arguments
@@ -187,54 +191,78 @@ zopp principal export <NAME> [-o <OUTPUT>]
 
 | Option | Required | Description |
 |--------|----------|-------------|
-| `-o, --output <FILE>` | No | Output file path (prints to stdout if not specified) |
+| `--expires-hours <HOURS>` | No | Expiration time in hours (default: 24, max: 24) |
 | `-h, --help` | No | Print help |
 
 ### Example
 
 ```bash
-# Export to a file
-$ zopp principal export laptop -o principal.enc
-Enter passphrase to encrypt export: ********
-Confirm passphrase: ********
-✓ Principal 'laptop' exported to principal.enc
-  Import on another device with: zopp principal import -i <file>
+$ zopp principal export laptop
+
+Principal 'laptop' export created successfully.
+
+Passphrase (write this down):
+
+    correct horse battery staple purple llama
+
+This export expires in 24 hours.
+
+On your new device, run:
+    zopp --server https://zopp.example.com:50051 principal import
 ```
 
 :::tip
-The export is encrypted with a passphrase using Argon2id key derivation and XChaCha20-Poly1305. Use a strong passphrase and transfer the file securely.
+The passphrase provides approximately 77 bits of entropy (6 words from a 7776-word list). Write it down or copy it securely - it will only be shown once.
+:::
+
+:::info Security
+- The export is encrypted with a key derived from the passphrase using Argon2id
+- The server only stores the encrypted data and a hash of the passphrase (for lookup)
+- The server cannot decrypt your principal data
+- Each export can only be retrieved once (consumed on import)
 :::
 
 ---
 
 ## principal import
 
-Import a principal from an encrypted file.
+Import a principal from the server using the passphrase from an export.
 
 ```bash
-zopp principal import [-i <INPUT>]
+zopp principal import [PASSPHRASE]
 ```
 
-### Options
+### Arguments
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `-i, --input <FILE>` | No | Input file path (reads from stdin if not specified) |
-| `-h, --help` | No | Print help |
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `PASSPHRASE` | No | Passphrase from export (will prompt if not provided) |
 
 ### Example
 
 ```bash
-# Import from a file
-$ zopp principal import -i principal.enc
-Enter passphrase to decrypt: ********
-✓ Principal 'laptop' imported successfully
-  Server URL from export: https://zopp.example.com:50051
-  Use with: zopp --server https://zopp.example.com:50051 workspace list
+# With passphrase as argument
+$ zopp principal import "correct horse battery staple purple llama"
+Principal 'laptop' imported successfully.
+
+You are now authenticated as:
+  Email: alice@example.com
+  Principal: laptop
+
+Test with: zopp workspace list
+
+# Or interactive (prompts for passphrase)
+$ zopp principal import
+Enter passphrase from export: ************************************
+Principal 'laptop' imported successfully.
 ```
 
 :::note
-If a principal with the same name already exists, the imported principal will be renamed with an `-imported` suffix.
+If a principal with the same name already exists locally, the imported principal will be renamed with an `-imported` suffix.
+:::
+
+:::warning One-time use
+Each export can only be imported once. If you need to set up multiple devices, create a new export for each device.
 :::
 
 ---

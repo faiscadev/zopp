@@ -383,12 +383,12 @@ pub struct Environment {
 #[derive(Clone, Debug)]
 pub struct PrincipalExport {
     pub id: PrincipalExportId,
-    pub token_hash: String,       // SHA256(secret), used for lookup
+    pub token_hash: String, // SHA256(secret), used for lookup
     pub user_id: UserId,
     pub principal_id: PrincipalId,
-    pub encrypted_data: Vec<u8>,  // Encrypted principal JSON
-    pub salt: Vec<u8>,            // Argon2id salt
-    pub nonce: Vec<u8>,           // XChaCha20-Poly1305 nonce
+    pub encrypted_data: Vec<u8>, // Encrypted principal JSON
+    pub salt: Vec<u8>,           // Argon2id salt
+    pub nonce: Vec<u8>,          // XChaCha20-Poly1305 nonce
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub consumed: bool,
@@ -397,12 +397,12 @@ pub struct PrincipalExport {
 /// Parameters for creating a principal export
 #[derive(Clone, Debug)]
 pub struct CreatePrincipalExportParams {
-    pub token_hash: String,       // SHA256(secret), used for lookup
+    pub token_hash: String, // SHA256(secret), used for lookup
     pub user_id: UserId,
     pub principal_id: PrincipalId,
-    pub encrypted_data: Vec<u8>,  // Encrypted principal JSON
-    pub salt: Vec<u8>,            // Argon2id salt
-    pub nonce: Vec<u8>,           // XChaCha20-Poly1305 nonce
+    pub encrypted_data: Vec<u8>, // Encrypted principal JSON
+    pub salt: Vec<u8>,           // Argon2id salt
+    pub nonce: Vec<u8>,          // XChaCha20-Poly1305 nonce
     pub expires_at: DateTime<Utc>,
 }
 

@@ -27,6 +27,10 @@ service ZoppService {
   rpc RemovePrincipalFromWorkspace(RemovePrincipalFromWorkspaceRequest) returns (Empty);
   rpc RevokeAllPrincipalPermissions(RevokeAllPrincipalPermissionsRequest) returns (RevokeAllPrincipalPermissionsResponse);
 
+  // Principal Export/Import (multi-device support)
+  rpc CreatePrincipalExport(CreatePrincipalExportRequest) returns (CreatePrincipalExportResponse);
+  rpc GetPrincipalExport(GetPrincipalExportRequest) returns (GetPrincipalExportResponse);
+
   // Projects
   rpc CreateProject(CreateProjectRequest) returns (Project);
   rpc ListProjects(ListProjectsRequest) returns (ProjectList);
@@ -292,6 +296,31 @@ message RevokeAllPrincipalPermissionsRequest {
 
 message RevokeAllPrincipalPermissionsResponse {
   int32 permissions_revoked = 1;
+}
+
+// Principal Export/Import messages (multi-device support)
+message CreatePrincipalExportRequest {
+  string token_hash = 1;        // SHA256(passphrase-derived secret), for server lookup
+  bytes encrypted_data = 2;     // Principal data encrypted with passphrase-derived key
+  bytes salt = 3;               // Argon2id salt for key derivation
+  bytes nonce = 4;              // XChaCha20-Poly1305 nonce
+  int64 expires_at = 5;         // Unix timestamp for expiration
+}
+
+message CreatePrincipalExportResponse {
+  string export_id = 1;
+}
+
+message GetPrincipalExportRequest {
+  string token_hash = 1;        // SHA256(passphrase-derived secret)
+}
+
+message GetPrincipalExportResponse {
+  string export_id = 1;
+  bytes encrypted_data = 2;     // Principal data encrypted with passphrase-derived key
+  bytes salt = 3;               // Argon2id salt for key derivation
+  bytes nonce = 4;              // XChaCha20-Poly1305 nonce
+  int64 expires_at = 5;         // Unix timestamp for expiration
 }
 
 // Project messages

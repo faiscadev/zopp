@@ -139,6 +139,9 @@ pub enum PrincipalCommand {
         /// Workspace to add service principal to (required for --service)
         #[arg(long, short = 'w')]
         workspace: Option<String>,
+        /// Export the principal immediately after creation (for easy setup on this device)
+        #[arg(long)]
+        export: bool,
     },
     /// Switch to a different principal (set as default)
     Use {
@@ -181,19 +184,18 @@ pub enum PrincipalCommand {
         #[arg(long)]
         principal: String,
     },
-    /// Export a principal to a file (encrypted with passphrase)
+    /// Export a principal to the server (generates passphrase for retrieval)
     Export {
         /// Principal name to export
         name: String,
-        /// Output file path (defaults to stdout if not specified)
-        #[arg(long, short = 'o')]
-        output: Option<PathBuf>,
+        /// Expiration time in hours (default: 24, max: 24)
+        #[arg(long, default_value = "24")]
+        expires_hours: u32,
     },
-    /// Import a principal from a file
+    /// Import a principal from the server using passphrase
     Import {
-        /// Input file path (defaults to stdin if not specified)
-        #[arg(long, short = 'i')]
-        input: Option<PathBuf>,
+        /// Passphrase from export (if not provided, will prompt)
+        passphrase: Option<String>,
     },
 }
 

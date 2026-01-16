@@ -145,65 +145,57 @@ zopp invite create -w acme-corp --expires-hours 48
 
 ## Multiple Devices
 
-You can use zopp from multiple devices. There are three ways to set up a new device:
+You can use zopp from multiple devices. There are two ways to set up a new device:
 
-### Option 1: Self-Invite (Recommended)
+### Option 1: Export/Import (Recommended)
 
-Create a self-invite that only you can use. This is the easiest way to add a new device—just copy a token:
-
-```bash
-# On your existing device (or via SSH) - create a self-invite
-zopp invite create-self -w acme-corp --plain
-# Returns: inv_xxx...
-```
-
-Copy the token to your new device (paste in chat, email to yourself, etc.), then:
+Export your principal from your current device and import it on your new device. The export is stored securely on the server and protected by a passphrase.
 
 ```bash
-# On your new device
-zopp join inv_xxx... you@company.com --principal my-new-laptop
+# On your existing device - create an export
+zopp principal export laptop
+
+# Output shows a passphrase like:
+#   Passphrase (write this down):
+#       correct horse battery staple purple llama
+#   This export expires in 24 hours.
 ```
 
-:::tip Pre-create invites before traveling
-Create a self-invite before you leave, so you can set up your new device without needing access to your old one.
+Write down or securely copy the 6-word passphrase, then on your new device:
+
+```bash
+# On your new device - import using the passphrase
+zopp --server https://zopp.yourcompany.com:50051 principal import
+# Enter passphrase: correct horse battery staple purple llama
+
+# You're now authenticated!
+zopp workspace list
+```
+
+:::tip Create exports before traveling
+Create an export before you leave, so you can set up your new device without needing access to your old one. Exports last 24 hours.
 :::
 
-:::info Self-invites vs regular invites
-- **Self-invite**: Any workspace member can create one (read/write/admin role). Can only be used by the same user.
-- **Regular invite**: Requires admin role. Can be used by anyone.
+:::info Security
+- The passphrase provides ~77 bits of entropy (6 words from a 7776-word list)
+- The server only stores encrypted data—it cannot decrypt your principal
+- Each export can only be used once (consumed on import)
 :::
 
-### Option 2: Export/Import
+### Option 2: Create a New Principal
 
-Transfer your existing principal to a new device via encrypted file. Use this when you need offline transfer or want to use the exact same principal identity:
-
-```bash
-# On your existing device - export your principal
-zopp principal export laptop -o principal.enc
-# Enter a passphrase to encrypt the export
-```
-
-Transfer the `principal.enc` file to your new device (via USB, secure messaging, etc.), then:
+If you have access to an existing device, you can create a new principal and immediately export it:
 
 ```bash
-# On your new device - import the principal
-zopp principal import -i principal.enc
-# Enter the passphrase to decrypt
+# On your existing device - create and export in one command
+zopp principal create new-laptop --export
+
+# Or create first, then export
+zopp principal create new-laptop
+zopp principal export new-laptop
 ```
 
-### Option 3: Create a New Principal Locally
-
-If you have access to an existing device, you can create a new principal that automatically inherits workspace access:
-
-```bash
-# On your existing device
-zopp principal create desktop
-
-# List all your principals
-zopp principal list
-```
-
-The new principal's keys are saved locally. To use it on a different device, use export/import or self-invite as shown above.
+The new principal automatically gets access to all workspaces your user has access to. Use the generated passphrase to import on your new device.
 
 ### Managing Principals
 

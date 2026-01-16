@@ -700,7 +700,7 @@ async fn run_principals_use_test(config: BackendConfig) -> Result<(), Box<dyn st
     Ok(())
 }
 
-/// Test principal export/import for multi-device support
+/// Test principal export/import for multi-device support (server-mediated)
 async fn run_principals_export_import_test(
     config: BackendConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -714,31 +714,30 @@ async fn run_principals_export_import_test(
     // Create a workspace so we can verify access after import
     alice.exec(&["workspace", "create", "exportws"]).success()?;
 
-    // Test 1: Export the principal
+    // Test 1: Export the principal to server
+    // The passphrase env var controls the generated passphrase for deterministic testing
     println!("  Test 1: Export principal...");
-    let export_file = harness.test_dir().join("alice-laptop.enc");
-    let passphrase = "test-passphrase-123";
+    let passphrase = "correct horse battery staple purple llama";
 
     let result = alice.exec_with_env(
-        &[
-            "principal",
-            "export",
-            "alice-laptop",
-            "-o",
-            export_file.to_str().unwrap(),
-        ],
+        &["principal", "export", "alice-laptop"],
         &[("ZOPP_EXPORT_PASSPHRASE", passphrase)],
     );
-    result.success()?;
-    assert!(export_file.exists(), "Export file should be created");
+    let output = result.success()?;
+    assert!(
+        output.contains("export created") || output.contains("Passphrase"),
+        "Export should succeed, got: {}",
+        output
+    );
 
     // Test 2: Create a second user (simulating new device) and import
+    // Note: This simulates a fresh device with no config
     println!("  Test 2: Import principal on new device...");
     let bob = harness.create_user("bob");
 
-    // Bob imports alice's principal
+    // Bob imports alice's principal using the passphrase
     let result = bob.exec_with_env(
-        &["principal", "import", "-i", export_file.to_str().unwrap()],
+        &["principal", "import"],
         &[("ZOPP_EXPORT_PASSPHRASE", passphrase)],
     );
     result.success()?;
@@ -762,23 +761,44 @@ async fn run_principals_export_import_test(
     );
 
     // Test 5: Test wrong passphrase
+    // Note: The export was already consumed by bob, so this tests both wrong passphrase
+    // and the one-time use nature of exports
     println!("  Test 5: Test wrong passphrase...");
     let carol = harness.create_user("carol");
     let result = carol.exec_with_env(
-        &["principal", "import", "-i", export_file.to_str().unwrap()],
-        &[("ZOPP_EXPORT_PASSPHRASE", "wrong-passphrase")],
+        &["principal", "import"],
+        &[("ZOPP_EXPORT_PASSPHRASE", "wrong-passphrase-here")],
     );
     assert!(result.failed(), "Import with wrong passphrase should fail");
 
-    // Test 6: Test duplicate import (should fail)
-    println!("  Test 6: Test duplicate import...");
-    let result = bob.exec_with_env(
-        &["principal", "import", "-i", export_file.to_str().unwrap()],
-        &[("ZOPP_EXPORT_PASSPHRASE", passphrase)],
+    // Test 6: Test that export is consumed after successful import
+    println!("  Test 6: Test export is consumed after import...");
+    // Create a fresh export for this test
+    let passphrase2 = "another test passphrase words here";
+    alice
+        .exec_with_env(
+            &["principal", "export", "alice-laptop"],
+            &[("ZOPP_EXPORT_PASSPHRASE", passphrase2)],
+        )
+        .success()?;
+
+    // Carol imports it (fresh user, no principals yet)
+    carol
+        .exec_with_env(
+            &["principal", "import"],
+            &[("ZOPP_EXPORT_PASSPHRASE", passphrase2)],
+        )
+        .success()?;
+
+    // Dan tries to import the same export - should fail because it's consumed
+    let dan = harness.create_user("dan");
+    let result = dan.exec_with_env(
+        &["principal", "import"],
+        &[("ZOPP_EXPORT_PASSPHRASE", passphrase2)],
     );
     assert!(
         result.failed(),
-        "Duplicate import should fail (principal already exists)"
+        "Import should fail because export was already consumed"
     );
 
     println!("test_principals_export_import PASSED");

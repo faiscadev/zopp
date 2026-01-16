@@ -1,15 +1,14 @@
 use crate::config::{get_current_principal, load_config, save_config, PrincipalConfig};
 use crate::grpc::{add_auth_metadata, connect};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::SigningKey;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
-use std::io::Read;
-use std::path::Path;
+use sha2::{Digest, Sha256};
 use zopp_proto::{
-    Empty, GetWorkspaceKeysRequest, GrantPrincipalWorkspaceAccessRequest,
-    ListWorkspaceServicePrincipalsRequest, RegisterRequest, RemovePrincipalFromWorkspaceRequest,
-    RenamePrincipalRequest, RevokeAllPrincipalPermissionsRequest, Role,
+    CreatePrincipalExportRequest, Empty, GetPrincipalExportRequest, GetWorkspaceKeysRequest,
+    GrantPrincipalWorkspaceAccessRequest, ListWorkspaceServicePrincipalsRequest, RegisterRequest,
+    RemovePrincipalFromWorkspaceRequest, RenamePrincipalRequest,
+    RevokeAllPrincipalPermissionsRequest, Role,
 };
 
 /// Exported principal format (JSON before encryption)
@@ -460,13 +459,19 @@ pub async fn cmd_principal_revoke_all(
     Ok(())
 }
 
-/// Export a principal to an encrypted file
+/// Export a principal to the server for retrieval on another device.
+///
+/// Generates a 6-word passphrase from the EFF wordlist, encrypts the principal
+/// data with a key derived from the passphrase, and uploads to the server.
+/// The passphrase is displayed to the user for use on the importing device.
 pub async fn cmd_principal_export(
     server: &str,
+    tls_ca_cert: Option<&std::path::Path>,
     name: &str,
-    output: Option<&Path>,
+    expires_hours: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config = load_config()?;
+    let caller_principal = get_current_principal(&config)?;
 
     // Find the principal to export
     let principal = config
@@ -475,23 +480,15 @@ pub async fn cmd_principal_export(
         .find(|p| p.name == name)
         .ok_or_else(|| format!("Principal '{}' not found", name))?;
 
-    // Get passphrase from env (for testing) or prompt
+    // Generate passphrase (or use env var for testing)
     let passphrase = if let Ok(p) = std::env::var("ZOPP_EXPORT_PASSPHRASE") {
         p
     } else {
-        let p = rpassword::prompt_password("Enter passphrase to encrypt export: ")?;
-        if p.len() < 8 {
-            return Err("Passphrase must be at least 8 characters".into());
-        }
-        let p_confirm = rpassword::prompt_password("Confirm passphrase: ")?;
-        if p != p_confirm {
-            return Err("Passphrases do not match".into());
-        }
-        p
+        crate::passphrase::generate_passphrase(6)
     };
-    if passphrase.len() < 8 {
-        return Err("Passphrase must be at least 8 characters".into());
-    }
+
+    // Compute token_hash = hex(SHA256(passphrase)) for server lookup
+    let token_hash = hex::encode(Sha256::digest(passphrase.as_bytes()));
 
     // Create export structure
     let export = ExportedPrincipal {
@@ -512,7 +509,7 @@ pub async fn cmd_principal_export(
     // Serialize to JSON
     let json = serde_json::to_string(&export)?;
 
-    // Generate salt and derive key
+    // Generate salt and derive encryption key
     let mut salt = [0u8; 16];
     rand_core::OsRng.fill_bytes(&mut salt);
 
@@ -520,76 +517,100 @@ pub async fn cmd_principal_export(
     let dek = zopp_crypto::Dek::from_bytes(&key)?;
 
     // Encrypt with AEAD
-    let aad = b"zopp-principal-export-v1";
+    let aad = b"zopp-principal-export-v2";
     let (nonce, ciphertext) = zopp_crypto::encrypt(json.as_bytes(), &dek, aad)?;
 
-    // Combine: salt || nonce || ciphertext
-    let mut output_bytes = Vec::new();
-    output_bytes.extend_from_slice(&salt);
-    output_bytes.extend_from_slice(&nonce.0);
-    output_bytes.extend_from_slice(&ciphertext.0);
+    // Calculate expiration timestamp
+    let expires_hours = expires_hours.min(24); // Cap at 24 hours
+    let expires_at = chrono::Utc::now().timestamp() + (expires_hours as i64 * 3600);
 
-    // Base64 encode
-    let encoded = BASE64.encode(&output_bytes);
+    // Upload to server
+    let mut client = connect(server, tls_ca_cert).await?;
+    let mut request = tonic::Request::new(CreatePrincipalExportRequest {
+        token_hash: token_hash.clone(),
+        encrypted_data: ciphertext.0,
+        salt: salt.to_vec(),
+        nonce: nonce.0.to_vec(),
+        expires_at,
+    });
+    add_auth_metadata(
+        &mut request,
+        caller_principal,
+        "/zopp.ZoppService/CreatePrincipalExport",
+    )?;
 
-    // Write to file or stdout
-    if let Some(path) = output {
-        std::fs::write(path, &encoded)?;
-        eprintln!("✓ Principal '{}' exported to {}", name, path.display());
-    } else {
-        println!("{}", encoded);
-        eprintln!("✓ Principal '{}' exported", name);
-    }
+    client.create_principal_export(request).await?;
 
-    eprintln!("  Import on another device with: zopp principal import -i <file>");
+    // Display passphrase to user
+    println!();
+    println!("Principal '{}' export created successfully.", name);
+    println!();
+    println!("Passphrase (write this down):");
+    println!();
+    println!("    {}", passphrase);
+    println!();
+    println!("This export expires in {} hours.", expires_hours);
+    println!();
+    println!("On your new device, run:");
+    println!("    zopp --server {} principal import", server);
+    println!();
 
     Ok(())
 }
 
-/// Import a principal from an encrypted file
-pub async fn cmd_principal_import(input: Option<&Path>) -> Result<(), Box<dyn std::error::Error>> {
-    // Read from file or stdin
-    let encoded = if let Some(path) = input {
-        std::fs::read_to_string(path)?
-    } else {
-        eprintln!("Paste the exported principal (base64), then press Enter:");
-        let mut buf = String::new();
-        std::io::stdin().read_to_string(&mut buf)?;
-        buf.trim().to_string()
-    };
-
-    // Base64 decode
-    let bytes = BASE64
-        .decode(encoded.trim())
-        .map_err(|_| "Invalid base64 encoding")?;
-
-    if bytes.len() < 16 + 24 + 16 {
-        // salt + nonce + min ciphertext (with tag)
-        return Err("Invalid export file: too short".into());
-    }
-
-    // Extract components
-    let salt = &bytes[0..16];
-    let nonce_bytes = &bytes[16..40];
-    let ciphertext = &bytes[40..];
-
-    let mut nonce_array = [0u8; 24];
-    nonce_array.copy_from_slice(nonce_bytes);
-    let nonce = zopp_crypto::Nonce(nonce_array);
-
-    // Get passphrase from env (for testing) or prompt
-    let passphrase = if let Ok(p) = std::env::var("ZOPP_EXPORT_PASSPHRASE") {
+/// Import a principal from the server using a passphrase.
+///
+/// Prompts for the passphrase (or accepts it as argument), fetches the
+/// encrypted principal data from the server, decrypts it, and adds it
+/// to the local configuration.
+pub async fn cmd_principal_import(
+    server: &str,
+    tls_ca_cert: Option<&std::path::Path>,
+    passphrase_arg: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Get passphrase from arg, env (for testing), or prompt
+    let passphrase = if let Some(p) = passphrase_arg {
+        p.to_string()
+    } else if let Ok(p) = std::env::var("ZOPP_EXPORT_PASSPHRASE") {
         p
     } else {
-        rpassword::prompt_password("Enter passphrase to decrypt: ")?
+        rpassword::prompt_password("Enter passphrase from export: ")?
     };
 
+    // Compute token_hash = hex(SHA256(passphrase)) for server lookup
+    let token_hash = hex::encode(Sha256::digest(passphrase.as_bytes()));
+
+    // Fetch from server (unauthenticated - anyone with passphrase can retrieve)
+    let mut client = connect(server, tls_ca_cert).await?;
+    let request = tonic::Request::new(GetPrincipalExportRequest {
+        token_hash: token_hash.clone(),
+    });
+
+    let response = client
+        .get_principal_export(request)
+        .await
+        .map_err(|e| {
+            if e.code() == tonic::Code::NotFound {
+                "Export not found - invalid passphrase or expired".into()
+            } else {
+                format!("Failed to retrieve export: {}", e)
+            }
+        })?
+        .into_inner();
+
     // Derive key and decrypt
-    let key = derive_export_key(&passphrase, salt)?;
+    let key = derive_export_key(&passphrase, &response.salt)?;
     let dek = zopp_crypto::Dek::from_bytes(&key)?;
 
-    let aad = b"zopp-principal-export-v1";
-    let plaintext = zopp_crypto::decrypt(ciphertext, &nonce, &dek, aad)
+    let mut nonce_array = [0u8; 24];
+    if response.nonce.len() != 24 {
+        return Err("Invalid nonce length".into());
+    }
+    nonce_array.copy_from_slice(&response.nonce);
+    let nonce = zopp_crypto::Nonce(nonce_array);
+
+    let aad = b"zopp-principal-export-v2";
+    let plaintext = zopp_crypto::decrypt(&response.encrypted_data, &nonce, &dek, aad)
         .map_err(|_| "Decryption failed - wrong passphrase?")?;
 
     // Parse JSON
@@ -667,17 +688,18 @@ pub async fn cmd_principal_import(input: Option<&Path>) -> Result<(), Box<dyn st
 
     save_config(&config)?;
 
-    println!("✓ Principal '{}' imported successfully", final_name);
-    println!("  Server URL from export: {}", export.server_url);
-    println!(
-        "  Use with: zopp --server {} workspace list",
-        export.server_url
-    );
+    println!("Principal '{}' imported successfully.", final_name);
+    println!();
+    println!("You are now authenticated as:");
+    println!("  Email: {}", config.email);
+    println!("  Principal: {}", final_name);
+    println!();
+    println!("Test with: zopp workspace list");
 
     Ok(())
 }
 
-/// Derive encryption key from passphrase using Argon2id (lighter params for export)
+/// Derive encryption key from passphrase using Argon2id
 fn derive_export_key(
     passphrase: &str,
     salt: &[u8],

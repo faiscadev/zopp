@@ -1,14 +1,17 @@
-//! Principal handlers: get, rename, list, service principals, remove, revoke
+//! Principal handlers: get, rename, list, service principals, remove, revoke, export/import
 
+use chrono::{DateTime, Utc};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 use zopp_proto::{
-    EffectivePermissionsResponse, Empty, GetEffectivePermissionsRequest, GetPrincipalRequest,
-    ListWorkspaceServicePrincipalsRequest, PrincipalList, RemovePrincipalFromWorkspaceRequest,
-    RenamePrincipalRequest, RevokeAllPrincipalPermissionsRequest,
-    RevokeAllPrincipalPermissionsResponse, ServicePrincipalList,
+    CreatePrincipalExportRequest, CreatePrincipalExportResponse, EffectivePermissionsResponse,
+    Empty, GetEffectivePermissionsRequest, GetPrincipalExportRequest, GetPrincipalExportResponse,
+    GetPrincipalRequest, ListWorkspaceServicePrincipalsRequest, PrincipalList,
+    RemovePrincipalFromWorkspaceRequest, RenamePrincipalRequest,
+    RevokeAllPrincipalPermissionsRequest, RevokeAllPrincipalPermissionsResponse,
+    ServicePrincipalList,
 };
-use zopp_storage::{PrincipalId, Store};
+use zopp_storage::{CreatePrincipalExportParams, PrincipalId, Store};
 
 use crate::server::{extract_signature, ZoppServer};
 
@@ -580,5 +583,104 @@ pub async fn get_effective_permissions(
             zopp_storage::Role::Read => zopp_proto::Role::Read as i32,
         }),
         projects: effective_projects,
+    }))
+}
+
+/// Create a principal export for multi-device transfer.
+/// This stores encrypted principal data on the server, keyed by a hash of the passphrase.
+/// The client derives a key from a passphrase and encrypts the principal locally,
+/// then sends only the encrypted data and hash to the server.
+pub async fn create_principal_export(
+    server: &ZoppServer,
+    request: Request<CreatePrincipalExportRequest>,
+) -> Result<Response<CreatePrincipalExportResponse>, Status> {
+    let (principal_id, timestamp, signature, request_hash) = extract_signature(&request)?;
+    let req_for_verify = request.get_ref().clone();
+    let principal = server
+        .verify_signature_and_get_principal(
+            &principal_id,
+            timestamp,
+            &signature,
+            "/zopp.ZoppService/CreatePrincipalExport",
+            &req_for_verify,
+            &request_hash,
+        )
+        .await?;
+
+    // Service accounts cannot export principals
+    let user_id = principal
+        .user_id
+        .ok_or_else(|| Status::permission_denied("Service accounts cannot export principals"))?;
+
+    let req = request.into_inner();
+
+    // Validate the expiration timestamp
+    let expires_at = DateTime::<Utc>::from_timestamp(req.expires_at, 0)
+        .ok_or_else(|| Status::invalid_argument("Invalid expiration timestamp"))?;
+
+    if expires_at <= Utc::now() {
+        return Err(Status::invalid_argument("Expiration must be in the future"));
+    }
+
+    // Limit expiration to 24 hours max (for security)
+    let max_expires_at = Utc::now() + chrono::Duration::hours(24);
+    if expires_at > max_expires_at {
+        return Err(Status::invalid_argument(
+            "Expiration cannot be more than 24 hours in the future",
+        ));
+    }
+
+    // Create the export record
+    let export = server
+        .store
+        .create_principal_export(&CreatePrincipalExportParams {
+            token_hash: req.token_hash,
+            user_id,
+            principal_id,
+            encrypted_data: req.encrypted_data,
+            salt: req.salt,
+            nonce: req.nonce,
+            expires_at,
+        })
+        .await
+        .map_err(|e| Status::internal(format!("Failed to create principal export: {}", e)))?;
+
+    Ok(Response::new(CreatePrincipalExportResponse {
+        export_id: export.id.0.to_string(),
+    }))
+}
+
+/// Get a principal export for importing on a new device.
+/// This is unauthenticated - anyone with the correct passphrase hash can retrieve it.
+/// The encrypted data can only be decrypted with the original passphrase.
+pub async fn get_principal_export(
+    server: &ZoppServer,
+    request: Request<GetPrincipalExportRequest>,
+) -> Result<Response<GetPrincipalExportResponse>, Status> {
+    let req = request.into_inner();
+
+    // Look up the export by token hash (unauthenticated)
+    let export = server
+        .store
+        .get_principal_export_by_token(&req.token_hash)
+        .await
+        .map_err(|e| match e {
+            zopp_storage::StoreError::NotFound => Status::not_found("Export not found or expired"),
+            _ => Status::internal(format!("Failed to get principal export: {}", e)),
+        })?;
+
+    // Mark as consumed (one-time use)
+    server
+        .store
+        .consume_principal_export(&export.id)
+        .await
+        .map_err(|e| Status::internal(format!("Failed to consume principal export: {}", e)))?;
+
+    Ok(Response::new(GetPrincipalExportResponse {
+        export_id: export.id.0.to_string(),
+        encrypted_data: export.encrypted_data,
+        salt: export.salt,
+        nonce: export.nonce,
+        expires_at: export.expires_at.timestamp(),
     }))
 }

@@ -6,6 +6,7 @@ mod config;
 mod crypto;
 mod grpc;
 mod k8s;
+mod passphrase;
 
 use cli::{
     AuditCommand, Cli, Command, DiffCommand, EnvironmentCommand, GroupCommand, InviteCommand,
@@ -65,6 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 name,
                 service,
                 workspace,
+                export,
             } => {
                 cmd_principal_create(
                     &cli.server,
@@ -74,6 +76,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     workspace.as_deref(),
                 )
                 .await?;
+
+                // If --export flag is set, immediately export the new principal
+                if export && !service {
+                    cmd_principal_export(
+                        &cli.server,
+                        cli.tls_ca_cert.as_deref(),
+                        &name,
+                        24, // Default 24 hour expiration
+                    )
+                    .await?;
+                } else if export && service {
+                    eprintln!("Note: --export flag is ignored for service principals");
+                }
             }
             PrincipalCommand::Use { name } => {
                 cmd_principal_use(&name).await?;
@@ -113,11 +128,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .await?;
             }
-            PrincipalCommand::Export { name, output } => {
-                cmd_principal_export(&cli.server, &name, output.as_deref()).await?;
+            PrincipalCommand::Export {
+                name,
+                expires_hours,
+            } => {
+                cmd_principal_export(
+                    &cli.server,
+                    cli.tls_ca_cert.as_deref(),
+                    &name,
+                    expires_hours,
+                )
+                .await?;
             }
-            PrincipalCommand::Import { input } => {
-                cmd_principal_import(input.as_deref()).await?;
+            PrincipalCommand::Import { passphrase } => {
+                cmd_principal_import(
+                    &cli.server,
+                    cli.tls_ca_cert.as_deref(),
+                    passphrase.as_deref(),
+                )
+                .await?;
             }
         },
         Command::Project { project_cmd } => match project_cmd {
