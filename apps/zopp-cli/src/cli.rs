@@ -197,8 +197,10 @@ pub enum PrincipalCommand {
         /// Export code from export (if not provided, will prompt)
         #[arg(long, short = 'c')]
         code: Option<String>,
-        /// Passphrase from export (if not provided, will prompt)
-        #[arg(long, short = 'p')]
+        /// Passphrase from export (if not provided, will prompt).
+        /// WARNING: Passing via CLI exposes the passphrase in shell history.
+        /// Prefer interactive prompt or ZOPP_EXPORT_PASSPHRASE env var.
+        #[arg(long, short = 'p', hide = true, env = "ZOPP_EXPORT_PASSPHRASE")]
         passphrase: Option<String>,
     },
 }

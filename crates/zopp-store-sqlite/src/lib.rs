@@ -615,7 +615,7 @@ impl Store for SqliteStore {
                created_at as "created_at!: DateTime<Utc>",
                consumed as "consumed!", failed_attempts as "failed_attempts!"
                FROM principal_exports
-               WHERE export_code = ? AND consumed = 0 AND expires_at > CURRENT_TIMESTAMP"#,
+               WHERE export_code = ? AND consumed = 0 AND expires_at > CURRENT_TIMESTAMP AND failed_attempts < 3"#,
             export_code
         )
         .fetch_optional(&self.pool)

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!\", export_code as \"export_code!\", token_hash as \"token_hash!\",\n               user_id as \"user_id!\", principal_id as \"principal_id!\",\n               encrypted_data as \"encrypted_data!\", salt as \"salt!\", nonce as \"nonce!\",\n               expires_at as \"expires_at!: DateTime<Utc>\",\n               created_at as \"created_at!: DateTime<Utc>\",\n               consumed as \"consumed!\", failed_attempts as \"failed_attempts!\"\n               FROM principal_exports\n               WHERE export_code = ? AND consumed = 0 AND expires_at > CURRENT_TIMESTAMP",
+  "query": "SELECT id as \"id!\", export_code as \"export_code!\", token_hash as \"token_hash!\",\n               user_id as \"user_id!\", principal_id as \"principal_id!\",\n               encrypted_data as \"encrypted_data!\", salt as \"salt!\", nonce as \"nonce!\",\n               expires_at as \"expires_at!: DateTime<Utc>\",\n               created_at as \"created_at!: DateTime<Utc>\",\n               consumed as \"consumed!\", failed_attempts as \"failed_attempts!\"\n               FROM principal_exports\n               WHERE export_code = ? AND consumed = 0 AND expires_at > CURRENT_TIMESTAMP AND failed_attempts < 3",
   "describe": {
     "columns": [
       {
@@ -82,5 +82,5 @@
       false
     ]
   },
-  "hash": "ddd2310ad3a221bd3b02eeead83a74dcf26138df411cc43c9360a3ea01100301"
+  "hash": "bd1b40d699d8adef2816a0e9ae1124ed5cc404539c605eeaaef882957ad804f7"
 }

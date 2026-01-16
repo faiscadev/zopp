@@ -471,7 +471,7 @@ impl Store for PostgresStore {
             r#"SELECT id, export_code, token_hash, user_id, principal_id, encrypted_data, salt, nonce,
                expires_at, created_at, consumed, failed_attempts
                FROM principal_exports
-               WHERE export_code = $1 AND consumed = FALSE AND expires_at > NOW()"#,
+               WHERE export_code = $1 AND consumed = FALSE AND expires_at > NOW() AND failed_attempts < 3"#,
             export_code
         )
         .fetch_optional(&self.pool)
