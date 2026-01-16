@@ -5,6 +5,9 @@ use rand::Rng;
 use subtle::ConstantTimeEq;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
+
+/// Maximum failed passphrase attempts before export self-destructs
+const MAX_FAILED_ATTEMPTS: i32 = 3;
 use zopp_proto::{
     ConsumePrincipalExportRequest, CreatePrincipalExportRequest, CreatePrincipalExportResponse,
     EffectivePermissionsResponse, Empty, GetEffectivePermissionsRequest, GetPrincipalExportRequest,
@@ -717,8 +720,7 @@ pub async fn get_principal_export(
             .await
             .map_err(|e| Status::internal(format!("Failed to record failed attempt: {}", e)))?;
 
-        // Self-destruct after 3 failed attempts
-        const MAX_FAILED_ATTEMPTS: i32 = 3;
+        // Self-destruct after max failed attempts
         if failed_attempts >= MAX_FAILED_ATTEMPTS {
             if let Err(e) = server.store.delete_principal_export(&export.id).await {
                 eprintln!(
@@ -796,8 +798,7 @@ pub async fn record_export_failed_attempt(
             _ => Status::internal(format!("Failed to record failed attempt: {}", e)),
         })?;
 
-    // Self-destruct after 3 failed attempts
-    const MAX_FAILED_ATTEMPTS: i32 = 3;
+    // Self-destruct after max failed attempts
     if failed_attempts >= MAX_FAILED_ATTEMPTS {
         server
             .store

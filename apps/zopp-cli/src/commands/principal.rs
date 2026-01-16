@@ -651,12 +651,16 @@ pub async fn cmd_principal_import(
         .into_inner();
 
     // Server verified passphrase - now derive key and decrypt
+    // Validate salt length (16 bytes for Argon2id)
+    if response.salt.len() != 16 {
+        return Err("Invalid encryption salt length from server".into());
+    }
     let key = derive_export_key(&passphrase, &response.salt)?;
     let dek = zopp_crypto::Dek::from_bytes(&key)?;
 
     let mut nonce_array = [0u8; 24];
     if response.nonce.len() != 24 {
-        return Err("Invalid nonce length".into());
+        return Err("Invalid nonce length from server".into());
     }
     nonce_array.copy_from_slice(&response.nonce);
     let nonce = zopp_crypto::Nonce(nonce_array);

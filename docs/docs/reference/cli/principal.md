@@ -226,23 +226,25 @@ The passphrase provides approximately 77 bits of entropy (6 words from a 7776-wo
 
 ## principal import
 
-Import a principal from the server using the passphrase from an export.
+Import a principal from the server using the export code and passphrase.
 
 ```bash
-zopp principal import [PASSPHRASE]
+zopp principal import [-c CODE]
 ```
 
-### Arguments
+### Options
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `PASSPHRASE` | No | Passphrase from export (will prompt if not provided) |
+| Option | Required | Description |
+|--------|----------|-------------|
+| `-c`, `--code` | No | Export code (will prompt if not provided) |
 
 ### Example
 
 ```bash
-# With passphrase as argument
-$ zopp principal import "correct horse battery staple purple llama"
+# Interactive (recommended - prompts for code and passphrase securely)
+$ zopp principal import
+Enter export code: exp_a7k9m2x4
+Enter passphrase: ************************************
 Principal 'laptop' imported successfully.
 
 You are now authenticated as:
@@ -251,10 +253,13 @@ You are now authenticated as:
 
 Test with: zopp workspace list
 
-# Or interactive (prompts for passphrase)
-$ zopp principal import
-Enter passphrase from export: ************************************
+# With export code provided
+$ zopp principal import -c exp_a7k9m2x4
+Enter passphrase: ************************************
 Principal 'laptop' imported successfully.
+
+# For automated/scripted usage, use env var (never pass passphrase on command line)
+$ ZOPP_EXPORT_PASSPHRASE="correct horse battery staple purple llama" zopp principal import -c exp_a7k9m2x4
 ```
 
 :::note
