@@ -7,13 +7,18 @@
 
 use rand::prelude::IndexedRandom;
 use rand::rng;
+use std::sync::LazyLock;
 
 /// The EFF large wordlist embedded at compile time
 static EFF_WORDLIST: &str = include_str!("eff_large_wordlist.txt");
 
-/// Lazily parsed wordlist
-fn get_words() -> Vec<&'static str> {
-    EFF_WORDLIST.lines().filter(|s| !s.is_empty()).collect()
+/// Parsed wordlist (lazily initialized on first access, then cached)
+static WORDS: LazyLock<Vec<&'static str>> =
+    LazyLock::new(|| EFF_WORDLIST.lines().filter(|s| !s.is_empty()).collect());
+
+/// Get the cached wordlist
+fn get_words() -> &'static [&'static str] {
+    &WORDS
 }
 
 /// Generate a passphrase with the specified number of words.
