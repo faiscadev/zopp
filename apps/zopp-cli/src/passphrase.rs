@@ -37,6 +37,7 @@ pub fn generate_passphrase(word_count: usize) -> String {
 }
 
 /// Generate a passphrase with a custom separator.
+#[allow(dead_code)]
 pub fn generate_passphrase_with_separator(word_count: usize, separator: &str) -> String {
     let words = get_words();
     let mut rng = rng();
