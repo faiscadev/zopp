@@ -666,16 +666,16 @@ pub async fn create_principal_export(
 }
 
 /// Get a principal export for importing on a new device.
-/// This is unauthenticated - anyone with the export code can retrieve the encrypted data.
-/// The encrypted data can only be decrypted with the original passphrase.
-/// Client verifies passphrase against token_hash before decryption.
+/// Requires both export_code AND correct token_hash (SHA256 of passphrase).
+/// This prevents offline brute-force attacks - encrypted data is only returned
+/// if you already know the passphrase.
 pub async fn get_principal_export(
     server: &ZoppServer,
     request: Request<GetPrincipalExportRequest>,
 ) -> Result<Response<GetPrincipalExportResponse>, Status> {
     let req = request.into_inner();
 
-    // Look up the export by export code (unauthenticated)
+    // Look up the export by export code
     let export = server
         .store
         .get_principal_export_by_code(&req.export_code)
@@ -685,10 +685,34 @@ pub async fn get_principal_export(
             _ => Status::internal(format!("Failed to get principal export: {}", e)),
         })?;
 
-    // Return the data but don't consume yet - client will verify passphrase first
+    // Verify token_hash matches - this prevents offline brute-force attacks
+    // because encrypted data is only returned if you already know the passphrase
+    if export.token_hash != req.token_hash {
+        // Increment failed attempts
+        let failed_attempts = server
+            .store
+            .increment_export_failed_attempts(&export.id)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to record failed attempt: {}", e)))?;
+
+        // Self-destruct after 3 failed attempts
+        const MAX_FAILED_ATTEMPTS: i32 = 3;
+        if failed_attempts >= MAX_FAILED_ATTEMPTS {
+            let _ = server.store.delete_principal_export(&export.id).await;
+            return Err(Status::permission_denied(
+                "Incorrect passphrase. Export deleted after 3 failed attempts.",
+            ));
+        }
+
+        return Err(Status::permission_denied(format!(
+            "Incorrect passphrase. {} attempt(s) remaining.",
+            MAX_FAILED_ATTEMPTS - failed_attempts
+        )));
+    }
+
+    // Both export_code and token_hash verified - return encrypted data
     Ok(Response::new(GetPrincipalExportResponse {
         export_id: export.id.0.to_string(),
-        token_hash: export.token_hash,
         encrypted_data: export.encrypted_data,
         salt: export.salt,
         nonce: export.nonce,

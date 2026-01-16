@@ -315,15 +315,15 @@ message CreatePrincipalExportResponse {
 
 message GetPrincipalExportRequest {
   string export_code = 1;       // Public code for lookup
+  string token_hash = 2;        // SHA256(passphrase) - server verifies before returning data
 }
 
 message GetPrincipalExportResponse {
   string export_id = 1;
-  string token_hash = 2;        // SHA256(passphrase) for client-side verification
-  bytes encrypted_data = 3;     // Principal data encrypted with passphrase-derived key
-  bytes salt = 4;               // Argon2id salt for key derivation
-  bytes nonce = 5;              // XChaCha20-Poly1305 nonce
-  int64 expires_at = 6;         // Unix timestamp for expiration
+  bytes encrypted_data = 2;     // Principal data encrypted with passphrase-derived key
+  bytes salt = 3;               // Argon2id salt for key derivation
+  bytes nonce = 4;              // XChaCha20-Poly1305 nonce
+  int64 expires_at = 5;         // Unix timestamp for expiration
 }
 
 message ConsumePrincipalExportRequest {

@@ -7,9 +7,8 @@ use sha2::{Digest, Sha256};
 use zopp_proto::{
     ConsumePrincipalExportRequest, CreatePrincipalExportRequest, Empty, GetPrincipalExportRequest,
     GetWorkspaceKeysRequest, GrantPrincipalWorkspaceAccessRequest,
-    ListWorkspaceServicePrincipalsRequest, RecordExportFailedAttemptRequest, RegisterRequest,
-    RemovePrincipalFromWorkspaceRequest, RenamePrincipalRequest,
-    RevokeAllPrincipalPermissionsRequest, Role,
+    ListWorkspaceServicePrincipalsRequest, RegisterRequest, RemovePrincipalFromWorkspaceRequest,
+    RenamePrincipalRequest, RevokeAllPrincipalPermissionsRequest, Role,
 };
 
 /// Exported principal format (JSON before encryption)
@@ -564,9 +563,9 @@ pub async fn cmd_principal_export(
 
 /// Import a principal from the server using export code and passphrase.
 ///
-/// Prompts for export code first, then passphrase. Fetches the encrypted
-/// principal data from the server, verifies passphrase, decrypts it, and
-/// adds it to the local configuration.
+/// Prompts for export code first, then passphrase. Server verifies both
+/// before returning encrypted data (prevents offline brute-force).
+/// Then decrypts and adds to local configuration.
 pub async fn cmd_principal_import(
     server: &str,
     tls_ca_cert: Option<&std::path::Path>,
@@ -586,24 +585,6 @@ pub async fn cmd_principal_import(
         code.trim().to_string()
     };
 
-    // Fetch from server by export code (unauthenticated)
-    let mut client = connect(server, tls_ca_cert).await?;
-    let request = tonic::Request::new(GetPrincipalExportRequest {
-        export_code: export_code.clone(),
-    });
-
-    let response = client
-        .get_principal_export(request)
-        .await
-        .map_err(|e| {
-            if e.code() == tonic::Code::NotFound {
-                "Export not found - invalid code or expired".into()
-            } else {
-                format!("Failed to retrieve export: {}", e)
-            }
-        })?
-        .into_inner();
-
     // Get passphrase from arg, env (for testing), or prompt
     let passphrase = if let Some(p) = passphrase_arg {
         p.to_string()
@@ -613,35 +594,34 @@ pub async fn cmd_principal_import(
         rpassword::prompt_password("Enter passphrase: ")?
     };
 
-    // Verify passphrase against token_hash before attempting decryption
-    let computed_hash = hex::encode(Sha256::digest(passphrase.as_bytes()));
-    if computed_hash != response.token_hash {
-        // Report failed attempt to server
-        let fail_request = tonic::Request::new(RecordExportFailedAttemptRequest {
-            export_id: response.export_id.clone(),
-        });
-        match client.record_export_failed_attempt(fail_request).await {
-            Ok(resp) => {
-                let resp = resp.into_inner();
-                if resp.deleted {
-                    return Err(
-                        "Incorrect passphrase. Export deleted after 3 failed attempts.".into(),
-                    );
-                } else {
-                    return Err(format!(
-                        "Incorrect passphrase. {} attempt(s) remaining before export is deleted.",
-                        resp.remaining_attempts
-                    )
-                    .into());
-                }
-            }
-            Err(_) => {
-                return Err("Incorrect passphrase".into());
-            }
-        }
-    }
+    // Compute token_hash to send to server for verification
+    // Server verifies BOTH export_code AND token_hash before returning data
+    // This prevents offline brute-force - you can't get encrypted data without knowing passphrase
+    let token_hash = hex::encode(Sha256::digest(passphrase.as_bytes()));
 
-    // Derive key and decrypt
+    // Fetch from server - requires both export_code and correct token_hash
+    let mut client = connect(server, tls_ca_cert).await?;
+    let request = tonic::Request::new(GetPrincipalExportRequest {
+        export_code: export_code.clone(),
+        token_hash,
+    });
+
+    let response = client
+        .get_principal_export(request)
+        .await
+        .map_err(|e| {
+            if e.code() == tonic::Code::NotFound {
+                "Export not found - invalid code or expired".to_string()
+            } else if e.code() == tonic::Code::PermissionDenied {
+                // Server returns detailed message about failed attempts
+                e.message().to_string()
+            } else {
+                format!("Failed to retrieve export: {}", e)
+            }
+        })?
+        .into_inner();
+
+    // Server verified passphrase - now derive key and decrypt
     let key = derive_export_key(&passphrase, &response.salt)?;
     let dek = zopp_crypto::Dek::from_bytes(&key)?;
 
