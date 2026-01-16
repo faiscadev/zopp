@@ -776,7 +776,30 @@ pub async fn consume_principal_export(
         .ct_eq(req.token_hash.as_bytes())
         .into();
     if !hashes_match {
-        return Err(Status::permission_denied("Invalid passphrase"));
+        // Increment failed attempts (same brute-force protection as get_principal_export)
+        let failed_attempts = server
+            .store
+            .increment_export_failed_attempts(&export.id)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to record failed attempt: {}", e)))?;
+
+        // Self-destruct after max failed attempts
+        if failed_attempts >= MAX_FAILED_ATTEMPTS {
+            if let Err(e) = server.store.delete_principal_export(&export.id).await {
+                eprintln!(
+                    "ERROR: Failed to delete principal export {} after max failed attempts: {}",
+                    export.id.0, e
+                );
+            }
+            return Err(Status::permission_denied(
+                "Incorrect passphrase. Export deleted after 3 failed attempts.",
+            ));
+        }
+
+        return Err(Status::permission_denied(format!(
+            "Incorrect passphrase. {} attempts remaining.",
+            MAX_FAILED_ATTEMPTS - failed_attempts
+        )));
     }
 
     // Token verified - mark as consumed
