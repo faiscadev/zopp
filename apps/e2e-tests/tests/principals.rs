@@ -906,8 +906,8 @@ async fn run_principals_multi_user_identity_test(
     println!("  Test 1: Verify principal list shows email...");
     let output = alice.exec(&["principal", "list"]).success()?;
     assert!(
-        output.contains("alice@company-a.com") || output.contains("alice-laptop"),
-        "Should show alice's email or principal name, got: {}",
+        output.contains("alice@company-a.com"),
+        "Should show alice's email, got: {}",
         output
     );
 
