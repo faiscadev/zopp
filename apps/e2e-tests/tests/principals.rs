@@ -67,13 +67,25 @@ async fn run_principals_test(config: BackendConfig) -> Result<(), Box<dyn std::e
     // Extract principal ID from output
     let principal_id = parse_principal_id(&output).ok_or("Failed to parse principal ID")?;
 
-    // Test 2: List principals
+    // Test 2: List principals - verify service principal shows without user identity
     println!("  Test 2: List principals...");
     let output = admin.exec(&["principal", "list"]).success()?;
     assert!(output.contains("ci-bot"), "Should list ci-bot principal");
     assert!(
         output.contains("admin-device"),
         "Should list admin principal"
+    );
+    // Service principals show "service principal" instead of email
+    assert!(
+        output.contains("service principal"),
+        "Service principal should show 'service principal' instead of email, got: {}",
+        output
+    );
+    // Human principals still show their email
+    assert!(
+        output.contains("admin@example.com"),
+        "Human principal should show email, got: {}",
+        output
     );
 
     // Test 3: Grant READ permission to service principal
