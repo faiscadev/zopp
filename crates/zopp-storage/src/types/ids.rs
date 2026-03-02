@@ -46,18 +46,6 @@ pub struct PrincipalExportId(pub Uuid);
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EmailVerificationId(pub Uuid);
 
-/// Organization identifier.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct OrganizationId(pub Uuid);
-
-/// Organization invite identifier.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct OrganizationInviteId(pub Uuid);
-
-/// Subscription identifier.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SubscriptionId(pub Uuid);
-
 #[cfg(test)]
 mod tests {
     use super::*;
