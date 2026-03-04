@@ -141,7 +141,7 @@ Sam is a full-stack developer at a 15-person startup. They deployed Vault six mo
 
 ### User Success Metrics
 
-zopp is built for its creator first. The primary measure of success is whether Lucas uses zopp as his production secrets manager across faisca projects and never looks back.
+zopp is built for its creator first. The primary measure of success is whether Lucas adopts zopp as his production secrets manager across faisca projects and never looks back.
 
 **Core User Success:**
 - **Time-to-first-secret under 5 minutes** — Install the CLI, start the server, store and retrieve the first encrypted secret in under 5 minutes
@@ -160,7 +160,7 @@ zopp is built for its creator first. The primary measure of success is whether L
 zopp is not a business — it's an open-source tool built to solve a real problem for its creator. Business objectives are intentionally deferred in favor of product quality and authentic adoption.
 
 **Phase 1: Dogfooding (Current)**
-- zopp is the production secrets manager for all faisca projects
+- zopp becomes the production secrets manager for all faisca projects
 - The tool is stable, reliable, and pleasant to use daily
 
 **Phase 2: Open-Source Adoption (Future)**
@@ -219,10 +219,10 @@ The following are explicitly deferred — they are future growth features, not c
 
 ### MVP Success Criteria
 
-The MVP is validated: zopp is in production use at faisca, managing secrets for Kubernetes workloads. The core product solves the core problem.
+The MVP is feature-complete: zopp has everything needed to manage secrets for Kubernetes workloads in production. The next milestone is dogfooding at faisca.
 
-**Validation evidence:**
-- Creator uses zopp daily in production infrastructure
+**Validation criteria:**
+- Creator adopts zopp for production infrastructure at faisca
 - Zero-knowledge architecture works as designed — server is provably blind
 - Single-binary + SQLite setup works for development, PostgreSQL + K8s operator works for production
 - The tool doesn't get in the way — it just works
