@@ -141,8 +141,8 @@ FR28: Epic 3 — PostgreSQL in deployment templates
 FR29: Epic 3 — TLS in deployment templates
 FR30: Epic 3 — Invite token from PaaS-deployed server
 FR31: Epic 2 — Client-side decryption only
-FR32: Epic 2 — Service principal with scoped RBAC
-FR33: Epic 2 — Create scoped sync service principal
+FR32: Epic 2 — Service principal with scoped RBAC (Story 2.4 AC references existing capability)
+FR33: Existing core product — `zopp principal create --service --workspace` + `zopp permission set --role read` (no new story required; document in Epic 2 prerequisites)
 
 ## Epic List
 
@@ -155,6 +155,18 @@ Users can install zopp CLI on macOS or Linux with a single curl command, with au
 Teams can sync secrets from zopp to AWS Secrets Manager with preview (diff), dry-run, incremental sync, monitoring (sync status), and audit trail. This epic builds the core sync framework (SyncTarget trait, DiffEngine, CLI output components, SyncCommonArgs, error handling) that all subsequent sync targets reuse.
 **FRs covered:** FR6, FR8, FR9, FR10, FR11, FR12, FR20, FR21, FR22, FR23, FR24, FR31, FR32, FR33
 **Phase:** 1
+
+**Prerequisites (existing core product capabilities — no new stories needed):**
+- FR32/FR33 (service principal with scoped RBAC) are already implemented. The workflow for creating a sync service principal is:
+  1. `zopp principal create --service --workspace <name> sync-agent` — creates a service principal with workspace KEK access
+  2. `zopp permission set -w <workspace> --principal <id> --role read` — scopes it to read-only
+  These commands exist in `apps/zopp-cli/src/commands/principal.rs` and `permission.rs`. No new CLI story required.
+
+**Audit logging note (FR20):**
+- Architecture decision: no new audit RPCs for sync events. The server's existing `SecretRead` audit events record each secret access by principal ID during sync. Target platform logs record when values were written. This two-sided evidence model is the compliance story. The UX's phrase "audit log records the sync event automatically" refers to these existing SecretRead events — clarify this in documentation rather than adding new server-side audit infrastructure.
+
+**Sync status phasing note:**
+- Story 2.5 (`zopp sync status`) is kept in Phase 1 (Epic 2) despite the UX spec suggesting Phase 2. A status command is useful even with a single sync target (AWS) as a health check and CI verification step. The StatusTable output component is built in Phase 1 along with all other output components.
 
 ### Epic 3: Fly Integration (Sync & Deployment)
 Users can both sync secrets to Fly apps AND deploy zopp-server on Fly with zero infrastructure management. Completes the end-to-end Fly story: deploy server there, sync app secrets there.
@@ -178,6 +190,7 @@ Frontend and API teams can sync secrets to Vercel and Render, eliminating manual
 macOS and Linux developers can install zopp via Homebrew — the highest-impact package manager for the target audience.
 **FRs covered:** FR3
 **Phase:** 2
+**Depends on:** Epic 1 (GitHub Releases binary artifacts from Story 1.1)
 
 ### Epic 7: Railway Integration (Sync & Deployment)
 Teams can sync secrets to Railway AND deploy zopp-server on Railway.
@@ -189,6 +202,7 @@ Teams can sync secrets to Railway AND deploy zopp-server on Railway.
 Linux server admins install via apt; sovereignty-first engineers install via nix.
 **FRs covered:** FR4, FR5
 **Phase:** 3
+**Depends on:** Epic 1 (GitHub Releases binary artifacts from Story 1.1)
 
 ### Epic 9: Docker Compose Deployment
 Self-hosters can deploy zopp-server using Docker Compose for container-based deployments without Kubernetes.
@@ -363,6 +377,13 @@ So that I can quickly scan results, understand errors, and take screenshots for 
 **Then** columns adapt to available width with 80-column minimum
 **And** long values are truncated with `...` rather than wrapping
 
+**Given** stdout is not a TTY (piped to another command or redirected to a file)
+**When** any command produces output
+**Then** all ANSI escape codes are stripped from the output
+**And** Unicode symbols downgrade to ASCII equivalents: ✓→[ok], ✗→[FAIL], ⚠→[WARN]
+**And** progress spinners are suppressed entirely
+(Note: use the `console` crate's `console::Term::stdout().is_term()` for TTY detection — already in scope per architecture dependencies)
+
 ### Story 2.4: Add zopp sync aws and zopp diff aws CLI commands
 
 As a user,
@@ -392,8 +413,9 @@ So that I can keep AWS in sync with zopp as my single source of truth.
 
 **Given** a `SyncCommonArgs` struct is defined
 **When** any sync or diff command is parsed
-**Then** it accepts shared flags: `-w`, `-p`, `-e`, `--dry-run`, `--json`, `--no-color`, `--verbose`, `--quiet`
+**Then** it accepts shared flags: `-w`, `-p`, `-e`, `--dry-run`, `--json`, `--no-color`, `--verbose`, `--quiet`, `--force`
 **And** target-specific flags (`--region`, `--prefix`) are defined per-command
+**And** `--force` bypasses the check that prevents overwriting secrets not previously managed by zopp (for first-time sync to a pre-populated target)
 
 **Given** the sync operation is performed by a service principal
 **When** the principal has read-only RBAC access to the target environment
