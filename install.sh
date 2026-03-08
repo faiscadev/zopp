@@ -154,16 +154,14 @@ zopp_verify_checksum() {
     EXPECTED=$(grep "$ARCHIVE_NAME" "$CHECKSUMS_PATH" | awk '{print $1}')
 
     if [ -z "$EXPECTED" ]; then
-        zopp_log_warn "No checksum found for $ARCHIVE_NAME in checksums.txt. Skipping verification."
-        return 0
+        zopp_log_error "No checksum found for $ARCHIVE_NAME in checksums.txt."
+        zopp_log "  The release may be incomplete or corrupted."
+        zopp_log "  Try again, or download manually from:"
+        zopp_log "  https://github.com/$ZOPP_REPO/releases"
+        exit 1
     fi
 
     ACTUAL=$(zopp_compute_sha256 "$ARCHIVE_PATH")
-
-    if [ -z "$ACTUAL" ]; then
-        # sha256sum/shasum not available, already warned
-        return 0
-    fi
 
     if [ "$EXPECTED" != "$ACTUAL" ]; then
         zopp_log_error "SHA256 checksum verification failed!"
