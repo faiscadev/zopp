@@ -4,10 +4,10 @@ startedAt: "2026-03-07"
 stories:
   - id: "1.1"
     title: "Set up cross-platform binary release CI pipeline"
-    status: in-progress
-    currentPhase: "pr-ci"
+    status: completed
+    currentPhase: ""
     branch: "feat/1.1-binary-release-ci"
-    pr: null
+    pr: 74
     dependsOn: []
   - id: "1.2"
     title: "Create curl install script"
