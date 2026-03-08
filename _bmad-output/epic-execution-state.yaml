@@ -12,7 +12,7 @@ stories:
   - id: "1.2"
     title: "Create curl install script"
     status: in-progress
-    currentPhase: "dev"
+    currentPhase: "pr-ci"
     branch: "feat/1.2-curl-install-script"
     pr: null
     dependsOn: ["1.1"]
