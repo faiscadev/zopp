@@ -96,10 +96,7 @@ mod tests {
             message: "rate limited".into(),
             fix: "Wait and retry".into(),
         };
-        assert_eq!(
-            err.to_string(),
-            "Error: [Fly] set secret — rate limited"
-        );
+        assert_eq!(err.to_string(), "Error: [Fly] set secret — rate limited");
     }
 
     #[test]

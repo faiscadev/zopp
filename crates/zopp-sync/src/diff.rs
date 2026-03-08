@@ -7,7 +7,10 @@ use crate::types::DiffOperation;
 /// Returns a sorted list of [`DiffOperation`] entries representing the changes
 /// needed to bring the target in sync with the source. Operations are sorted
 /// alphabetically by key for deterministic output.
-pub fn diff(source: &HashMap<String, String>, target: &HashMap<String, String>) -> Vec<DiffOperation> {
+pub fn diff(
+    source: &HashMap<String, String>,
+    target: &HashMap<String, String>,
+) -> Vec<DiffOperation> {
     let mut operations = Vec::new();
 
     // Keys in source but not in target → Add
@@ -178,7 +181,9 @@ mod tests {
         let result = diff(&source, &target);
         assert_eq!(result.len(), 2);
         // Both are adds, sorted by key
-        assert!(result.iter().all(|op| matches!(op, DiffOperation::Add { .. })));
+        assert!(result
+            .iter()
+            .all(|op| matches!(op, DiffOperation::Add { .. })));
     }
 
     #[test]
@@ -187,7 +192,9 @@ mod tests {
         let target = map(&[("KEY", "old value")]);
         let result = diff(&source, &target);
         assert_eq!(result.len(), 1);
-        assert!(matches!(&result[0], DiffOperation::Update { new_value, .. } if new_value.contains('\n')));
+        assert!(
+            matches!(&result[0], DiffOperation::Update { new_value, .. } if new_value.contains('\n'))
+        );
     }
 
     #[test]
