@@ -42,7 +42,7 @@ story_location: /Users/lucas/code/faisca/zopp/_bmad-output/implementation-artifa
 development_status:
   # Epic 1: One-Command CLI Installation (Phase 1)
   epic-1: in-progress
-  1-1-set-up-cross-platform-binary-release-ci-pipeline: in-progress
+  1-1-set-up-cross-platform-binary-release-ci-pipeline: review
   1-2-create-curl-install-script: backlog
   epic-1-retrospective: optional
 
