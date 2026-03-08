@@ -43,7 +43,7 @@ development_status:
   # Epic 1: One-Command CLI Installation (Phase 1)
   epic-1: in-progress
   1-1-set-up-cross-platform-binary-release-ci-pipeline: done
-  1-2-create-curl-install-script: backlog
+  1-2-create-curl-install-script: ready-for-dev
   epic-1-retrospective: optional
 
   # Epic 2: Sync Framework & AWS Secrets Manager Integration (Phase 1)
