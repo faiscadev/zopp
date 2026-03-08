@@ -6405,6 +6405,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zopp-sync"
+version = "0.1.1"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "zopp-web"
 version = "0.1.1"
 dependencies = [
