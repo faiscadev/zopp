@@ -1,0 +1,95 @@
+# generated: 2026-03-07
+# project: zopp
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /Users/lucas/code/faisca/zopp/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-03-07
+project: zopp
+project_key: NOKEY
+tracking_system: file-system
+story_location: /Users/lucas/code/faisca/zopp/_bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: One-Command CLI Installation (Phase 1)
+  epic-1: backlog
+  1-1-set-up-cross-platform-binary-release-ci-pipeline: backlog
+  1-2-create-curl-install-script: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Sync Framework & AWS Secrets Manager Integration (Phase 1)
+  epic-2: backlog
+  2-1-create-zopp-sync-crate-with-synctarget-trait-diffengine-and-shared-types: backlog
+  2-2-implement-aws-secrets-manager-sync-target: backlog
+  2-3-create-cli-output-component-module: backlog
+  2-4-add-zopp-sync-aws-and-zopp-diff-aws-cli-commands: backlog
+  2-5-add-zopp-sync-status-command: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Fly Integration (Sync & Deployment) (Phase 1)
+  epic-3: backlog
+  3-1-implement-fly-sync-target-and-cli-commands: backlog
+  3-2-create-fly-deployment-template: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: GCP Secret Manager Integration (Phase 2)
+  epic-4: backlog
+  4-1-implement-gcp-sync-target-and-cli-commands: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Vercel & Render Integrations (Phase 2)
+  epic-5: backlog
+  5-1-implement-vercel-sync-target-and-cli-commands: backlog
+  5-2-implement-render-sync-target-and-cli-commands: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Homebrew Distribution (Phase 2)
+  epic-6: backlog
+  6-1-create-homebrew-formula-and-tap: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Railway Integration (Sync & Deployment) (Phase 3)
+  epic-7: backlog
+  7-1-implement-railway-sync-target-and-cli-commands: backlog
+  7-2-create-railway-deployment-template: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8: Extended Distribution (apt & nix) (Phase 3)
+  epic-8: backlog
+  8-1-create-apt-package-and-repository: backlog
+  8-2-create-nix-package: backlog
+  epic-8-retrospective: optional
+
+  # Epic 9: Docker Compose Deployment (Phase 3)
+  epic-9: backlog
+  9-1-create-docker-compose-deployment-template: backlog
+  epic-9-retrospective: optional
