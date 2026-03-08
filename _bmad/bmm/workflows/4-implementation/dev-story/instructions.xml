@@ -240,6 +240,26 @@
     <action>Improve code structure while keeping tests green</action>
     <action>Ensure code follows architecture patterns and coding standards from Dev Notes</action>
 
+    <!-- AUTOMATIC CODE QUALITY (run after every code change, not just at push) -->
+    <action>Run `cargo fmt` to auto-format code immediately after implementation changes</action>
+    <action>Run `cargo clippy -- -D warnings` and fix any warnings before proceeding to next task</action>
+
+    <!-- AUTHORIZATION CHECK (for every new endpoint) -->
+    <action>Authorization ownership check — for EVERY endpoint that accepts resource IDs in path parameters:
+      1. Identify all path parameters (e.g., /{workspace_id}/secrets/{key})
+      2. Verify each parameter references a resource owned by the authenticated principal
+      3. Add tests for unauthorized access: attempt with wrong workspace_id/principal_id, and assert the expected error
+      4. Do not assume path parameters are trustworthy — validate ownership in handler or middleware
+    </action>
+
+    <!-- ENUM-FIRST RULE (for every new DB field) -->
+    <action>Enum-first rule — for EVERY new database field with a finite, known set of values:
+      1. Create a Rust enum (not a String) with appropriate derives
+      2. Add appropriate `#[sqlx(type_name = "...")]` attributes to match the DB contract
+      3. Check existing enum patterns in the codebase for typical usage
+      4. Verify no hardcoded string literals for this field elsewhere in the codebase
+    </action>
+
     <action>Document technical approach and decisions in Dev Agent Record → Implementation Plan</action>
 
     <action if="new dependencies required beyond story specifications">HALT: "Additional dependencies need user approval"</action>
@@ -264,6 +284,12 @@
     <action>Run all existing tests to ensure no regressions</action>
     <action>Run the new tests to verify implementation correctness</action>
     <action>Run linting and code quality checks if configured in project</action>
+    <action>Pre-push quality gate (MANDATORY before any git push):
+      1. Run `cargo fmt` (not --check — actually format the code)
+      2. Run `cargo clippy -- -D warnings`
+      3. If clippy has ANY warnings, fix them before pushing — do NOT push with warnings
+      4. Only after both pass with zero issues, proceed to push
+    </action>
     <action>Validate implementation meets ALL story acceptance criteria; enforce quantitative thresholds explicitly</action>
     <action if="regression tests fail">STOP and fix before continuing - identify breaking changes immediately</action>
     <action if="new tests fail">STOP and fix before continuing - ensure implementation correctness</action>
@@ -323,6 +349,12 @@
   <step n="9" goal="Story completion and mark for review" tag="sprint-status">
     <action>Verify ALL tasks and subtasks are marked [x] (re-scan the story document now)</action>
     <action>Run the full regression suite (do not skip)</action>
+    <action>Pre-push quality gate (MANDATORY before any git push):
+      1. Run `cargo fmt` (not --check — actually format the code)
+      2. Run `cargo clippy -- -D warnings`
+      3. If clippy has ANY warnings, fix them before pushing — do NOT push with warnings
+      4. Only after both pass with zero issues, proceed to push
+    </action>
     <action>Confirm File List includes every changed file</action>
     <action>Execute enhanced definition-of-done validation</action>
     <action>Update the story Status to: "review"</action>

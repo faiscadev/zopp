@@ -36,6 +36,19 @@ so that {{benefit}}.
 
 - Cite all technical details with source paths and sections, e.g. [Source: docs/<file>.md#Section]
 
+### Pre-Submission Checklist
+
+Before submitting a PR, verify each item relevant to your story's scope.
+
+**Security** (if story touches gRPC endpoints, auth, or user-supplied content):
+
+- [ ] Input validation on all user-facing fields (length, format, required)
+- [ ] TOCTOU race conditions prevented (use DB constraints, not check-then-act)
+- [ ] No secrets or plaintext keys leaked in logs or error messages
+- [ ] No user enumeration via error messages (use generic responses for auth failures)
+- [ ] Zeroizing types used for sensitive data (`zeroize::Zeroize`, `ZeroizeOnDrop`)
+- [ ] Authorization ownership validated for resource IDs in request parameters
+
 ## Dev Agent Record
 
 ### Agent Model Used
