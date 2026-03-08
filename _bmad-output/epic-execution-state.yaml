@@ -4,8 +4,8 @@ startedAt: "2026-03-08"
 stories:
   - id: "2.1"
     title: "Create zopp-sync crate with SyncTarget trait, DiffEngine, and shared types"
-    status: in-progress
-    currentPhase: "pr-ci"
+    status: completed
+    currentPhase: ""
     branch: "feat/2.1-sync-crate-framework"
     pr: 76
     dependsOn: []
