@@ -1,6 +1,5 @@
 use super::config::OutputConfig;
 use console::style;
-use std::fmt::Write as _;
 
 /// Symbols used for output items (success, failure, warning).
 pub struct Symbols {
@@ -250,14 +249,14 @@ pub fn error_block(config: &OutputConfig, context: &str, problem: &str, fix: &st
 }
 
 fn truncate_to_width(s: &str, max_width: usize) -> String {
-    if s.len() <= max_width {
+    let char_count = s.chars().count();
+    if char_count <= max_width {
         s.to_string()
     } else if max_width > 3 {
-        let mut result = String::with_capacity(max_width);
-        let _ = write!(result, "{}...", &s[..max_width - 3]);
-        result
+        let truncated: String = s.chars().take(max_width - 3).collect();
+        format!("{truncated}...")
     } else {
-        s[..max_width].to_string()
+        s.chars().take(max_width).collect()
     }
 }
 
@@ -323,6 +322,14 @@ mod tests {
     #[test]
     fn test_truncate_to_width_very_small() {
         assert_eq!(truncate_to_width("hello", 3), "hel");
+    }
+
+    #[test]
+    fn test_truncate_to_width_multibyte_utf8() {
+        // Ensure char-based truncation doesn't panic on multi-byte characters
+        let s = "héllo wörld";
+        let result = truncate_to_width(s, 8);
+        assert_eq!(result, "héllo...");
     }
 
     #[test]
