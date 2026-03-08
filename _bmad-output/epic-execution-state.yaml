@@ -4,17 +4,17 @@ startedAt: "2026-03-08"
 stories:
   - id: "2.1"
     title: "Create zopp-sync crate with SyncTarget trait, DiffEngine, and shared types"
-    status: completed
-    currentPhase: ""
+    status: in-progress
+    currentPhase: "dev"
     branch: "feat/2.1-sync-crate-framework"
-    pr: 76
+    pr: null
     dependsOn: []
   - id: "2.3"
     title: "Create CLI output component module"
-    status: completed
+    status: pending
     currentPhase: ""
-    branch: "feat/2.3-cli-output-components"
-    pr: 77
+    branch: ""
+    pr: null
     dependsOn: []
   - id: "2.2"
     title: "Implement AWS Secrets Manager sync target"
