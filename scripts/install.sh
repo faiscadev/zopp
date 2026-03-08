@@ -122,7 +122,7 @@ zopp_detect_platform() {
 
 zopp_fetch_version() {
     LATEST_URL="https://api.github.com/repos/$ZOPP_REPO/releases/latest"
-    VERSION=$(curl -fsSL "$LATEST_URL" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    VERSION=$(curl -fsSL "$LATEST_URL" | grep '"tag_name":' | sed 's/.*"tag_name": *"//;s/".*//')
 
     if [ -z "$VERSION" ]; then
         zopp_log_error "Could not fetch latest version from GitHub Releases."
@@ -192,8 +192,8 @@ zopp_install() {
     zopp_log ""
 
     # Set up temp directory
-    TMPDIR=$(mktemp -d)
-    trap 'rm -rf "$TMPDIR"' EXIT
+    ZOPP_TMPDIR=$(mktemp -d)
+    trap 'rm -rf "$ZOPP_TMPDIR"' EXIT
 
     ARCHIVE_NAME="zopp-$ZOPP_TARGET.tar.gz"
     DOWNLOAD_URL="https://github.com/$ZOPP_REPO/releases/download/$VERSION/$ARCHIVE_NAME"
@@ -201,7 +201,7 @@ zopp_install() {
 
     # Download archive
     printf "  Downloading..."
-    if curl -fsSL -o "$TMPDIR/$ARCHIVE_NAME" "$DOWNLOAD_URL"; then
+    if curl -fsSL -o "$ZOPP_TMPDIR/$ARCHIVE_NAME" "$DOWNLOAD_URL"; then
         zopp_log_success ""
     else
         printf "\n"
@@ -213,21 +213,21 @@ zopp_install() {
 
     # Download checksums and verify
     printf "  Verifying checksum..."
-    if curl -fsSL -o "$TMPDIR/checksums.txt" "$CHECKSUMS_URL"; then
-        zopp_verify_checksum "$TMPDIR/$ARCHIVE_NAME" "$TMPDIR/checksums.txt" "$ARCHIVE_NAME"
+    if curl -fsSL -o "$ZOPP_TMPDIR/checksums.txt" "$CHECKSUMS_URL"; then
+        zopp_verify_checksum "$ZOPP_TMPDIR/$ARCHIVE_NAME" "$ZOPP_TMPDIR/checksums.txt" "$ARCHIVE_NAME"
         zopp_log_success "(SHA256 matched)"
     else
         zopp_log_warn "Could not download checksums.txt. Skipping verification."
     fi
 
     # Extract
-    tar -xzf "$TMPDIR/$ARCHIVE_NAME" -C "$TMPDIR"
+    tar -xzf "$ZOPP_TMPDIR/$ARCHIVE_NAME" -C "$TMPDIR"
 
     # Install
     mkdir -p "$ZOPP_INSTALL_DIR"
 
     printf "  Installing to %s..." "$ZOPP_INSTALL_DIR/zopp"
-    if mv "$TMPDIR/zopp" "$ZOPP_INSTALL_DIR/zopp" 2>/dev/null; then
+    if mv "$ZOPP_TMPDIR/zopp" "$ZOPP_INSTALL_DIR/zopp" 2>/dev/null; then
         chmod +x "$ZOPP_INSTALL_DIR/zopp"
         zopp_log_success ""
     else
