@@ -1,6 +1,6 @@
 # Story 2.1: Create zopp-sync crate with SyncTarget trait, DiffEngine, and shared types
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -36,30 +36,30 @@ So that all sync targets follow a consistent pattern and share common logic.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `crates/zopp-sync/` crate with Cargo.toml (AC: #1, #5)
-  - [ ] 1.1 Create `Cargo.toml` with workspace metadata, feature flags (`aws`, `gcp`, `fly`, `vercel`, `render`, `railway`), and core dependencies (`async-trait`, `thiserror`, `serde`, `serde_json`)
-  - [ ] 1.2 Add `"crates/zopp-sync"` to workspace members in root `Cargo.toml`
-- [ ] Task 2: Create shared types module `src/types.rs` (AC: #1, #2, #4)
-  - [ ] 2.1 Define `DiffOperation` enum with `Add { key, value }`, `Update { key, old_value, new_value }`, `Remove { key }`
-  - [ ] 2.2 Define `SyncResult` struct with per-secret success/failure: `key: String`, `outcome: SyncOutcome`
-  - [ ] 2.3 Define `SyncOutcome` enum: `Success`, `Failed { reason: String }`
-  - [ ] 2.4 Define `SyncSecrets` type alias: `HashMap<String, String>`
-- [ ] Task 3: Create error module `src/error.rs` (AC: #3)
-  - [ ] 3.1 Define `SyncError` enum with `AuthError`, `ApiError`, `ConnectionError`, `SourceError` — all with `fix` field
-  - [ ] 3.2 Implement `std::fmt::Display` with structured format: `Error: [{platform}] {operation} — {message}\n  Fix: {fix}`
-  - [ ] 3.3 Derive `thiserror::Error` for `SyncError`
-- [ ] Task 4: Create diff engine `src/diff.rs` (AC: #2)
-  - [ ] 4.1 Implement `DiffEngine::diff(source: &HashMap<String, String>, target: &HashMap<String, String>) -> Vec<DiffOperation>`
-  - [ ] 4.2 Logic: keys in source but not target = `Add`, keys in both with different values = `Update`, keys in target but not source = `Remove`
-  - [ ] 4.3 Write comprehensive unit tests: empty sets, identical sets, adds only, removes only, updates only, mixed operations, ordering consistency
-- [ ] Task 5: Create `SyncTarget` trait in `src/lib.rs` (AC: #1)
-  - [ ] 5.1 Define async trait with `display_name()`, `fetch_current()`, `apply()` methods
-  - [ ] 5.2 Re-export all public types from `types`, `error`, `diff` modules
-- [ ] Task 6: Verification (AC: all)
-  - [ ] 6.1 `cargo build --package zopp-sync` compiles with no warnings
-  - [ ] 6.2 `cargo test --package zopp-sync` passes all unit tests
-  - [ ] 6.3 `cargo clippy --package zopp-sync` reports zero warnings
-  - [ ] 6.4 `cargo build --workspace` still compiles (no workspace breakage)
+- [x] Task 1: Create `crates/zopp-sync/` crate with Cargo.toml (AC: #1, #5)
+  - [x] 1.1 Create `Cargo.toml` with workspace metadata, feature flags (`aws`, `gcp`, `fly`, `vercel`, `render`, `railway`), and core dependencies (`async-trait`, `thiserror`, `serde`, `serde_json`)
+  - [x] 1.2 Add `"crates/zopp-sync"` to workspace members in root `Cargo.toml`
+- [x] Task 2: Create shared types module `src/types.rs` (AC: #1, #2, #4)
+  - [x] 2.1 Define `DiffOperation` enum with `Add { key, value }`, `Update { key, old_value, new_value }`, `Remove { key }`
+  - [x] 2.2 Define `SyncResult` struct with per-secret success/failure: `key: String`, `outcome: SyncOutcome`
+  - [x] 2.3 Define `SyncOutcome` enum: `Success`, `Failed { reason: String }`
+  - [x] 2.4 Define `SyncSecrets` type alias: `HashMap<String, String>`
+- [x] Task 3: Create error module `src/error.rs` (AC: #3)
+  - [x] 3.1 Define `SyncError` enum with `AuthError`, `ApiError`, `ConnectionError`, `SourceError` — all with `fix` field
+  - [x] 3.2 Implement `std::fmt::Display` with structured format: `Error: [{platform}] {operation} — {message}\n  Fix: {fix}`
+  - [x] 3.3 Derive `thiserror::Error` for `SyncError`
+- [x] Task 4: Create diff engine `src/diff.rs` (AC: #2)
+  - [x] 4.1 Implement `DiffEngine::diff(source: &HashMap<String, String>, target: &HashMap<String, String>) -> Vec<DiffOperation>`
+  - [x] 4.2 Logic: keys in source but not target = `Add`, keys in both with different values = `Update`, keys in target but not source = `Remove`
+  - [x] 4.3 Write comprehensive unit tests: empty sets, identical sets, adds only, removes only, updates only, mixed operations, ordering consistency
+- [x] Task 5: Create `SyncTarget` trait in `src/lib.rs` (AC: #1)
+  - [x] 5.1 Define async trait with `display_name()`, `fetch_current()`, `apply()` methods
+  - [x] 5.2 Re-export all public types from `types`, `error`, `diff` modules
+- [x] Task 6: Verification (AC: all)
+  - [x] 6.1 `cargo build --package zopp-sync` compiles with no warnings
+  - [x] 6.2 `cargo test --package zopp-sync` passes all unit tests (12/12)
+  - [x] 6.3 `cargo clippy --package zopp-sync` reports zero warnings
+  - [x] 6.4 `cargo build --workspace` — pre-existing MSRV issue (zopp-secrets rust-version = 1.90 vs installed 1.88); not introduced by this story
 
 ## Dev Notes
 
@@ -197,8 +197,34 @@ Before submitting a PR, verify each item relevant to your story's scope.
 
 ### Agent Model Used
 
+Claude Opus 4.6
+
 ### Debug Log References
 
 ### Completion Notes List
 
+- All 12 DiffEngine unit tests passing
+- SyncTarget trait uses async-trait with Send + Sync bounds
+- SyncError uses thiserror derive with structured Display format
+- DiffEngine returns operations sorted alphabetically by key for deterministic output
+- Feature flags declared but empty (no feature-gated code yet — targets come in later stories)
+- Omitted `rust-version.workspace = true` from Cargo.toml to match other crate conventions and avoid MSRV resolver issue
+
+### Change Log
+
+- Created `crates/zopp-sync/Cargo.toml` with workspace metadata and feature flags
+- Added `crates/zopp-sync` to workspace members in root `Cargo.toml`
+- Created `crates/zopp-sync/src/lib.rs` — SyncTarget trait + module re-exports
+- Created `crates/zopp-sync/src/types.rs` — DiffOperation, SyncResult, SyncOutcome, SyncSecrets
+- Created `crates/zopp-sync/src/error.rs` — SyncError enum with thiserror
+- Created `crates/zopp-sync/src/diff.rs` — diff function + 12 unit tests
+
 ### File List
+
+- `Cargo.toml` (modified — added workspace member)
+- `Cargo.lock` (modified — new crate resolved)
+- `crates/zopp-sync/Cargo.toml` (new)
+- `crates/zopp-sync/src/lib.rs` (new)
+- `crates/zopp-sync/src/types.rs` (new)
+- `crates/zopp-sync/src/error.rs` (new)
+- `crates/zopp-sync/src/diff.rs` (new)
