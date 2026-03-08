@@ -221,7 +221,7 @@ zopp_install() {
     fi
 
     # Extract
-    tar -xzf "$ZOPP_TMPDIR/$ARCHIVE_NAME" -C "$TMPDIR"
+    tar -xzf "$ZOPP_TMPDIR/$ARCHIVE_NAME" -C "$ZOPP_TMPDIR"
 
     # Install
     mkdir -p "$ZOPP_INSTALL_DIR"
