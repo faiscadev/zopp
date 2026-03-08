@@ -16,4 +16,9 @@ stories:
     branch: "feat/1.2-curl-install-script"
     pr: 75
     dependsOn: ["1.1"]
+completedAt: "2026-03-07"
+summary:
+  total: 2
+  completed: 2
+  skipped: 0
 skippedIssues: []
