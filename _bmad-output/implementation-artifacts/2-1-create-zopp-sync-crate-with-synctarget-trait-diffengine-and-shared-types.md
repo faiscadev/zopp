@@ -90,13 +90,13 @@ pub trait SyncTarget {
 }
 ```
 
-**Error contract (from architecture):**
+**Error contract (AC-compliant — all variants include fix field):**
 ```rust
 pub enum SyncError {
     AuthError { platform: String, message: String, fix: String },
     ApiError { platform: String, operation: String, message: String, fix: String },
-    ConnectionError { platform: String, message: String },
-    SourceError { message: String },
+    ConnectionError { platform: String, message: String, fix: String },
+    SourceError { message: String, fix: String },
 }
 ```
 
