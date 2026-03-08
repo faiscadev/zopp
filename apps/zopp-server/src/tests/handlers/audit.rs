@@ -37,4 +37,38 @@ async fn handler_list_audit_logs() {
     let _ = response.entries;
 }
 
-// Note: CountAuditLogs RPC was removed - use ListAuditLogs response.total_count instead
+#[tokio::test]
+async fn handler_audit_logs_total_count() {
+    // CountAuditLogs was removed - use ListAuditLogs response.total_count instead
+    let server = create_test_server().await;
+    let (user_id, principal_id, signing_key) =
+        create_test_user(&server, "test@example.com", "laptop").await;
+
+    let _ws_id = create_test_workspace(&server, &user_id, "ws").await;
+
+    // Use ListAuditLogs with limit=0 to get total_count without fetching entries
+    let request = create_signed_request(
+        &principal_id,
+        &signing_key,
+        "/zopp.ZoppService/ListAuditLogs",
+        zopp_proto::ListAuditLogsRequest {
+            workspace_name: "ws".to_string(),
+            principal_id: None,
+            user_id: None,
+            project_name: None,
+            environment_name: None,
+            action: None,
+            result: None,
+            from_timestamp: None,
+            to_timestamp: None,
+            limit: Some(0), // Only get count, no entries
+            offset: None,
+        },
+    );
+
+    let response = server.list_audit_logs(request).await.unwrap().into_inner();
+    // With limit=0, entries should be empty but total_count should still be returned
+    assert!(response.entries.is_empty());
+    // Workspace was just created with no actions yet, so total_count should be 0
+    assert_eq!(response.total_count, 0);
+}
