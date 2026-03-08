@@ -44,7 +44,7 @@ development_status:
   epic-1: done
   1-1-set-up-cross-platform-binary-release-ci-pipeline: done
   1-2-create-curl-install-script: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   # Epic 2: Sync Framework & AWS Secrets Manager Integration (Phase 1)
   epic-2: backlog
