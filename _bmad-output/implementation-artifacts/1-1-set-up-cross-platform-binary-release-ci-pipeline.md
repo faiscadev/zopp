@@ -1,6 +1,6 @@
 # Story 1.1: Set up cross-platform binary release CI pipeline
 
-Status: review
+Status: done
 
 ## Story
 

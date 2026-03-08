@@ -1,0 +1,19 @@
+epic: "One-Command CLI Installation"
+epicNumber: 1
+startedAt: "2026-03-07"
+currentPrIndex: 1
+prChain:
+  - storyId: "1.1"
+    storyKey: "1-1-set-up-cross-platform-binary-release-ci-pipeline"
+    title: "Set up cross-platform binary release CI pipeline"
+    branch: "feat/1.1-binary-release-ci"
+    pr: 74
+    baseBranch: "main"
+    status: merged
+  - storyId: "1.2"
+    storyKey: "1-2-create-curl-install-script"
+    title: "Create curl install script"
+    branch: "feat/1.2-curl-install-script"
+    pr: 75
+    baseBranch: "feat/1.1-binary-release-ci"
+    status: pending
