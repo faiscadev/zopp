@@ -1,6 +1,6 @@
 # Story 2.3: Create CLI output component module
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -49,71 +49,71 @@ So that I can quickly scan results, understand errors, and take screenshots for 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `OutputConfig` struct and initialization (AC: #2, #3, #4, #5, #8)
-  - [ ] 1.1 Create `apps/zopp-cli/src/output/mod.rs` with module declarations
-  - [ ] 1.2 Create `apps/zopp-cli/src/output/config.rs` with `OutputConfig` struct: `json`, `no_color`, `verbose`, `quiet`, `is_tty`, `terminal_width`
-  - [ ] 1.3 Implement `OutputConfig::from_env()` — detect `NO_COLOR`, TTY, terminal width
-  - [ ] 1.4 Add `console` (0.16.2) and `terminal_size` (0.4.3) to CLI Cargo.toml dependencies
-  - [ ] 1.5 Wire `output` module into CLI `main.rs`
+- [x] Task 1: Create `OutputConfig` struct and initialization (AC: #2, #3, #4, #5, #8)
+  - [x] 1.1 Create `apps/zopp-cli/src/output/mod.rs` with module declarations
+  - [x] 1.2 Create `apps/zopp-cli/src/output/config.rs` with `OutputConfig` struct: `json`, `no_color`, `verbose`, `quiet`, `is_tty`, `terminal_width`
+  - [x] 1.3 Implement `OutputConfig::from_env()` — detect `NO_COLOR`, TTY, terminal width
+  - [x] 1.4 Add `console` (0.16.2) and `terminal_size` (0.4.3) to CLI Cargo.toml dependencies
+  - [x] 1.5 Wire `output` module into CLI `main.rs`
 
-- [ ] Task 2: Create symbol and color utilities (AC: #3, #8)
-  - [ ] 2.1 Define symbol constants: success (`✓`/`[ok]`), failure (`✗`/`[FAIL]`), warning (`⚠`/`[WARN]`), add (`+`), update (`~`), remove (`-`)
-  - [ ] 2.2 Implement TTY-aware symbol selection (Unicode when TTY, ASCII when not)
-  - [ ] 2.3 Implement color application functions using `console` crate: green, red, yellow, cyan, bold, dim — respecting `no_color` and TTY
+- [x] Task 2: Create symbol and color utilities (AC: #3, #8)
+  - [x] 2.1 Define symbol constants: success (`✓`/`[ok]`), failure (`✗`/`[FAIL]`), warning (`⚠`/`[WARN]`), add (`+`), update (`~`), remove (`-`)
+  - [x] 2.2 Implement TTY-aware symbol selection (Unicode when TTY, ASCII when not)
+  - [x] 2.3 Implement color application functions using `console` crate: green, red, yellow, cyan, bold, dim — respecting `no_color` and TTY
 
-- [ ] Task 3: Create OperationHeader component (AC: #1)
-  - [ ] 3.1 Implement `header(verb: &str, source: &str, target: &str)` — outputs formatted header line
-  - [ ] 3.2 Format: `{verb}: {source} -> {target}`  with cyan target name
+- [x] Task 3: Create OperationHeader component (AC: #1)
+  - [x] 3.1 Implement `header(verb: &str, source: &str, target: &str)` — outputs formatted header line
+  - [x] 3.2 Format: `{verb}: {source} -> {target}`  with cyan target name
 
-- [ ] Task 4: Create PerItemResult component (AC: #1)
-  - [ ] 4.1 Implement `per_item_success(key: &str, action: &str)` — checkmark + key + action
-  - [ ] 4.2 Implement `per_item_failure(key: &str, error: &str, fix: Option<&str>)` — cross + key + error + optional fix on next line
-  - [ ] 4.3 Pad key names to consistent column width
+- [x] Task 4: Create PerItemResult component (AC: #1)
+  - [x] 4.1 Implement `per_item_success(key: &str, action: &str)` — checkmark + key + action
+  - [x] 4.2 Implement `per_item_failure(key: &str, error: &str, fix: Option<&str>)` — cross + key + error + optional fix on next line
+  - [x] 4.3 Pad key names to consistent column width
 
-- [ ] Task 5: Create SummaryLine component (AC: #1)
-  - [ ] 5.1 Implement `summary(total: usize, succeeded: usize, failed: usize, target: &str)` — outputs summary
-  - [ ] 5.2 Three states: all success (green checkmark), partial (yellow warning), total failure (red cross)
+- [x] Task 5: Create SummaryLine component (AC: #1)
+  - [x] 5.1 Implement `summary(total: usize, succeeded: usize, failed: usize, target: &str)` — outputs summary
+  - [x] 5.2 Three states: all success (green checkmark), partial (yellow warning), total failure (red cross)
 
-- [ ] Task 6: Create DiffSummary component (AC: #1)
-  - [ ] 6.1 Implement `diff_item(op_type: DiffSymbol, key: &str)` — single diff line with +/~/- symbol
-  - [ ] 6.2 Implement `diff_summary(adds: usize, updates: usize, removes: usize)` — count summary or "No changes" message
+- [x] Task 6: Create DiffSummary component (AC: #1)
+  - [x] 6.1 Implement `diff_item(op_type: DiffSymbol, key: &str)` — single diff line with +/~/- symbol
+  - [x] 6.2 Implement `diff_summary(adds: usize, updates: usize, removes: usize)` — count summary or "No changes" message
 
-- [ ] Task 7: Create StatusTable component (AC: #1, #7)
-  - [ ] 7.1 Implement `status_table(entries: &[StatusEntry])` — formatted aligned table
-  - [ ] 7.2 Define `StatusEntry` struct: target name, status, detail
-  - [ ] 7.3 Truncate long values with `...` at terminal width boundary
-  - [ ] 7.4 Adapt column widths based on terminal width (80 minimum)
+- [x] Task 7: Create StatusTable component (AC: #1, #7)
+  - [x] 7.1 Implement `status_table(entries: &[StatusEntry])` — formatted aligned table
+  - [x] 7.2 Define `StatusEntry` struct: target name, status, detail
+  - [x] 7.3 Truncate long values with `...` at terminal width boundary
+  - [x] 7.4 Adapt column widths based on terminal width (80 minimum)
 
-- [ ] Task 8: Create ErrorBlock component (AC: #1)
-  - [ ] 8.1 Implement `error_block(context: &str, problem: &str, fix: &str)` — structured error output
-  - [ ] 8.2 Format: `Error: {context} — {problem}\n\n  Fix: {fix}`
+- [x] Task 8: Create ErrorBlock component (AC: #1)
+  - [x] 8.1 Implement `error_block(context: &str, problem: &str, fix: &str)` — structured error output
+  - [x] 8.2 Format: `Error: {context} — {problem}\n\n  Fix: {fix}`
 
-- [ ] Task 9: Create JSON output support (AC: #2)
-  - [ ] 9.1 Create `apps/zopp-cli/src/output/json.rs` with serialization types
-  - [ ] 9.2 Define `SyncOutput`, `DiffOutput`, `StatusOutput` JSON structs (matching human-readable fields)
-  - [ ] 9.3 Implement `output_json(value: &impl Serialize)` — outputs complete JSON, no ANSI codes
+- [x] Task 9: Create JSON output support (AC: #2)
+  - [x] 9.1 Create `apps/zopp-cli/src/output/json.rs` with serialization types
+  - [x] 9.2 Define `SyncOutput`, `DiffOutput`, `StatusOutput` JSON structs (matching human-readable fields)
+  - [x] 9.3 Implement `output_json(value: &impl Serialize)` — outputs complete JSON, no ANSI codes
 
-- [ ] Task 10: Create SyncCommonArgs struct (AC: #2, #3, #4, #5)
-  - [ ] 10.1 Define `SyncCommonArgs` with clap derive: `-w`, `-p`, `-e`, `--dry-run`, `--json`, `--no-color`, `--verbose`, `--quiet`, `--force`
-  - [ ] 10.2 Implement `SyncCommonArgs::to_output_config()` to build `OutputConfig`
+- [x] Task 10: Create SyncCommonArgs struct (AC: #2, #3, #4, #5)
+  - [x] 10.1 Define `SyncCommonArgs` with clap derive: `-w`, `-p`, `-e`, `--dry-run`, `--json`, `--no-color`, `--verbose`, `--quiet`, `--force`
+  - [x] 10.2 Implement `SyncCommonArgs::to_output_config()` to build `OutputConfig`
 
-- [ ] Task 11: Create exit code module (AC: #6)
-  - [ ] 11.1 Define exit code constants: SUCCESS=0, PARTIAL=1, TOTAL_FAILURE=2, CONFIG_ERROR=3, CONNECTION_ERROR=4
-  - [ ] 11.2 Implement `exit_code_from_results(total: usize, failed: usize) -> i32`
+- [x] Task 11: Create exit code module (AC: #6)
+  - [x] 11.1 Define exit code constants: SUCCESS=0, PARTIAL=1, TOTAL_FAILURE=2, CONFIG_ERROR=3, CONNECTION_ERROR=4
+  - [x] 11.2 Implement `exit_code_from_results(total: usize, failed: usize) -> i32`
 
-- [ ] Task 12: Write tests (AC: all)
-  - [ ] 12.1 Unit test each component's output format
-  - [ ] 12.2 Test NO_COLOR produces zero ANSI escape codes
-  - [ ] 12.3 Test non-TTY uses ASCII fallback symbols
-  - [ ] 12.4 Test JSON output is valid JSON with all expected fields
-  - [ ] 12.5 Test exit code calculation for all scenarios
-  - [ ] 12.6 Test summary line for all-success, partial, total-failure states
+- [x] Task 12: Write tests (AC: all)
+  - [x] 12.1 Unit test each component's output format
+  - [x] 12.2 Test NO_COLOR produces zero ANSI escape codes
+  - [x] 12.3 Test non-TTY uses ASCII fallback symbols
+  - [x] 12.4 Test JSON output is valid JSON with all expected fields
+  - [x] 12.5 Test exit code calculation for all scenarios
+  - [x] 12.6 Test summary line for all-success, partial, total-failure states
 
-- [ ] Task 13: Verification
-  - [ ] 13.1 `cargo build --package zopp-cli` compiles
-  - [ ] 13.2 `cargo test --package zopp-cli` passes
-  - [ ] 13.3 `cargo clippy --package zopp-cli --all-targets` zero warnings
-  - [ ] 13.4 `cargo fmt --all -- --check` passes
+- [x] Task 13: Verification
+  - [x] 13.1 `cargo build --package zopp-cli` compiles
+  - [x] 13.2 `cargo test --package zopp-cli` passes
+  - [x] 13.3 `cargo clippy --package zopp-cli --all-targets` zero warnings
+  - [x] 13.4 `cargo fmt --all -- --check` passes
 
 ## Dev Notes
 
@@ -293,8 +293,40 @@ pub struct SyncCommonArgs {
 
 ### Agent Model Used
 
+Claude Opus 4.6
+
 ### Debug Log References
 
 ### Completion Notes List
 
+- 32 unit tests across all output submodules
+- Components respect quiet/json modes (early return) and error_block only suppresses in json mode
+- Symbols: Unicode (✓/✗/⚠) when TTY, ASCII ([ok]/[FAIL]/[WARN]) when not
+- Color gated on `!no_color && is_tty` via `OutputConfig::use_color()`
+- Added `console` and `terminal_size` as workspace dependencies
+- SyncCommonArgs uses clap derive with flatten-ready structure
+
+### Change Log
+
+- Created `apps/zopp-cli/src/output/mod.rs` — module root with re-exports
+- Created `apps/zopp-cli/src/output/config.rs` — OutputConfig with TTY/width detection
+- Created `apps/zopp-cli/src/output/components.rs` — 8 output components + Symbols + StatusEntry
+- Created `apps/zopp-cli/src/output/json.rs` — JSON output types (Sync/Diff/Status)
+- Created `apps/zopp-cli/src/output/exit_codes.rs` — exit code constants + from_results()
+- Created `apps/zopp-cli/src/output/sync_common_args.rs` — SyncCommonArgs clap struct
+- Modified `apps/zopp-cli/Cargo.toml` — added console, terminal_size deps
+- Modified `apps/zopp-cli/src/main.rs` — added `pub mod output;`
+- Modified root `Cargo.toml` — added workspace deps for console, terminal_size
+
 ### File List
+
+- `Cargo.toml` (modified — workspace deps)
+- `Cargo.lock` (modified)
+- `apps/zopp-cli/Cargo.toml` (modified — new deps)
+- `apps/zopp-cli/src/main.rs` (modified — module declaration)
+- `apps/zopp-cli/src/output/mod.rs` (new)
+- `apps/zopp-cli/src/output/config.rs` (new)
+- `apps/zopp-cli/src/output/components.rs` (new)
+- `apps/zopp-cli/src/output/json.rs` (new)
+- `apps/zopp-cli/src/output/exit_codes.rs` (new)
+- `apps/zopp-cli/src/output/sync_common_args.rs` (new)
