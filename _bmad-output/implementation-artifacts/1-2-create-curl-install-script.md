@@ -48,7 +48,7 @@ so that I can start using zopp in under 30 seconds without building from source.
   - [x] Unsupported platform: list supported platforms, suggest `cargo install`
   - [x] Network errors: clear message with retry suggestion
   - [x] Checksum mismatch: abort with security warning
-  - [x] Permission denied: suggest running with sudo or using a different install dir
+  - [x] Permission denied: suggest using a custom writable install directory
 
 - [x] Task 5: Add install script tests (AC: #1-5)
   - [x] POSIX shell syntax validation (sh -n) passes

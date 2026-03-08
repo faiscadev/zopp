@@ -140,8 +140,9 @@ zopp_compute_sha256() {
     elif command -v shasum >/dev/null 2>&1; then
         shasum -a 256 "$1" | awk '{print $1}'
     else
-        zopp_log_warn "Neither sha256sum nor shasum found. Skipping checksum verification."
-        echo ""
+        zopp_log_error "Neither sha256sum nor shasum found. Cannot verify download integrity."
+        zopp_log "  Install one of these utilities and try again."
+        exit 1
     fi
 }
 
@@ -217,7 +218,11 @@ zopp_install() {
         zopp_verify_checksum "$ZOPP_TMPDIR/$ARCHIVE_NAME" "$ZOPP_TMPDIR/checksums.txt" "$ARCHIVE_NAME"
         zopp_log_success "(SHA256 matched)"
     else
-        zopp_log_warn "Could not download checksums.txt. Skipping verification."
+        printf "\n"
+        zopp_log_error "Could not download checksums.txt. Cannot verify download integrity."
+        zopp_log "  URL: $CHECKSUMS_URL"
+        zopp_log "  Check your internet connection and try again."
+        exit 1
     fi
 
     # Extract
@@ -233,9 +238,8 @@ zopp_install() {
     else
         printf "\n"
         zopp_log_error "Could not install to $ZOPP_INSTALL_DIR."
-        zopp_log "  Permission denied. Try one of:"
-        zopp_log "    ZOPP_INSTALL_DIR=/path/to/dir sh install.sh"
-        zopp_log "    sudo sh install.sh"
+        zopp_log "  Permission denied. Try setting a custom install directory:"
+        zopp_log "    ZOPP_INSTALL_DIR=/path/to/writable/dir sh install.sh"
         exit 1
     fi
 
