@@ -15,4 +15,4 @@ fi
 ZOPP_TMPSCRIPT=$(mktemp)
 trap 'rm -f "$ZOPP_TMPSCRIPT"' EXIT
 curl -fsSL -o "$ZOPP_TMPSCRIPT" https://raw.githubusercontent.com/faiscadev/zopp/main/scripts/install.sh
-exec sh "$ZOPP_TMPSCRIPT" "$@"
+sh "$ZOPP_TMPSCRIPT" "$@"
