@@ -182,5 +182,4 @@ Claude Opus 4.6
 
 ### File List
 
-- `scripts/install.sh` (new)
-- `install.sh` (modified — now delegates to scripts/install.sh)
+- `install.sh` (rewritten — single self-contained install script)
