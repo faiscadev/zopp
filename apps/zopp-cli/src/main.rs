@@ -7,6 +7,7 @@ mod config;
 mod crypto;
 mod grpc;
 mod k8s;
+pub mod output;
 mod passphrase;
 
 use cli::{
