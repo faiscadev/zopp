@@ -1,6 +1,6 @@
 # Story 1.2: Create curl install script
 
-Status: review
+Status: done
 
 ## Story
 

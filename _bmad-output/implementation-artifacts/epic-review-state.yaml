@@ -16,4 +16,5 @@ prChain:
     branch: "feat/1.2-curl-install-script"
     pr: 75
     baseBranch: "feat/1.1-binary-release-ci"
-    status: pending
+    status: merged
+completedAt: "2026-03-08"
