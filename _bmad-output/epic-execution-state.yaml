@@ -11,9 +11,9 @@ stories:
     dependsOn: []
   - id: "1.2"
     title: "Create curl install script"
-    status: in-progress
-    currentPhase: "pr-ci"
+    status: completed
+    currentPhase: ""
     branch: "feat/1.2-curl-install-script"
-    pr: null
+    pr: 75
     dependsOn: ["1.1"]
 skippedIssues: []
