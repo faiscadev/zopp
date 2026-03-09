@@ -24,6 +24,8 @@ chrono = { workspace = true }
 ed25519-dalek = { workspace = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }
+console = { workspace = true }
+terminal_size = { workspace = true }
 dirs = { workspace = true }
 dotenvy = { workspace = true }
 serde = { workspace = true }
