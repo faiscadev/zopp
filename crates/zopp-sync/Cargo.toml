@@ -9,7 +9,7 @@ description = "Sync framework for zopp — SyncTarget trait, DiffEngine, and sha
 
 [features]
 default = []
-aws = []
+aws = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tokio"]
 gcp = []
 fly = []
 vercel = []
@@ -18,8 +18,12 @@ railway = []
 
 [dependencies]
 async-trait.workspace = true
+aws-config = { workspace = true, optional = true }
+aws-sdk-secretsmanager = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

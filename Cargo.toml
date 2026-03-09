@@ -36,6 +36,8 @@ categories = ["cryptography", "command-line-utilities"]
 
 [workspace.dependencies]
 async-trait = "0.1.89"
+aws-config = "1.8"
+aws-sdk-secretsmanager = "1.100"
 argon2 = "0.5.3"
 axum = "0.8"
 base64 = "0.22.1"
