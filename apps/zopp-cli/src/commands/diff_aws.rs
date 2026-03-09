@@ -26,7 +26,12 @@ pub async fn cmd_diff_aws(
     ) {
         Ok(ctx) => ctx,
         Err(e) => {
-            error_block(&config, "zopp config", &e.to_string(), "Check zopp.toml or pass -w, -p, -e flags");
+            error_block(
+                &config,
+                "zopp config",
+                &e.to_string(),
+                "Check zopp.toml or pass -w, -p, -e flags",
+            );
             return exit_codes::CONFIG_ERROR;
         }
     };
@@ -35,7 +40,12 @@ pub async fn cmd_diff_aws(
     let (mut client, principal, secrets) = match setup_client(server, tls_ca_cert).await {
         Ok(c) => c,
         Err(e) => {
-            error_block(&config, "zopp connection", &e.to_string(), "Check server address and credentials");
+            error_block(
+                &config,
+                "zopp connection",
+                &e.to_string(),
+                "Check server address and credentials",
+            );
             return exit_codes::CONNECTION_ERROR;
         }
     };
@@ -52,7 +62,12 @@ pub async fn cmd_diff_aws(
     {
         Ok(s) => s,
         Err(e) => {
-            error_block(&config, "zopp secrets", &e.to_string(), "Verify workspace, project, and environment exist");
+            error_block(
+                &config,
+                "zopp secrets",
+                &e.to_string(),
+                "Verify workspace, project, and environment exist",
+            );
             return exit_codes::CONFIG_ERROR;
         }
     };

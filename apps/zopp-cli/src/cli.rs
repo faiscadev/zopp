@@ -1088,3 +1088,129 @@ pub enum AuditCommand {
         result: Option<String>,
     },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn test_sync_aws_parses_all_flags() {
+        let cli = Cli::try_parse_from([
+            "zopp",
+            "sync",
+            "aws",
+            "--region",
+            "us-east-1",
+            "--prefix",
+            "/prod/myapp/",
+            "-w",
+            "myworkspace",
+            "-p",
+            "myproject",
+            "-e",
+            "production",
+            "--dry-run",
+            "--json",
+            "--no-color",
+            "--verbose",
+            "--force",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Sync { sync_cmd } => match sync_cmd {
+                SyncCommand::Aws {
+                    common,
+                    region,
+                    prefix,
+                } => {
+                    assert_eq!(region, "us-east-1");
+                    assert_eq!(prefix, Some("/prod/myapp/".to_string()));
+                    assert_eq!(common.workspace, Some("myworkspace".to_string()));
+                    assert_eq!(common.project, Some("myproject".to_string()));
+                    assert_eq!(common.environment, Some("production".to_string()));
+                    assert!(common.dry_run);
+                    assert!(common.json);
+                    assert!(common.no_color);
+                    assert!(common.verbose);
+                    assert!(common.force);
+                }
+                _ => panic!("Expected SyncCommand::Aws"),
+            },
+            _ => panic!("Expected Command::Sync"),
+        }
+    }
+
+    #[test]
+    fn test_sync_aws_region_required() {
+        let result = Cli::try_parse_from(["zopp", "sync", "aws"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sync_aws_minimal() {
+        let cli = Cli::try_parse_from(["zopp", "sync", "aws", "--region", "eu-west-1"]).unwrap();
+
+        match cli.command {
+            Command::Sync { sync_cmd } => match sync_cmd {
+                SyncCommand::Aws {
+                    common,
+                    region,
+                    prefix,
+                } => {
+                    assert_eq!(region, "eu-west-1");
+                    assert!(prefix.is_none());
+                    assert!(common.workspace.is_none());
+                    assert!(!common.dry_run);
+                    assert!(!common.json);
+                    assert!(!common.force);
+                }
+                _ => panic!("Expected SyncCommand::Aws"),
+            },
+            _ => panic!("Expected Command::Sync"),
+        }
+    }
+
+    #[test]
+    fn test_diff_aws_parses() {
+        let cli = Cli::try_parse_from([
+            "zopp",
+            "diff",
+            "aws",
+            "--region",
+            "us-west-2",
+            "--prefix",
+            "/staging/",
+            "-w",
+            "ws",
+            "-p",
+            "proj",
+            "-e",
+            "staging",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Diff { diff_cmd } => match diff_cmd {
+                DiffCommand::Aws {
+                    common,
+                    region,
+                    prefix,
+                } => {
+                    assert_eq!(region, "us-west-2");
+                    assert_eq!(prefix, Some("/staging/".to_string()));
+                    assert_eq!(common.workspace, Some("ws".to_string()));
+                }
+                _ => panic!("Expected DiffCommand::Aws"),
+            },
+            _ => panic!("Expected Command::Diff"),
+        }
+    }
+
+    #[test]
+    fn test_diff_aws_region_required() {
+        let result = Cli::try_parse_from(["zopp", "diff", "aws"]);
+        assert!(result.is_err());
+    }
+}
