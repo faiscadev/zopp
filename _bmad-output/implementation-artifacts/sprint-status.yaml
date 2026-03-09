@@ -47,7 +47,7 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: Sync Framework & AWS Secrets Manager Integration (Phase 1)
-  epic-2: in-progress
+  epic-2: done
   2-1-create-zopp-sync-crate-with-synctarget-trait-diffengine-and-shared-types: done
   2-2-implement-aws-secrets-manager-sync-target: done
   2-3-create-cli-output-component-module: done
