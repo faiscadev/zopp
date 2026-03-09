@@ -91,20 +91,20 @@ impl SecretsManagerApi for AwsClient {
 
         while let Some(page) = paginator.next().await {
             let page = page.map_err(|e| map_sdk_error(e, "list_secrets"))?;
-            if let Some(secrets) = page.secret_list() {
-                for secret in secrets {
-                    if let Some(name) = secret.name() {
-                        // Apply prefix filter
-                        if let Some(pfx) = prefix {
-                            if !name.starts_with(pfx) {
-                                continue;
-                            }
-                        }
-                        entries.push(SecretEntry {
-                            name: name.to_string(),
-                        });
+            for secret in page.secret_list() {
+                let name: &str = match secret.name() {
+                    Some(n) => n,
+                    None => continue,
+                };
+                // Apply prefix filter
+                if let Some(pfx) = prefix {
+                    if !name.starts_with(pfx) {
+                        continue;
                     }
                 }
+                entries.push(SecretEntry {
+                    name: name.to_string(),
+                });
             }
         }
 
