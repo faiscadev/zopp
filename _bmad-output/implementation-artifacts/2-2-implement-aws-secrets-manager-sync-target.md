@@ -1,6 +1,6 @@
 # Story 2.2: Implement AWS Secrets Manager sync target
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
