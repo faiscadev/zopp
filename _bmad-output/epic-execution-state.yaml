@@ -32,8 +32,8 @@ stories:
     dependsOn: ["2.1", "2.2", "2.3"]
   - id: "2.5"
     title: "Add zopp sync status command"
-    status: in-progress
-    currentPhase: "pr-complete"
+    status: completed
+    currentPhase: ""
     branch: "feat/2.5-sync-status-command"
     pr: 80
     dependsOn: ["2.1", "2.3", "2.4"]
