@@ -77,13 +77,15 @@ pub async fn cmd_sync_status(
 
     // 3. Query each target and build status entries
     let mut entries = Vec::new();
-    let mut has_error = false;
+    let mut error_count = 0usize;
+    let mut total_targets = 0usize;
 
     // AWS target
+    total_targets += 1;
     let aws_entry = match build_aws_status(&zopp_map, zopp_count, region, prefix).await {
         Ok(entry) => entry,
         Err(entry) => {
-            has_error = true;
+            error_count += 1;
             entry
         }
     };
@@ -107,11 +109,7 @@ pub async fn cmd_sync_status(
         output_json(&json_output);
     }
 
-    if has_error {
-        exit_codes::TOTAL_FAILURE
-    } else {
-        exit_codes::SUCCESS
-    }
+    exit_codes::from_results(total_targets, error_count)
 }
 
 /// Build a StatusEntry for the AWS target. Returns Ok for success, Err for error entries.
