@@ -52,7 +52,8 @@ fn map_sdk_error<E: std::fmt::Display>(
         || message.contains("UnrecognizedClientException")
         || message.contains("InvalidClientTokenId")
         || message.contains("SignatureDoesNotMatch")
-        || message.contains("credentials")
+        || message.contains("No credentials in the property bag")
+        || message.contains("failed to load credentials")
     {
         return SyncError::AuthError {
             platform: PLATFORM.into(),
@@ -87,7 +88,18 @@ fn map_sdk_error<E: std::fmt::Display>(
 impl SecretsManagerApi for AwsClient {
     async fn list_secrets(&self, prefix: Option<&str>) -> Result<Vec<SecretEntry>, SyncError> {
         let mut entries = Vec::new();
-        let mut paginator = self.client.list_secrets().into_paginator().send();
+
+        let mut builder = self.client.list_secrets();
+        if let Some(pfx) = prefix {
+            builder = builder.filters(
+                aws_sdk_secretsmanager::types::Filter::builder()
+                    .key(aws_sdk_secretsmanager::types::FilterNameStringType::Name)
+                    .values(pfx)
+                    .build(),
+            );
+        }
+
+        let mut paginator = builder.into_paginator().send();
 
         while let Some(page) = paginator.next().await {
             let page = page.map_err(|e| map_sdk_error(e, "list_secrets"))?;
@@ -96,12 +108,6 @@ impl SecretsManagerApi for AwsClient {
                     Some(n) => n,
                     None => continue,
                 };
-                // Apply prefix filter
-                if let Some(pfx) = prefix {
-                    if !name.starts_with(pfx) {
-                        continue;
-                    }
-                }
                 entries.push(SecretEntry {
                     name: name.to_string(),
                 });
