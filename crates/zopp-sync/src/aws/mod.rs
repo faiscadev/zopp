@@ -16,7 +16,7 @@ use client::{AwsClient, SecretsManagerApi};
 /// using the default provider chain.
 pub struct AwsSyncTarget {
     api: Box<dyn SecretsManagerApi>,
-    region: String,
+    display_name: String,
     prefix: Option<String>,
 }
 
@@ -37,7 +37,7 @@ impl AwsSyncTarget {
 
         Ok(Self {
             api: Box::new(AwsClient::new(sm_client)),
-            region: region.to_string(),
+            display_name: format!("AWS Secrets Manager ({region})"),
             prefix,
         })
     }
@@ -47,7 +47,7 @@ impl AwsSyncTarget {
     fn from_api(api: Box<dyn SecretsManagerApi>, region: &str, prefix: Option<String>) -> Self {
         Self {
             api,
-            region: region.to_string(),
+            display_name: format!("AWS Secrets Manager ({region})"),
             prefix,
         }
     }
@@ -72,7 +72,7 @@ impl AwsSyncTarget {
 #[async_trait::async_trait]
 impl SyncTarget for AwsSyncTarget {
     fn display_name(&self) -> &str {
-        "AWS Secrets Manager"
+        &self.display_name
     }
 
     async fn fetch_current(&self) -> Result<HashMap<String, String>, SyncError> {
@@ -435,7 +435,7 @@ mod tests {
     async fn display_name_returns_aws() {
         let api = MockApi::new(HashMap::new());
         let target = AwsSyncTarget::from_api(Box::new(api), "us-east-1", None);
-        assert_eq!(target.display_name(), "AWS Secrets Manager");
+        assert_eq!(target.display_name(), "AWS Secrets Manager (us-east-1)");
     }
 
     #[test]
