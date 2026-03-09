@@ -135,8 +135,13 @@ pub async fn cmd_sync_aws(
         diff_summary(&config, adds, updates, removes);
 
         if config.json {
+            let command = if common.dry_run {
+                "sync --dry-run"
+            } else {
+                "sync"
+            };
             let json_output = DiffJsonOutput {
-                command: "sync --dry-run".into(),
+                command: command.into(),
                 target: target_label,
                 source: source_label,
                 changes: operations
