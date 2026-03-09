@@ -19,7 +19,7 @@ stories:
   - id: "2.2"
     title: "Implement AWS Secrets Manager sync target"
     status: in-progress
-    currentPhase: "dev"
+    currentPhase: "pr-ci"
     branch: "feat/2.2-aws-secrets-manager-sync"
     pr: null
     dependsOn: ["2.1"]
