@@ -11,10 +11,10 @@ stories:
     dependsOn: []
   - id: "2.3"
     title: "Create CLI output component module"
-    status: completed
+    status: pending
     currentPhase: ""
-    branch: "feat/2.3-cli-output-components"
-    pr: 77
+    branch: ""
+    pr: null
     dependsOn: []
   - id: "2.2"
     title: "Implement AWS Secrets Manager sync target"

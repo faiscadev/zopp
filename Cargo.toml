@@ -16,6 +16,7 @@ members = [
     "crates/zopp-proto-web",
     "crates/zopp-secrets",
     "crates/zopp-storage",
+    "crates/zopp-sync",
     "crates/zopp-store-postgres",
     "crates/zopp-store-sqlite",
     "xtask",
