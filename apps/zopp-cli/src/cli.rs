@@ -469,6 +469,19 @@ pub enum SyncCommand {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Show sync status for configured targets
+    Status {
+        #[command(flatten)]
+        common: SyncCommonArgs,
+
+        /// AWS region (e.g., us-east-1)
+        #[arg(long)]
+        region: String,
+
+        /// AWS Secrets Manager name prefix (e.g., /prod/myapp/)
+        #[arg(long)]
+        prefix: Option<String>,
+    },
     /// Sync secrets to AWS Secrets Manager
     Aws {
         #[command(flatten)]
@@ -1212,5 +1225,77 @@ mod tests {
     fn test_diff_aws_region_required() {
         let result = Cli::try_parse_from(["zopp", "diff", "aws"]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sync_status_parses_all_flags() {
+        let cli = Cli::try_parse_from([
+            "zopp",
+            "sync",
+            "status",
+            "--region",
+            "us-east-1",
+            "--prefix",
+            "/prod/",
+            "-w",
+            "ws",
+            "-p",
+            "proj",
+            "-e",
+            "prod",
+            "--json",
+            "--no-color",
+            "--quiet",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Sync { sync_cmd } => match sync_cmd {
+                SyncCommand::Status {
+                    common,
+                    region,
+                    prefix,
+                } => {
+                    assert_eq!(region, "us-east-1");
+                    assert_eq!(prefix, Some("/prod/".to_string()));
+                    assert_eq!(common.workspace, Some("ws".to_string()));
+                    assert_eq!(common.project, Some("proj".to_string()));
+                    assert_eq!(common.environment, Some("prod".to_string()));
+                    assert!(common.json);
+                    assert!(common.no_color);
+                    assert!(common.quiet);
+                }
+                _ => panic!("Expected SyncCommand::Status"),
+            },
+            _ => panic!("Expected Command::Sync"),
+        }
+    }
+
+    #[test]
+    fn test_sync_status_region_required() {
+        let result = Cli::try_parse_from(["zopp", "sync", "status"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sync_status_minimal() {
+        let cli = Cli::try_parse_from(["zopp", "sync", "status", "--region", "eu-west-1"]).unwrap();
+
+        match cli.command {
+            Command::Sync { sync_cmd } => match sync_cmd {
+                SyncCommand::Status {
+                    common,
+                    region,
+                    prefix,
+                } => {
+                    assert_eq!(region, "eu-west-1");
+                    assert!(prefix.is_none());
+                    assert!(common.workspace.is_none());
+                    assert!(!common.json);
+                }
+                _ => panic!("Expected SyncCommand::Status"),
+            },
+            _ => panic!("Expected Command::Sync"),
+        }
     }
 }
