@@ -1,6 +1,6 @@
 # Story 2.4: Add zopp sync aws and zopp diff aws CLI commands
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -61,50 +61,50 @@ so that I can keep AWS in sync with zopp as my single source of truth.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add zopp-sync dependency to CLI (AC: #2, #4)
-  - [ ] 1.1 Add `zopp-sync = { path = "../../crates/zopp-sync", version = "0.1.0", features = ["aws"] }` to `apps/zopp-cli/Cargo.toml`
+- [x] Task 1: Add zopp-sync dependency to CLI (AC: #2, #4)
+  - [x] 1.1 Add `zopp-sync = { path = "../../crates/zopp-sync", version = "0.1.0", features = ["aws"] }` to `apps/zopp-cli/Cargo.toml`
 
-- [ ] Task 2: Add AWS variants to CLI command enums (AC: #1, #2, #4)
-  - [ ] 2.1 Add `Aws` variant to `SyncCommand` enum with `SyncCommonArgs` flatten + `--region` (required) and `--prefix` (optional)
-  - [ ] 2.2 Add `Aws` variant to `DiffCommand` enum with same args (shared struct minus `--dry-run` and `--force`)
-  - [ ] 2.3 Define `SyncAwsArgs` struct with `#[command(flatten)] common: SyncCommonArgs`, `region: String`, `prefix: Option<String>`
-  - [ ] 2.4 Define `DiffAwsArgs` struct (same target flags, no `--dry-run`/`--force` — use a `DiffCommonArgs` or subset)
+- [x] Task 2: Add AWS variants to CLI command enums (AC: #1, #2, #4)
+  - [x] 2.1 Add `Aws` variant to `SyncCommand` enum with `SyncCommonArgs` flatten + `--region` (required) and `--prefix` (optional)
+  - [x] 2.2 Add `Aws` variant to `DiffCommand` enum with same args (uses same `SyncCommonArgs` per architecture: "same struct, different execution path")
+  - [x] 2.3 Used inline struct fields with `#[command(flatten)]` for `SyncCommonArgs` (no separate SyncAwsArgs needed — follows K8s pattern)
+  - [x] 2.4 Used same `SyncCommonArgs` for both sync and diff per architecture guidance
 
-- [ ] Task 3: Implement `cmd_sync_aws` function (AC: #2, #3, #5, #6, #7, #9)
-  - [ ] 3.1 Create `apps/zopp-cli/src/commands/sync_aws.rs`
-  - [ ] 3.2 Resolve workspace/project/environment via `resolve_context()`
-  - [ ] 3.3 Fetch and decrypt zopp secrets via `setup_client()` + `fetch_and_decrypt_secrets()`
-  - [ ] 3.4 Create `AwsSyncTarget::new(region, prefix)` — map errors to `error_block`
-  - [ ] 3.5 Call `target.fetch_current()` — map `SyncError` to `error_block`
-  - [ ] 3.6 Compute diff via `zopp_sync::diff()`
-  - [ ] 3.7 If `--dry-run` or no operations: output diff using `diff_item` + `diff_summary`
-  - [ ] 3.8 If not dry-run: call `target.apply()`, output per-item results using `per_item_success`/`per_item_failure`
-  - [ ] 3.9 Output summary using `summary()` component
-  - [ ] 3.10 Handle `--json` with `SyncJsonOutput` / `DiffJsonOutput`
-  - [ ] 3.11 Return appropriate exit code via `exit_codes::from_results`
+- [x] Task 3: Implement `cmd_sync_aws` function (AC: #2, #3, #5, #6, #7, #9)
+  - [x] 3.1 Create `apps/zopp-cli/src/commands/sync_aws.rs`
+  - [x] 3.2 Resolve workspace/project/environment via `resolve_context()`
+  - [x] 3.3 Fetch and decrypt zopp secrets via `setup_client()` + `fetch_and_decrypt_secrets()`
+  - [x] 3.4 Create `AwsSyncTarget::new(region, prefix)` — map errors to `error_block`
+  - [x] 3.5 Call `target.fetch_current()` — map `SyncError` to `error_block`
+  - [x] 3.6 Compute diff via `zopp_sync::diff()`
+  - [x] 3.7 If `--dry-run` or no operations: output diff using `diff_item` + `diff_summary`
+  - [x] 3.8 If not dry-run: call `target.apply()`, output per-item results using `per_item_success`/`per_item_failure`
+  - [x] 3.9 Output summary using `summary()` component
+  - [x] 3.10 Handle `--json` with `SyncJsonOutput` / `DiffJsonOutput`
+  - [x] 3.11 Return appropriate exit code via `exit_codes::from_results`
 
-- [ ] Task 4: Implement `cmd_diff_aws` function (AC: #1, #5, #7)
-  - [ ] 4.1 Create `apps/zopp-cli/src/commands/diff_aws.rs`
-  - [ ] 4.2 Same fetch/decrypt/target-creation as sync
-  - [ ] 4.3 Compute diff, output using `diff_item` + `diff_summary`
-  - [ ] 4.4 Handle `--json` with `DiffJsonOutput`
-  - [ ] 4.5 Return `SUCCESS` exit code (diff is always read-only)
+- [x] Task 4: Implement `cmd_diff_aws` function (AC: #1, #5, #7)
+  - [x] 4.1 Create `apps/zopp-cli/src/commands/diff_aws.rs`
+  - [x] 4.2 Same fetch/decrypt/target-creation as sync
+  - [x] 4.3 Compute diff, output using `diff_item` + `diff_summary`
+  - [x] 4.4 Handle `--json` with `DiffJsonOutput`
+  - [x] 4.5 Return `SUCCESS` exit code (diff is always read-only)
 
-- [ ] Task 5: Wire commands in main.rs (AC: #1, #2)
-  - [ ] 5.1 Add `SyncCommand::Aws` match arm in `Command::Sync` handler
-  - [ ] 5.2 Add `DiffCommand::Aws` match arm in `Command::Diff` handler
-  - [ ] 5.3 Export new command functions from `commands/mod.rs`
+- [x] Task 5: Wire commands in main.rs (AC: #1, #2)
+  - [x] 5.1 Add `SyncCommand::Aws` match arm in `Command::Sync` handler
+  - [x] 5.2 Add `DiffCommand::Aws` match arm in `Command::Diff` handler
+  - [x] 5.3 Export new command functions from `commands/mod.rs`
 
-- [ ] Task 6: Handle error mapping (AC: #8)
-  - [ ] 6.1 Map `SyncError::AuthError` → `error_block` + exit with `CONFIG_ERROR`
-  - [ ] 6.2 Map `SyncError::ConnectionError` → `error_block` + exit with `CONNECTION_ERROR`
-  - [ ] 6.3 Map `SyncError::ApiError` → `error_block` + exit with `TOTAL_FAILURE`
-  - [ ] 6.4 Map `SyncError::SourceError` → `error_block` + exit with `CONFIG_ERROR`
+- [x] Task 6: Handle error mapping (AC: #8)
+  - [x] 6.1 Map `SyncError::AuthError` → `error_block` + exit with `CONFIG_ERROR`
+  - [x] 6.2 Map `SyncError::ConnectionError` → `error_block` + exit with `CONNECTION_ERROR`
+  - [x] 6.3 Map `SyncError::ApiError` → `error_block` + exit with `TOTAL_FAILURE`
+  - [x] 6.4 Map `SyncError::SourceError` → `error_block` + exit with `CONFIG_ERROR`
 
-- [ ] Task 7: Write unit tests (AC: #1-#9)
-  - [ ] 7.1 Test that SyncAwsArgs parses correctly with all flags
-  - [ ] 7.2 Test that DiffAwsArgs parses correctly
-  - [ ] 7.3 Test exit code computation for various result combinations
+- [x] Task 7: Write unit tests (AC: #1-#9)
+  - [x] 7.1 Test CLI argument parsing for sync aws with all flags (clap's `try_parse_from`)
+  - [x] 7.2 Test CLI argument parsing for diff aws
+  - [x] 7.3 Exit code computation tested via existing `exit_codes::from_results` tests in output module
 
 - [ ] Task 8: Verification (via CI)
   - [ ] 8.1 `cargo build --workspace --all-features` compiles
@@ -291,6 +291,28 @@ Claude Opus 4.6
 
 ### Completion Notes List
 
+- Used inline struct fields with `#[command(flatten)]` for SyncCommonArgs in both Aws variants (consistent with architecture: "same struct, different execution path")
+- `cmd_sync_aws` and `cmd_diff_aws` return `i32` exit codes instead of `Result<(), Box<dyn Error>>` — enables structured error handling with proper exit codes
+- BTreeMap→HashMap conversion via `.into_iter().collect()` for zopp_sync::diff() compatibility
+- `operation_action()` helper maps DiffOperation variants to human-readable action words ("created", "updated", "deleted")
+- Cannot verify locally (rustc 1.88 vs AWS SDK requires 1.91) — CI handles verification
+- 5 CLI argument parsing tests added to cli.rs
+- Used `std::process::exit(exit_code)` in main.rs match arms for non-zero exit codes
+
 ### Change Log
 
+- Modified `apps/zopp-cli/Cargo.toml` — added `zopp-sync` dependency with `aws` feature
+- Modified `apps/zopp-cli/src/cli.rs` — added `Aws` variant to `SyncCommand` and `DiffCommand` enums, added `use crate::output::SyncCommonArgs`, added 5 CLI tests
+- Modified `apps/zopp-cli/src/main.rs` — added match arms for `SyncCommand::Aws` and `DiffCommand::Aws`
+- Modified `apps/zopp-cli/src/commands/mod.rs` — added `sync_aws` and `diff_aws` modules and exports
+- Created `apps/zopp-cli/src/commands/sync_aws.rs` — `cmd_sync_aws` function with full sync flow
+- Created `apps/zopp-cli/src/commands/diff_aws.rs` — `cmd_diff_aws` function with full diff flow
+
 ### File List
+
+- `apps/zopp-cli/Cargo.toml` (modified)
+- `apps/zopp-cli/src/cli.rs` (modified)
+- `apps/zopp-cli/src/main.rs` (modified)
+- `apps/zopp-cli/src/commands/mod.rs` (modified)
+- `apps/zopp-cli/src/commands/sync_aws.rs` (new)
+- `apps/zopp-cli/src/commands/diff_aws.rs` (new)
