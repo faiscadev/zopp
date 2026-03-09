@@ -399,6 +399,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .await?;
             }
+            SyncCommand::Aws {
+                common,
+                region,
+                prefix,
+            } => {
+                let exit_code = cmd_sync_aws(
+                    &cli.server,
+                    cli.tls_ca_cert.as_deref(),
+                    &common,
+                    &region,
+                    prefix.as_deref(),
+                )
+                .await;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+            }
         },
         Command::Permission { permission_cmd } => match permission_cmd {
             PermissionCommand::Set {
@@ -1027,6 +1044,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     context.as_deref(),
                 )
                 .await?;
+            }
+            DiffCommand::Aws {
+                common,
+                region,
+                prefix,
+            } => {
+                let exit_code = cmd_diff_aws(
+                    &cli.server,
+                    cli.tls_ca_cert.as_deref(),
+                    &common,
+                    &region,
+                    prefix.as_deref(),
+                )
+                .await;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
             }
         },
         Command::Run {

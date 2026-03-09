@@ -1,3 +1,4 @@
+use crate::output::SyncCommonArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
@@ -468,6 +469,19 @@ pub enum SyncCommand {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Sync secrets to AWS Secrets Manager
+    Aws {
+        #[command(flatten)]
+        common: SyncCommonArgs,
+
+        /// AWS region (e.g., us-east-1)
+        #[arg(long)]
+        region: String,
+
+        /// AWS Secrets Manager name prefix (e.g., /prod/myapp/)
+        #[arg(long)]
+        prefix: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -501,6 +515,19 @@ pub enum DiffCommand {
         /// Kubernetes context to use
         #[arg(long)]
         context: Option<String>,
+    },
+    /// Show diff between zopp and AWS Secrets Manager
+    Aws {
+        #[command(flatten)]
+        common: SyncCommonArgs,
+
+        /// AWS region (e.g., us-east-1)
+        #[arg(long)]
+        region: String,
+
+        /// AWS Secrets Manager name prefix (e.g., /prod/myapp/)
+        #[arg(long)]
+        prefix: Option<String>,
     },
 }
 
