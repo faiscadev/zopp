@@ -80,7 +80,7 @@ pub async fn cmd_sync_aws(
     let target = match AwsSyncTarget::new(region, prefix.map(String::from)).await {
         Ok(t) => t,
         Err(e) => {
-            error_block(&config, &e.to_string(), &e.to_string(), e.fix());
+            error_block(&config, e.platform(), &e.to_string(), e.fix());
             return match &e {
                 zopp_sync::SyncError::AuthError { .. } => exit_codes::CONFIG_ERROR,
                 zopp_sync::SyncError::ConnectionError { .. } => exit_codes::CONNECTION_ERROR,
@@ -95,7 +95,7 @@ pub async fn cmd_sync_aws(
     let aws_secrets = match target.fetch_current().await {
         Ok(s) => s,
         Err(e) => {
-            error_block(&config, &e.to_string(), &e.to_string(), e.fix());
+            error_block(&config, e.platform(), &e.to_string(), e.fix());
             return match &e {
                 zopp_sync::SyncError::AuthError { .. } => exit_codes::CONFIG_ERROR,
                 zopp_sync::SyncError::ConnectionError { .. } => exit_codes::CONNECTION_ERROR,
@@ -225,7 +225,7 @@ pub async fn cmd_sync_aws(
 }
 
 /// Look up the operation type for a given key to produce a human-readable action word.
-fn operation_action<'a>(operations: &[DiffOperation], key: &str) -> &'a str {
+fn operation_action(operations: &[DiffOperation], key: &str) -> &'static str {
     for op in operations {
         if op.key() == key {
             return match op {
