@@ -25,9 +25,9 @@ stories:
     dependsOn: ["2.1"]
   - id: "2.4"
     title: "Add zopp sync aws and zopp diff aws CLI commands"
-    status: pending
-    currentPhase: ""
-    branch: ""
+    status: in-progress
+    currentPhase: "dev"
+    branch: "feat/2.4-sync-diff-aws-cli"
     pr: null
     dependsOn: ["2.1", "2.2", "2.3"]
   - id: "2.5"
