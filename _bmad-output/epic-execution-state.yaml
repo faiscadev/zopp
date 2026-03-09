@@ -35,6 +35,6 @@ stories:
     status: in-progress
     currentPhase: "pr-ci"
     branch: "feat/2.5-sync-status-command"
-    pr: null
+    pr: 80
     dependsOn: ["2.1", "2.3", "2.4"]
 skippedIssues: []
