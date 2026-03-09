@@ -4,6 +4,8 @@
 //! Each sync target (AWS, GCP, Fly, etc.) is gated behind a feature flag
 //! and implements the [`SyncTarget`] trait.
 
+#[cfg(feature = "aws")]
+pub mod aws;
 pub mod diff;
 pub mod error;
 pub mod types;
