@@ -1,24 +1,40 @@
-epic: "Epic 1: One-Command CLI Installation"
+epic: "Epic 2: Sync Framework & AWS Secrets Manager Integration"
 baseBranch: main
-startedAt: "2026-03-07"
+startedAt: "2026-03-08"
 stories:
-  - id: "1.1"
-    title: "Set up cross-platform binary release CI pipeline"
+  - id: "2.1"
+    title: "Create zopp-sync crate with SyncTarget trait, DiffEngine, and shared types"
     status: completed
     currentPhase: ""
-    branch: "feat/1.1-binary-release-ci"
-    pr: 74
+    branch: "feat/2.1-sync-crate-framework"
+    pr: 76
     dependsOn: []
-  - id: "1.2"
-    title: "Create curl install script"
-    status: completed
+  - id: "2.3"
+    title: "Create CLI output component module"
+    status: pending
     currentPhase: ""
-    branch: "feat/1.2-curl-install-script"
-    pr: 75
-    dependsOn: ["1.1"]
-completedAt: "2026-03-07"
-summary:
-  total: 2
-  completed: 2
-  skipped: 0
+    branch: ""
+    pr: null
+    dependsOn: []
+  - id: "2.2"
+    title: "Implement AWS Secrets Manager sync target"
+    status: pending
+    currentPhase: ""
+    branch: ""
+    pr: null
+    dependsOn: ["2.1"]
+  - id: "2.4"
+    title: "Add zopp sync aws and zopp diff aws CLI commands"
+    status: pending
+    currentPhase: ""
+    branch: ""
+    pr: null
+    dependsOn: ["2.1", "2.2", "2.3"]
+  - id: "2.5"
+    title: "Add zopp sync status command"
+    status: pending
+    currentPhase: ""
+    branch: ""
+    pr: null
+    dependsOn: ["2.1", "2.3", "2.4"]
 skippedIssues: []
