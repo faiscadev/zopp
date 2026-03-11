@@ -78,7 +78,7 @@ crates/zopp-sync/
     types.rs      # DiffOperation, SyncResult, SyncSecrets
 ```
 
-No target-specific modules (aws/, fly/, etc.) in this story — those come in Stories 2.2+.
+Note: Story 2.1 created only the framework — target-specific modules (aws/, fly/, etc.) were added in Stories 2.2+.
 
 **Trait contract (from architecture):**
 ```rust

@@ -44,3 +44,17 @@ pub enum SyncOutcome {
     Success,
     Failed { reason: String },
 }
+
+/// Result of fetching current secrets from a target.
+///
+/// Contains successfully fetched secrets alongside any per-key errors
+/// encountered during fetch. Fatal errors (auth, connection) are returned
+/// as `Err(SyncError)` from `fetch_current` itself — only non-fatal
+/// per-key errors appear here.
+#[derive(Debug, Clone)]
+pub struct FetchResult {
+    /// Successfully fetched secrets (key → value).
+    pub secrets: HashMap<String, String>,
+    /// Per-key errors encountered during fetch (key, error description).
+    pub errors: Vec<(String, String)>,
+}
