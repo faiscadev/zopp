@@ -4,10 +4,10 @@ startedAt: "2026-03-10"
 stories:
   - id: "3.1"
     title: "Implement Fly sync target and CLI commands"
-    status: in-progress
-    currentPhase: "pr-ci"
+    status: completed
+    currentPhase: ""
     branch: "feat/3.1-fly-sync-target"
-    pr: null
+    pr: 86
     dependsOn: []
   - id: "3.2"
     title: "Create Fly deployment template"
