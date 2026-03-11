@@ -11,6 +11,7 @@ pub mod project;
 pub mod secret;
 pub mod sync;
 pub mod sync_aws;
+pub mod sync_status;
 pub mod workspace;
 
 pub use audit::{cmd_audit_count, cmd_audit_get, cmd_audit_list};
@@ -47,6 +48,7 @@ pub use secret::{
 };
 pub use sync::cmd_sync_k8s;
 pub use sync_aws::cmd_sync_aws;
+pub use sync_status::cmd_sync_status;
 pub use workspace::{
     cmd_workspace_create, cmd_workspace_grant_principal_access, cmd_workspace_list,
 };

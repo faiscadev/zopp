@@ -25,16 +25,21 @@ stories:
     dependsOn: ["2.1"]
   - id: "2.4"
     title: "Add zopp sync aws and zopp diff aws CLI commands"
-    status: in-progress
-    currentPhase: "pr-ci"
+    status: completed
+    currentPhase: ""
     branch: "feat/2.4-sync-diff-aws-cli"
     pr: 79
     dependsOn: ["2.1", "2.2", "2.3"]
   - id: "2.5"
     title: "Add zopp sync status command"
-    status: pending
+    status: completed
     currentPhase: ""
-    branch: ""
-    pr: null
+    branch: "feat/2.5-sync-status-command"
+    pr: 80
     dependsOn: ["2.1", "2.3", "2.4"]
 skippedIssues: []
+completedAt: "2026-03-09"
+summary:
+  total: 5
+  completed: 5
+  skipped: 0

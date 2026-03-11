@@ -399,6 +399,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .await?;
             }
+            SyncCommand::Status {
+                common,
+                region,
+                prefix,
+            } => {
+                let exit_code = cmd_sync_status(
+                    &cli.server,
+                    cli.tls_ca_cert.as_deref(),
+                    &common,
+                    &region,
+                    prefix.as_deref(),
+                )
+                .await;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+            }
             SyncCommand::Aws {
                 common,
                 region,
