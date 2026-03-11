@@ -1,6 +1,6 @@
 # Story 2.3: Create CLI output component module
 
-Status: done
+Status: review
 
 ## Story
 

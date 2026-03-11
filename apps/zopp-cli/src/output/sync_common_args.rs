@@ -22,10 +22,10 @@ pub struct SyncCommonArgs {
     #[arg(long)]
     pub no_color: bool,
     /// Show additional details
-    #[arg(long)]
+    #[arg(long, conflicts_with = "quiet")]
     pub verbose: bool,
     /// Only show errors
-    #[arg(long)]
+    #[arg(long, conflicts_with = "verbose")]
     pub quiet: bool,
     /// Force sync even if target not managed by zopp
     #[arg(long)]
