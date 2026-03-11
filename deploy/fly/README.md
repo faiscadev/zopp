@@ -66,7 +66,7 @@ This outputs an invite token. Save it securely — you'll use it to join the ser
 With the invite token from the previous step:
 
 ```bash
-zopp join <invite-token> <your-email> --server https://<your-app-name>.fly.dev
+zopp --server https://<your-app-name>.fly.dev join <invite-token> <your-email>
 ```
 
 This registers your device as a principal on the server. You can then create workspaces and manage secrets:
