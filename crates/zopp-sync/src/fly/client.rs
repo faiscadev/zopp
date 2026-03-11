@@ -1,7 +1,17 @@
+use std::time::Duration;
+
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
 use crate::SyncError;
 
 const PLATFORM: &str = "Fly";
 const BASE_URL: &str = "https://api.machines.dev";
+
+/// Maximum number of retries for transient errors (429, 5xx).
+const MAX_RETRIES: u32 = 3;
+
+/// Base delay for exponential backoff (doubles each retry: 1s, 2s, 4s).
+const BASE_BACKOFF_MS: u64 = 1000;
 
 /// Represents a secret entry from the Fly API (name only — Fly secrets are write-only).
 pub(crate) struct SecretEntry {
@@ -24,22 +34,48 @@ pub(crate) trait FlyApi: Send + Sync {
     async fn unset_secret(&self, app: &str, label: &str) -> Result<(), SyncError>;
 }
 
+/// Sensitive token wrapper that is zeroized on drop.
+#[derive(Zeroize, ZeroizeOnDrop)]
+struct ApiToken(String);
+
 /// Real Fly API client using `reqwest`.
 pub(crate) struct FlyClient {
     http: reqwest::Client,
-    token: String,
+    token: ApiToken,
 }
 
 impl FlyClient {
     pub fn new(token: String) -> Self {
         Self {
             http: reqwest::Client::new(),
-            token,
+            token: ApiToken(token),
         }
     }
 }
 
-/// Map an HTTP response status (or reqwest error) to a `SyncError`.
+/// Percent-encode a path segment for safe URL construction.
+fn encode_path_segment(s: &str) -> String {
+    // Encode everything except unreserved characters (RFC 3986)
+    let mut encoded = String::with_capacity(s.len());
+    for byte in s.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(byte as char);
+            }
+            _ => {
+                encoded.push_str(&format!("%{byte:02X}"));
+            }
+        }
+    }
+    encoded
+}
+
+/// Check if an HTTP status code is retryable (429 rate limit or 5xx server error).
+fn is_retryable(status: reqwest::StatusCode) -> bool {
+    status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
+}
+
+/// Map an HTTP response status to a `SyncError`.
 fn map_http_error(status: reqwest::StatusCode, body: &str, operation: &str) -> SyncError {
     match status.as_u16() {
         401 => SyncError::AuthError {
@@ -105,17 +141,47 @@ fn map_reqwest_error(err: &reqwest::Error) -> SyncError {
     }
 }
 
-#[async_trait::async_trait]
-impl FlyApi for FlyClient {
-    async fn list_secrets(&self, app: &str) -> Result<Vec<SecretEntry>, SyncError> {
-        let url = format!("{BASE_URL}/v1/apps/{app}/secrets");
-        let resp = self
-            .http
-            .get(&url)
-            .bearer_auth(&self.token)
+/// Send an HTTP request with retry logic for transient errors (429, 5xx).
+/// Returns the response on success, or the last error on exhaustion.
+async fn send_with_retry(
+    builder_fn: impl Fn() -> reqwest::RequestBuilder,
+) -> Result<reqwest::Response, SyncError> {
+    let mut last_error = None;
+
+    for attempt in 0..=MAX_RETRIES {
+        let resp = builder_fn()
             .send()
             .await
             .map_err(|e| map_reqwest_error(&e))?;
+
+        if resp.status().is_success() || !is_retryable(resp.status()) {
+            return Ok(resp);
+        }
+
+        // Retryable error — save for potential final error, then backoff
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+
+        if attempt < MAX_RETRIES {
+            let delay = Duration::from_millis(BASE_BACKOFF_MS * 2u64.pow(attempt));
+            tokio::time::sleep(delay).await;
+        }
+
+        last_error = Some((status, body));
+    }
+
+    // All retries exhausted
+    let (status, body) = last_error.unwrap();
+    Err(map_http_error(status, &body, "request"))
+}
+
+#[async_trait::async_trait]
+impl FlyApi for FlyClient {
+    async fn list_secrets(&self, app: &str) -> Result<Vec<SecretEntry>, SyncError> {
+        let app_encoded = encode_path_segment(app);
+        let url = format!("{BASE_URL}/v1/apps/{app_encoded}/secrets");
+
+        let resp = send_with_retry(|| self.http.get(&url).bearer_auth(&self.token.0)).await?;
 
         let status = resp.status();
         if !status.is_success() {
@@ -145,7 +211,8 @@ impl FlyApi for FlyClient {
     }
 
     async fn set_secrets(&self, app: &str, secrets: &[(&str, &str)]) -> Result<(), SyncError> {
-        let url = format!("{BASE_URL}/v1/apps/{app}/secrets");
+        let app_encoded = encode_path_segment(app);
+        let url = format!("{BASE_URL}/v1/apps/{app_encoded}/secrets");
 
         let body: Vec<serde_json::Value> = secrets
             .iter()
@@ -158,14 +225,8 @@ impl FlyApi for FlyClient {
             })
             .collect();
 
-        let resp = self
-            .http
-            .post(&url)
-            .bearer_auth(&self.token)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| map_reqwest_error(&e))?;
+        let resp =
+            send_with_retry(|| self.http.post(&url).bearer_auth(&self.token.0).json(&body)).await?;
 
         let status = resp.status();
         if !status.is_success() {
@@ -177,14 +238,11 @@ impl FlyApi for FlyClient {
     }
 
     async fn unset_secret(&self, app: &str, label: &str) -> Result<(), SyncError> {
-        let url = format!("{BASE_URL}/v1/apps/{app}/secrets/{label}");
-        let resp = self
-            .http
-            .delete(&url)
-            .bearer_auth(&self.token)
-            .send()
-            .await
-            .map_err(|e| map_reqwest_error(&e))?;
+        let app_encoded = encode_path_segment(app);
+        let label_encoded = encode_path_segment(label);
+        let url = format!("{BASE_URL}/v1/apps/{app_encoded}/secrets/{label_encoded}");
+
+        let resp = send_with_retry(|| self.http.delete(&url).bearer_auth(&self.token.0)).await?;
 
         let status = resp.status();
         if !status.is_success() {
@@ -193,5 +251,56 @@ impl FlyApi for FlyClient {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_path_segment_simple() {
+        assert_eq!(encode_path_segment("myapp"), "myapp");
+    }
+
+    #[test]
+    fn encode_path_segment_special_chars() {
+        assert_eq!(encode_path_segment("my/app"), "my%2Fapp");
+        assert_eq!(encode_path_segment("my app"), "my%20app");
+    }
+
+    #[test]
+    fn encode_path_segment_preserves_unreserved() {
+        assert_eq!(encode_path_segment("a-b_c.d~e"), "a-b_c.d~e");
+    }
+
+    #[test]
+    fn is_retryable_429() {
+        assert!(is_retryable(reqwest::StatusCode::TOO_MANY_REQUESTS));
+    }
+
+    #[test]
+    fn is_retryable_500() {
+        assert!(is_retryable(reqwest::StatusCode::INTERNAL_SERVER_ERROR));
+    }
+
+    #[test]
+    fn is_retryable_502() {
+        assert!(is_retryable(reqwest::StatusCode::BAD_GATEWAY));
+    }
+
+    #[test]
+    fn not_retryable_400() {
+        assert!(!is_retryable(reqwest::StatusCode::BAD_REQUEST));
+    }
+
+    #[test]
+    fn not_retryable_401() {
+        assert!(!is_retryable(reqwest::StatusCode::UNAUTHORIZED));
+    }
+
+    #[test]
+    fn not_retryable_200() {
+        assert!(!is_retryable(reqwest::StatusCode::OK));
     }
 }

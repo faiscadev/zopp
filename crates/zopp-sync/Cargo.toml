@@ -11,7 +11,7 @@ description = "Sync framework for zopp — SyncTarget trait, DiffEngine, and sha
 default = []
 aws = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tokio"]
 gcp = []
-fly = ["dep:reqwest"]
+fly = ["dep:reqwest", "dep:zeroize", "dep:tokio"]
 vercel = []
 render = []
 railway = []
@@ -25,6 +25,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
+zeroize = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
