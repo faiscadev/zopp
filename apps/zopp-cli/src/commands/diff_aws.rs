@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::crypto::fetch_and_decrypt_secrets;
 use crate::grpc::setup_client;
 use crate::output::{
-    diff_item, diff_summary, error_block, exit_codes, header, output_json, DiffJsonChange,
-    DiffJsonOutput, DiffJsonSummary, SyncCommonArgs,
+    diff_item, diff_summary, error_block, exit_codes, header, output_json, DiffCommonArgs,
+    DiffJsonChange, DiffJsonOutput, DiffJsonSummary,
 };
 use zopp_sync::aws::AwsSyncTarget;
 use zopp_sync::{DiffOperation, SyncTarget};
@@ -12,7 +12,7 @@ use zopp_sync::{DiffOperation, SyncTarget};
 pub async fn cmd_diff_aws(
     server: &str,
     tls_ca_cert: Option<&std::path::Path>,
-    common: &SyncCommonArgs,
+    common: &DiffCommonArgs,
     region: &str,
     prefix: Option<&str>,
 ) -> i32 {
@@ -104,6 +104,7 @@ pub async fn cmd_diff_aws(
     };
 
     // Report per-key fetch errors
+    let has_fetch_errors = !fetch_result.errors.is_empty();
     for (key, err) in &fetch_result.errors {
         error_block(
             &config,
@@ -113,7 +114,7 @@ pub async fn cmd_diff_aws(
         );
     }
 
-    // 5. Compute diff
+    // 5. Compute diff (from successfully fetched secrets only)
     let operations = zopp_sync::diff(&zopp_map, &fetch_result.secrets);
 
     // 6. Display diff
@@ -169,5 +170,9 @@ pub async fn cmd_diff_aws(
         output_json(&json_output);
     }
 
-    exit_codes::SUCCESS
+    if has_fetch_errors {
+        exit_codes::PARTIAL_FAILURE
+    } else {
+        exit_codes::SUCCESS
+    }
 }

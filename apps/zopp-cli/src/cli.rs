@@ -1,4 +1,4 @@
-use crate::output::SyncCommonArgs;
+use crate::output::{DiffCommonArgs, SyncCommonArgs};
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
@@ -519,7 +519,7 @@ pub enum DiffCommand {
     /// Show diff between zopp and AWS Secrets Manager
     Aws {
         #[command(flatten)]
-        common: SyncCommonArgs,
+        common: DiffCommonArgs,
 
         /// AWS region (e.g., us-east-1)
         #[arg(long)]

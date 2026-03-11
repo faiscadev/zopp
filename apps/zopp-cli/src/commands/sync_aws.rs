@@ -105,6 +105,7 @@ pub async fn cmd_sync_aws(
     };
 
     // Report per-key fetch errors
+    let fetch_errors = fetch_result.errors.len();
     for (key, err) in &fetch_result.errors {
         error_block(
             &config,
@@ -114,7 +115,7 @@ pub async fn cmd_sync_aws(
         );
     }
 
-    // 5. Compute diff
+    // 5. Compute diff (from successfully fetched secrets only)
     let operations = zopp_sync::diff(&zopp_map, &fetch_result.secrets);
 
     // 6. Dry-run or no changes: show diff output
@@ -176,7 +177,11 @@ pub async fn cmd_sync_aws(
             output_json(&json_output);
         }
 
-        return exit_codes::SUCCESS;
+        return if fetch_errors > 0 {
+            exit_codes::PARTIAL_FAILURE
+        } else {
+            exit_codes::SUCCESS
+        };
     }
 
     // 7. Apply changes
@@ -236,7 +241,7 @@ pub async fn cmd_sync_aws(
         output_json(&json_output);
     }
 
-    exit_codes::from_results(total, failed)
+    exit_codes::from_results(total + fetch_errors, failed + fetch_errors)
 }
 
 /// Look up the operation type for a given key to produce a human-readable action word.
