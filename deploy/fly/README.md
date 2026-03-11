@@ -144,7 +144,7 @@ fly logs --app <your-app-name>
 ### Check health
 
 ```bash
-curl https://<your-app-name>.fly.dev/healthz
+fly checks list --app <your-app-name>
 ```
 
 ### SSH into the Machine
