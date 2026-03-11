@@ -92,7 +92,7 @@ pub async fn cmd_sync_aws(
     let target_label = target.display_name().to_string();
 
     // 4. Fetch current state from AWS
-    let aws_secrets = match target.fetch_current().await {
+    let fetch_result = match target.fetch_current().await {
         Ok(s) => s,
         Err(e) => {
             error_block(&config, e.platform(), &e.to_string(), e.fix());
@@ -104,8 +104,18 @@ pub async fn cmd_sync_aws(
         }
     };
 
+    // Report per-key fetch errors
+    for (key, err) in &fetch_result.errors {
+        error_block(
+            &config,
+            "AWS Secrets Manager",
+            &format!("Failed to fetch secret '{key}': {err}"),
+            "Check secret permissions in AWS",
+        );
+    }
+
     // 5. Compute diff
-    let operations = zopp_sync::diff(&zopp_map, &aws_secrets);
+    let operations = zopp_sync::diff(&zopp_map, &fetch_result.secrets);
 
     // 6. Dry-run or no changes: show diff output
     if common.dry_run || operations.is_empty() {
