@@ -53,7 +53,7 @@ development_status:
   2-3-create-cli-output-component-module: done
   2-4-add-zopp-sync-aws-and-zopp-diff-aws-cli-commands: done
   2-5-add-zopp-sync-status-command: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   # Epic 3: Fly Integration (Sync & Deployment) (Phase 1)
   epic-3: backlog
