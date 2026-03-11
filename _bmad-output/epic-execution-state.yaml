@@ -17,3 +17,8 @@ stories:
     pr: 87
     dependsOn: []
 skippedIssues: []
+completedAt: "2026-03-10"
+summary:
+  total: 2
+  completed: 2
+  skipped: 0
