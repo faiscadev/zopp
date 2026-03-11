@@ -183,7 +183,10 @@ async fn build_aws_status(
         Ok(StatusEntry {
             target: target_name,
             status: "drifted".into(),
-            detail: format!("{}{fetch_error_suffix}", format_drift_detail(adds, updates, removes)),
+            detail: format!(
+                "{}{fetch_error_suffix}",
+                format_drift_detail(adds, updates, removes)
+            ),
         })
     }
 }
