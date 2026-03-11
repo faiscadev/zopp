@@ -117,8 +117,17 @@ pub async fn cmd_sync_fly(
     // 5. Compute diff
     // Note: Fly secrets are write-only (values are empty strings from fetch).
     // The diff will show all zopp secrets as "updates" since values differ.
-    // When --force is used, this is expected behavior — push everything.
-    let operations = zopp_sync::diff(&zopp_map, &fetch_result.secrets);
+    // Without --force, filter out Update ops (we can't detect real changes).
+    // With --force, keep Update ops to push all values.
+    let all_operations = zopp_sync::diff(&zopp_map, &fetch_result.secrets);
+    let operations: Vec<DiffOperation> = if common.force {
+        all_operations
+    } else {
+        all_operations
+            .into_iter()
+            .filter(|op| !matches!(op, DiffOperation::Update { .. }))
+            .collect()
+    };
 
     // 6. Dry-run or no changes: show diff output
     if common.dry_run || operations.is_empty() {

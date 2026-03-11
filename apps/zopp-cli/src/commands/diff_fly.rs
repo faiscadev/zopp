@@ -115,10 +115,14 @@ pub async fn cmd_diff_fly(
 
     // 5. Compute diff
     // Note: Fly secrets are write-only, so values from fetch are empty strings.
-    // Diff will show zopp secrets as "updates" when key exists in both but
-    // value differs. This is expected — diff can reliably detect add/remove
-    // but shows all existing keys as "updates" since values can't be compared.
-    let operations = zopp_sync::diff(&zopp_map, &fetch_result.secrets);
+    // Diff can reliably detect add/remove but not value changes.
+    // Filter out Update ops since they're phantom diffs (empty vs actual value).
+    // Users should use `zopp sync fly --force` to push all values.
+    let all_operations = zopp_sync::diff(&zopp_map, &fetch_result.secrets);
+    let operations: Vec<DiffOperation> = all_operations
+        .into_iter()
+        .filter(|op| !matches!(op, DiffOperation::Update { .. }))
+        .collect();
 
     // 6. Display diff
     header(&config, "Diff", &source_label, &target_label);
