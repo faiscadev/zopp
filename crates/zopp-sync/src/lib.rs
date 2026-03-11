@@ -14,8 +14,6 @@ pub use diff::diff;
 pub use error::SyncError;
 pub use types::*;
 
-use std::collections::HashMap;
-
 /// Trait implemented by each sync target (e.g., AWS Secrets Manager, Fly).
 ///
 /// The CLI constructs a target with resolved credentials, then calls
@@ -28,9 +26,10 @@ pub trait SyncTarget: Send + Sync {
 
     /// Fetch current secrets from the target platform.
     ///
-    /// Returns a map of key-name → plaintext-value representing what is
-    /// currently stored on the target.
-    async fn fetch_current(&self) -> Result<HashMap<String, String>, SyncError>;
+    /// Returns a [`FetchResult`] containing successfully fetched secrets and
+    /// any per-key errors. Fatal errors (auth, connection) are returned as
+    /// `Err(SyncError)` — the caller decides how to handle partial failures.
+    async fn fetch_current(&self) -> Result<FetchResult, SyncError>;
 
     /// Apply a set of diff operations to the target platform.
     ///

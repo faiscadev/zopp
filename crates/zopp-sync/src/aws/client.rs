@@ -64,10 +64,13 @@ fn map_sdk_error<E: std::fmt::Display>(
         };
     }
 
-    // Check for connectivity errors
+    // Check for connectivity errors (use specific patterns to avoid false positives
+    // from secrets named e.g. "db-connection-string")
     if message.contains("dispatch failure")
         || message.contains("timeout")
-        || message.contains("connection")
+        || message.contains("connection refused")
+        || message.contains("connection reset")
+        || message.contains("connect error")
     {
         return SyncError::ConnectionError {
             platform: PLATFORM.into(),

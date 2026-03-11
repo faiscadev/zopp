@@ -7,7 +7,7 @@ mod client;
 
 use std::collections::HashMap;
 
-use crate::{DiffOperation, SyncError, SyncOutcome, SyncResult, SyncTarget};
+use crate::{DiffOperation, FetchResult, SyncError, SyncOutcome, SyncResult, SyncTarget};
 use client::{AwsClient, SecretsManagerApi};
 
 /// Sync target for AWS Secrets Manager.
@@ -75,34 +75,33 @@ impl SyncTarget for AwsSyncTarget {
         &self.display_name
     }
 
-    async fn fetch_current(&self) -> Result<HashMap<String, String>, SyncError> {
+    async fn fetch_current(&self) -> Result<FetchResult, SyncError> {
         let entries = self.api.list_secrets(self.prefix.as_deref()).await?;
 
         let mut secrets = HashMap::new();
+        let mut errors = Vec::new();
         for entry in entries {
+            let key = self.strip_prefix(&entry.name).to_string();
             match self.api.get_secret_value(&entry.name).await {
                 Ok(value) => {
-                    let key = self.strip_prefix(&entry.name).to_string();
                     secrets.insert(key, value);
                 }
                 Err(e) => {
-                    // Log the error but skip this secret (partial fetch is better than total failure)
-                    // In a real scenario we might want to propagate this, but per AC#2
-                    // we return what we can fetch. For auth/connection errors, propagate immediately.
+                    // Fatal errors (auth, connection) abort immediately
                     match &e {
                         SyncError::AuthError { .. } | SyncError::ConnectionError { .. } => {
                             return Err(e);
                         }
                         _ => {
-                            // Skip this secret but continue
-                            continue;
+                            // Per-key errors are collected for the caller to decide
+                            errors.push((key, e.to_string()));
                         }
                     }
                 }
             }
         }
 
-        Ok(secrets)
+        Ok(FetchResult { secrets, errors })
     }
 
     async fn apply(&self, operations: &[DiffOperation]) -> Vec<SyncResult> {
@@ -312,10 +311,11 @@ mod tests {
         let api = MockApi::new(initial);
         let target = AwsSyncTarget::from_api(Box::new(api), "us-east-1", None);
 
-        let secrets = target.fetch_current().await.unwrap();
-        assert_eq!(secrets.len(), 2);
-        assert_eq!(secrets["DB_HOST"], "localhost");
-        assert_eq!(secrets["DB_PORT"], "5432");
+        let result = target.fetch_current().await.unwrap();
+        assert_eq!(result.secrets.len(), 2);
+        assert_eq!(result.secrets["DB_HOST"], "localhost");
+        assert_eq!(result.secrets["DB_PORT"], "5432");
+        assert!(result.errors.is_empty());
     }
 
     #[tokio::test]
@@ -329,14 +329,15 @@ mod tests {
         let target =
             AwsSyncTarget::from_api(Box::new(api), "us-east-1", Some("/prod/".to_string()));
 
-        let secrets = target.fetch_current().await.unwrap();
-        assert_eq!(secrets.len(), 2);
+        let result = target.fetch_current().await.unwrap();
+        assert_eq!(result.secrets.len(), 2);
         // Keys should have prefix stripped
-        assert_eq!(secrets["DB_HOST"], "prod-host");
-        assert_eq!(secrets["DB_PORT"], "5432");
+        assert_eq!(result.secrets["DB_HOST"], "prod-host");
+        assert_eq!(result.secrets["DB_PORT"], "5432");
         // Staging secret should not be included
-        assert!(!secrets.contains_key("/staging/DB_HOST"));
-        assert!(!secrets.contains_key("staging/DB_HOST"));
+        assert!(!result.secrets.contains_key("/staging/DB_HOST"));
+        assert!(!result.secrets.contains_key("staging/DB_HOST"));
+        assert!(result.errors.is_empty());
     }
 
     #[tokio::test]
