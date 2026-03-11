@@ -21,6 +21,6 @@ export default defineConfig({
     command: 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000, // 2 minutes for WASM build
+    timeout: 300 * 1000, // 5 minutes for WASM build on slow CI runners
   },
 });

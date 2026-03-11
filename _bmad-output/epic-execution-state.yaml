@@ -1,45 +1,19 @@
-epic: "Epic 2: Sync Framework & AWS Secrets Manager Integration"
+epic: "Epic 3: Fly Integration (Sync & Deployment)"
 baseBranch: main
-startedAt: "2026-03-08"
+startedAt: "2026-03-10"
 stories:
-  - id: "2.1"
-    title: "Create zopp-sync crate with SyncTarget trait, DiffEngine, and shared types"
+  - id: "3.1"
+    title: "Implement Fly sync target and CLI commands"
     status: completed
     currentPhase: ""
-    branch: "feat/2.1-sync-crate-framework"
-    pr: 76
+    branch: "feat/3.1-fly-sync-target"
+    pr: 86
     dependsOn: []
-  - id: "2.3"
-    title: "Create CLI output component module"
-    status: completed
+  - id: "3.2"
+    title: "Create Fly deployment template"
+    status: pending
     currentPhase: ""
-    branch: "feat/2.3-cli-output-components"
-    pr: 77
+    branch: ""
+    pr: null
     dependsOn: []
-  - id: "2.2"
-    title: "Implement AWS Secrets Manager sync target"
-    status: completed
-    currentPhase: ""
-    branch: "feat/2.2-aws-secrets-manager-sync"
-    pr: 78
-    dependsOn: ["2.1"]
-  - id: "2.4"
-    title: "Add zopp sync aws and zopp diff aws CLI commands"
-    status: completed
-    currentPhase: ""
-    branch: "feat/2.4-sync-diff-aws-cli"
-    pr: 79
-    dependsOn: ["2.1", "2.2", "2.3"]
-  - id: "2.5"
-    title: "Add zopp sync status command"
-    status: completed
-    currentPhase: ""
-    branch: "feat/2.5-sync-status-command"
-    pr: 80
-    dependsOn: ["2.1", "2.3", "2.4"]
 skippedIssues: []
-completedAt: "2026-03-09"
-summary:
-  total: 5
-  completed: 5
-  skipped: 0

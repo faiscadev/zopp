@@ -495,6 +495,15 @@ pub enum SyncCommand {
         #[arg(long)]
         prefix: Option<String>,
     },
+    /// Sync secrets to a Fly app
+    Fly {
+        #[command(flatten)]
+        common: SyncCommonArgs,
+
+        /// Fly app name
+        #[arg(long)]
+        app: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -541,6 +550,15 @@ pub enum DiffCommand {
         /// AWS Secrets Manager name prefix (e.g., /prod/myapp/)
         #[arg(long)]
         prefix: Option<String>,
+    },
+    /// Show diff between zopp and a Fly app
+    Fly {
+        #[command(flatten)]
+        common: DiffCommonArgs,
+
+        /// Fly app name
+        #[arg(long)]
+        app: String,
     },
 }
 
@@ -1297,5 +1315,98 @@ mod tests {
             },
             _ => panic!("Expected Command::Sync"),
         }
+    }
+
+    #[test]
+    fn test_sync_fly_parses_all_flags() {
+        let cli = Cli::try_parse_from([
+            "zopp",
+            "sync",
+            "fly",
+            "--app",
+            "myapp",
+            "-w",
+            "myworkspace",
+            "-p",
+            "myproject",
+            "-e",
+            "production",
+            "--dry-run",
+            "--json",
+            "--no-color",
+            "--verbose",
+            "--force",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Sync { sync_cmd } => match sync_cmd {
+                SyncCommand::Fly { common, app } => {
+                    assert_eq!(app, "myapp");
+                    assert_eq!(common.workspace, Some("myworkspace".to_string()));
+                    assert_eq!(common.project, Some("myproject".to_string()));
+                    assert_eq!(common.environment, Some("production".to_string()));
+                    assert!(common.dry_run);
+                    assert!(common.json);
+                    assert!(common.no_color);
+                    assert!(common.verbose);
+                    assert!(common.force);
+                }
+                _ => panic!("Expected SyncCommand::Fly"),
+            },
+            _ => panic!("Expected Command::Sync"),
+        }
+    }
+
+    #[test]
+    fn test_sync_fly_app_required() {
+        let result = Cli::try_parse_from(["zopp", "sync", "fly"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sync_fly_minimal() {
+        let cli = Cli::try_parse_from(["zopp", "sync", "fly", "--app", "myapp"]).unwrap();
+
+        match cli.command {
+            Command::Sync { sync_cmd } => match sync_cmd {
+                SyncCommand::Fly { common, app } => {
+                    assert_eq!(app, "myapp");
+                    assert!(common.workspace.is_none());
+                    assert!(!common.dry_run);
+                    assert!(!common.json);
+                    assert!(!common.force);
+                }
+                _ => panic!("Expected SyncCommand::Fly"),
+            },
+            _ => panic!("Expected Command::Sync"),
+        }
+    }
+
+    #[test]
+    fn test_diff_fly_parses() {
+        let cli = Cli::try_parse_from([
+            "zopp", "diff", "fly", "--app", "myapp", "-w", "ws", "-p", "proj", "-e", "staging",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Diff { diff_cmd } => match diff_cmd {
+                DiffCommand::Fly { common, app } => {
+                    assert_eq!(app, "myapp");
+                    assert_eq!(common.workspace, Some("ws".to_string()));
+                    assert_eq!(common.project, Some("proj".to_string()));
+                    assert_eq!(common.environment, Some("staging".to_string()));
+                }
+                _ => panic!("Expected DiffCommand::Fly"),
+            },
+            _ => panic!("Expected Command::Diff"),
+        }
+    }
+
+    #[test]
+    fn test_diff_fly_app_required() {
+        let result = Cli::try_parse_from(["zopp", "diff", "fly"]);
+        assert!(result.is_err());
     }
 }
