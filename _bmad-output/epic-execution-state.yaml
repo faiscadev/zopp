@@ -11,9 +11,14 @@ stories:
     dependsOn: []
   - id: "3.2"
     title: "Create Fly deployment template"
-    status: pending
+    status: completed
     currentPhase: ""
-    branch: ""
-    pr: null
+    branch: "feat/3.2-fly-deployment-template"
+    pr: 87
     dependsOn: []
 skippedIssues: []
+completedAt: "2026-03-10"
+summary:
+  total: 2
+  completed: 2
+  skipped: 0
