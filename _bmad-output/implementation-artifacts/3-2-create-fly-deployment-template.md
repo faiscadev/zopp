@@ -1,6 +1,6 @@
 # Story 3.2: Create Fly deployment template
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,25 +20,25 @@ so that my team has a shared server without managing infrastructure.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create Fly deployment template (AC: 1, 2)
-  - [ ] 1.1 Create `deploy/fly/fly.toml` with app configuration
-  - [ ] 1.2 Configure PostgreSQL as attached database (Fly Postgres)
-  - [ ] 1.3 Configure health check using `/healthz` on port 8080
-  - [ ] 1.4 Configure gRPC service on internal port 50051
-  - [ ] 1.5 Set appropriate VM size and auto-stop settings
+- [x] Task 1: Create Fly deployment template (AC: 1, 2)
+  - [x] 1.1 Create `deploy/fly/fly.toml` with app configuration
+  - [x] 1.2 Configure PostgreSQL as attached database (Fly Postgres)
+  - [x] 1.3 Configure health check using `/healthz` on port 8080
+  - [x] 1.4 Configure gRPC service on internal port 50051
+  - [x] 1.5 Set appropriate VM size and auto-stop settings
 
-- [ ] Task 2: Create deployment README (AC: 3, 4)
-  - [ ] 2.1 Create `deploy/fly/README.md` with step-by-step instructions
-  - [ ] 2.2 Document `fly launch` and `fly deploy` workflow
-  - [ ] 2.3 Document Fly Postgres setup (`fly postgres create` + `fly postgres attach`)
-  - [ ] 2.4 Document environment variables (DATABASE_URL, email config, etc.)
-  - [ ] 2.5 Document invite token generation via `fly ssh console`
-  - [ ] 2.6 Document connecting CLI to deployed server
-  - [ ] 2.7 Document TLS (automatic via Fly's edge, gRPC uses h2c internally)
+- [x] Task 2: Create deployment README (AC: 3, 4)
+  - [x] 2.1 Create `deploy/fly/README.md` with step-by-step instructions
+  - [x] 2.2 Document `fly launch` and `fly deploy` workflow
+  - [x] 2.3 Document Fly Postgres setup (`fly postgres create` + `fly postgres attach`)
+  - [x] 2.4 Document environment variables (DATABASE_URL, email config, etc.)
+  - [x] 2.5 Document invite token generation via `fly ssh console`
+  - [x] 2.6 Document connecting CLI to deployed server
+  - [x] 2.7 Document TLS (automatic via Fly's edge, gRPC uses h2c internally)
 
-- [ ] Task 3: Validation
-  - [ ] 3.1 Verify fly.toml passes `fly launch --config deploy/fly/fly.toml` syntax check (dry review)
-  - [ ] 3.2 Ensure README instructions are consistent with fly.toml settings
+- [x] Task 3: Validation
+  - [x] 3.1 Verify fly.toml passes `fly launch --config deploy/fly/fly.toml` syntax check (dry review)
+  - [x] 3.2 Ensure README instructions are consistent with fly.toml settings
 
 ## Dev Notes
 
@@ -177,4 +177,13 @@ Claude Opus 4.6
 
 ### Completion Notes List
 
+- Created fly.toml with gRPC on port 50051, health checks on port 8080
+- PostgreSQL via Fly Postgres attach (sets DATABASE_URL automatically)
+- TLS handled by Fly edge — no server-side TLS config needed
+- README covers full deployment workflow: launch, postgres, deploy, invite, connect CLI
+- Email verification disabled by default in template (enable after configuring email provider)
+
 ### File List
+
+- deploy/fly/fly.toml (new) — Fly deployment configuration
+- deploy/fly/README.md (new) — Step-by-step deployment instructions

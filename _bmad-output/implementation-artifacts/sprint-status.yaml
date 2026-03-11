@@ -58,7 +58,7 @@ development_status:
   # Epic 3: Fly Integration (Sync & Deployment) (Phase 1)
   epic-3: in-progress
   3-1-implement-fly-sync-target-and-cli-commands: done
-  3-2-create-fly-deployment-template: in-progress
+  3-2-create-fly-deployment-template: review
   epic-3-retrospective: optional
 
   # Epic 4: GCP Secret Manager Integration (Phase 2)
