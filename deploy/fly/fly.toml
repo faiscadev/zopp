@@ -1,0 +1,47 @@
+# Fly deployment configuration for zopp-server
+#
+# Usage:
+#   fly launch --config deploy/fly/fly.toml
+#   fly deploy --config deploy/fly/fly.toml
+#
+# See deploy/fly/README.md for full deployment instructions.
+
+app = "zopp-server"
+primary_region = "iad"
+
+[build]
+  dockerfile = "server.Dockerfile"
+
+[env]
+  # Disable email verification for initial setup (enable once email is configured)
+  ZOPP_EMAIL_VERIFICATION_REQUIRED = "false"
+
+# gRPC service exposed on port 443 (TLS terminated by Fly)
+[[services]]
+  protocol = "tcp"
+  internal_port = 50051
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+# Health checks using the HTTP health endpoint
+[checks]
+  [checks.health]
+    port = 8080
+    type = "http"
+    interval = "10s"
+    timeout = "2s"
+    path = "/healthz"
+    method = "GET"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
