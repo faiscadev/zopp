@@ -273,8 +273,8 @@ pub trait SyncTarget {
     fn display_name(&self) -> &str;
 
     /// Fetch current secrets from the target platform
-    /// Returns HashMap<key, value> of what's currently on the target
-    async fn fetch_current(&self) -> Result<HashMap<String, String>, SyncError>;
+    /// Returns FetchResult containing both secrets and per-key errors
+    async fn fetch_current(&self) -> Result<FetchResult, SyncError>;
 
     /// Apply a set of diff operations to the target platform
     /// Returns per-secret results (success or failure with reason)
@@ -285,10 +285,25 @@ pub trait SyncTarget {
 **Rules:**
 - Every sync target implements this trait and nothing else at the boundary
 - The diff engine is shared — targets never compute their own diffs
-- `fetch_current()` returns plaintext key-value pairs (decryption already happened)
+- `fetch_current()` returns a `FetchResult` with both secrets and per-key errors (see below)
 - `apply()` returns per-secret results — never a blanket success/failure
 - Platform-specific types (AWS ARNs, Fly app IDs) stay inside the module — never leak into shared types
 - Errors use `SyncError` enum with platform-specific variants
+
+#### FetchResult Type (Epic 2 Retro Learning)
+
+When fetching collections with per-item potential failures, always return both successes AND errors:
+
+```rust
+pub struct FetchResult {
+    /// Successfully fetched secrets
+    pub secrets: HashMap<String, String>,
+    /// Per-key errors (key name, error)
+    pub errors: Vec<(String, SyncError)>,
+}
+```
+
+**Rule:** Never silently discard errors from collection-fetching operations. Return both successes and failures — let the caller decide policy. This applies to `fetch_current()` and any future trait method that fetches collections.
 
 #### Sync Module Structure Pattern
 
@@ -342,12 +357,26 @@ output::summary(&results, &target_display);
 **Every new sync/diff subcommand follows this structure:**
 
 ```rust
+// Write commands (sync) use SyncCommonArgs
 #[derive(Parser)]
 pub struct SyncAwsArgs {
     #[command(flatten)]
-    pub common: SyncCommonArgs,  // -w, -p, -e, --dry-run, --json, --no-color, etc.
+    pub common: SyncCommonArgs,  // -w, -p, -e, --dry-run, --force, --json, --no-color, etc.
 
     // Target-specific flags use platform terminology
+    #[arg(long)]
+    pub region: String,
+
+    #[arg(long)]
+    pub prefix: Option<String>,
+}
+
+// Read-only commands (diff, status) use DiffCommonArgs
+#[derive(Parser)]
+pub struct DiffAwsArgs {
+    #[command(flatten)]
+    pub common: DiffCommonArgs,  // -w, -p, -e, --json, --no-color (NO --dry-run, --force)
+
     #[arg(long)]
     pub region: String,
 
@@ -357,9 +386,11 @@ pub struct SyncAwsArgs {
 ```
 
 **Rules:**
-- `SyncCommonArgs` is shared across all sync targets — never redefine common flags
+- `SyncCommonArgs` is for write commands (`sync`) — includes `--dry-run` and `--force`
+- `DiffCommonArgs` is for read-only commands (`diff`, `status`) — excludes `--dry-run` and `--force`
 - Target-specific flags use the platform's own terminology (AWS: `--region`, `--prefix`; Fly: `--app`; Vercel: `--project`, `--team`)
-- `zopp diff <target>` and `zopp sync <target>` accept identical flags — same struct, different execution path
+- Target-specific flags are identical between `sync` and `diff` variants — only the common args differ
+- Story specs must explicitly specify which args struct each command variant uses
 - Platform credentials come from environment variables following platform conventions — never from CLI flags (avoids secrets in shell history)
 
 #### Error Handling Pattern for Sync
@@ -384,6 +415,7 @@ pub enum SyncError {
 - Platform-specific API errors are mapped to these variants — never expose raw API error types to the user
 - The output module formats these into the Error Block component
 - `SyncError` implements `std::fmt::Display` with the structured format: `Error: [{platform}] {operation} — {message}\n  Fix: {fix}`
+- **Error classification must use specific, documented SDK/API error patterns — never broad substring matching.** Example: classify connection errors by matching `"dispatch failure"`, `"timeout"`, `"connection refused"`, `"connection reset"`, `"connect error"` — not by checking if message contains `"connection"`. When adding a new sync target, document the specific error patterns used for classification in the module's source.
 
 #### Install Script Pattern
 
@@ -419,6 +451,9 @@ pub enum SyncError {
 3. **Don't create a "universal sync config" in zopp.toml.** Sync target details (region, app name, project) are CLI flags, not config file entries. This prevents accidental sync to wrong targets.
 4. **Don't implement your own diff logic in a sync target.** Use the shared diff engine. If a platform has diff-specific needs, extend the shared engine rather than bypassing it.
 5. **Don't log plaintext secret values** during sync — not in debug output, not in error messages, not in JSON output. Log keys only, never values.
+6. **Don't silently discard per-item errors in collection fetches.** When fetching multiple items (secrets, configs), return both successes and errors via `FetchResult`. Never return only the successful items.
+7. **Don't share write-command args with read-only commands.** Use `DiffCommonArgs` for read-only commands (`diff`, `status`) and `SyncCommonArgs` for write commands (`sync`). Don't let `diff` accept `--dry-run` or `--force`.
+8. **Don't use broad substring matching for error classification.** Match specific, documented error patterns from the SDK/API. Broad matches like `"connection"` will misclassify unrelated errors.
 
 ## Project Structure & Boundaries
 
