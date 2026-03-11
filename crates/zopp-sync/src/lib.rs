@@ -8,6 +8,8 @@
 pub mod aws;
 pub mod diff;
 pub mod error;
+#[cfg(feature = "fly")]
+pub mod fly;
 pub mod types;
 
 pub use diff::diff;

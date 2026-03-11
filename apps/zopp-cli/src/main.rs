@@ -433,6 +433,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     std::process::exit(exit_code);
                 }
             }
+            SyncCommand::Fly { common, app } => {
+                let exit_code =
+                    cmd_sync_fly(&cli.server, cli.tls_ca_cert.as_deref(), &common, &app).await;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+            }
         },
         Command::Permission { permission_cmd } => match permission_cmd {
             PermissionCommand::Set {
@@ -1075,6 +1082,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     prefix.as_deref(),
                 )
                 .await;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+            }
+            DiffCommand::Fly { common, app } => {
+                let exit_code =
+                    cmd_diff_fly(&cli.server, cli.tls_ca_cert.as_deref(), &common, &app).await;
                 if exit_code != 0 {
                     std::process::exit(exit_code);
                 }
