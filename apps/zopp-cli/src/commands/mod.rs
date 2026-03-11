@@ -1,5 +1,6 @@
 pub mod audit;
 pub mod diff;
+pub mod diff_aws;
 pub mod environment;
 pub mod group;
 pub mod invite;
@@ -9,10 +10,12 @@ pub mod principal;
 pub mod project;
 pub mod secret;
 pub mod sync;
+pub mod sync_aws;
 pub mod workspace;
 
 pub use audit::{cmd_audit_count, cmd_audit_get, cmd_audit_list};
 pub use diff::cmd_diff_k8s;
+pub use diff_aws::cmd_diff_aws;
 pub use environment::{
     cmd_environment_create, cmd_environment_delete, cmd_environment_get, cmd_environment_list,
 };
@@ -43,6 +46,7 @@ pub use secret::{
     cmd_secret_run, cmd_secret_set,
 };
 pub use sync::cmd_sync_k8s;
+pub use sync_aws::cmd_sync_aws;
 pub use workspace::{
     cmd_workspace_create, cmd_workspace_grant_principal_access, cmd_workspace_list,
 };

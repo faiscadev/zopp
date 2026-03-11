@@ -1,5 +1,6 @@
 pub mod components;
 pub mod config;
+pub mod diff_common_args;
 pub mod exit_codes;
 pub mod json;
 pub mod sync_common_args;
@@ -9,6 +10,7 @@ pub use components::{
     summary, StatusEntry, Symbols,
 };
 pub use config::OutputConfig;
+pub use diff_common_args::DiffCommonArgs;
 pub use exit_codes::from_results;
 pub use json::{
     output_json, DiffJsonChange, DiffJsonOutput, DiffJsonSummary, StatusJsonEntry,

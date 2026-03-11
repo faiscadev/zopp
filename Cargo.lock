@@ -6741,6 +6741,7 @@ dependencies = [
  "zopp-crypto",
  "zopp-proto",
  "zopp-secrets",
+ "zopp-sync",
 ]
 
 [[package]]
