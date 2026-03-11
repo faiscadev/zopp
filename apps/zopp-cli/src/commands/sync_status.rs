@@ -134,7 +134,7 @@ async fn build_aws_status(
     let target_name = target.display_name().to_string();
 
     // Fetch current state from AWS
-    let aws_secrets = match target.fetch_current().await {
+    let fetch_result = match target.fetch_current().await {
         Ok(s) => s,
         Err(e) => {
             return Err(StatusEntry {
@@ -145,14 +145,29 @@ async fn build_aws_status(
         }
     };
 
-    // Compute diff
-    let operations = zopp_sync::diff(zopp_map, &aws_secrets);
+    // Report fetch errors in status detail if any
+    let fetch_errors = fetch_result.errors.len();
 
-    if operations.is_empty() {
+    // Compute diff
+    let operations = zopp_sync::diff(zopp_map, &fetch_result.secrets);
+
+    let fetch_error_suffix = if fetch_errors > 0 {
+        format!(" ({fetch_errors} fetch error(s))")
+    } else {
+        String::new()
+    };
+
+    if operations.is_empty() && fetch_errors == 0 {
         Ok(StatusEntry {
             target: target_name,
             status: "in-sync".into(),
             detail: format!("{zopp_count} secrets"),
+        })
+    } else if operations.is_empty() {
+        Ok(StatusEntry {
+            target: target_name,
+            status: "warning".into(),
+            detail: format!("{zopp_count} secrets{fetch_error_suffix}"),
         })
     } else {
         let mut adds = 0usize;
@@ -168,7 +183,7 @@ async fn build_aws_status(
         Ok(StatusEntry {
             target: target_name,
             status: "drifted".into(),
-            detail: format_drift_detail(adds, updates, removes),
+            detail: format!("{}{fetch_error_suffix}", format_drift_detail(adds, updates, removes)),
         })
     }
 }
