@@ -57,7 +57,7 @@ development_status:
 
   # Epic 3: Fly Integration (Sync & Deployment) (Phase 1)
   epic-3: in-progress
-  3-1-implement-fly-sync-target-and-cli-commands: in-progress
+  3-1-implement-fly-sync-target-and-cli-commands: review
   3-2-create-fly-deployment-template: backlog
   epic-3-retrospective: optional
 
