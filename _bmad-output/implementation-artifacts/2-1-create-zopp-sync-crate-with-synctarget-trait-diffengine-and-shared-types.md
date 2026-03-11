@@ -1,6 +1,6 @@
 # Story 2.1: Create zopp-sync crate with SyncTarget trait, DiffEngine, and shared types
 
-Status: review
+Status: done
 
 ## Story
 

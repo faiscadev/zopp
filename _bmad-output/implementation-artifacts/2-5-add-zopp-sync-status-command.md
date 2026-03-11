@@ -1,6 +1,6 @@
 # Story 2.5: Add zopp sync status command
 
-Status: review
+Status: done
 
 ## Story
 

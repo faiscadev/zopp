@@ -1,20 +1,41 @@
-epic: "One-Command CLI Installation"
-epicNumber: 1
-startedAt: "2026-03-07"
-currentPrIndex: 1
+epic: "Sync Framework & AWS Secrets Manager Integration"
+epicNumber: 2
+startedAt: "2026-03-09"
+currentPrIndex: 5
 prChain:
-  - storyId: "1.1"
-    storyKey: "1-1-set-up-cross-platform-binary-release-ci-pipeline"
-    title: "Set up cross-platform binary release CI pipeline"
-    branch: "feat/1.1-binary-release-ci"
-    pr: 74
+  - storyId: "2.1"
+    storyKey: "2-1-create-zopp-sync-crate-with-synctarget-trait-diffengine-and-shared-types"
+    title: "Create zopp-sync crate with SyncTarget trait, DiffEngine, and shared types"
+    branch: "feat/2.1-sync-crate-framework"
+    pr: 81
     baseBranch: "main"
     status: merged
-  - storyId: "1.2"
-    storyKey: "1-2-create-curl-install-script"
-    title: "Create curl install script"
-    branch: "feat/1.2-curl-install-script"
-    pr: 75
-    baseBranch: "feat/1.1-binary-release-ci"
+  - storyId: "2.3"
+    storyKey: "2-3-create-cli-output-component-module"
+    title: "Create CLI output component module"
+    branch: "feat/2.3-cli-output-components"
+    pr: 82
+    baseBranch: "feat/2.1-sync-crate-framework"
     status: merged
-completedAt: "2026-03-08"
+  - storyId: "2.2"
+    storyKey: "2-2-implement-aws-secrets-manager-sync-target"
+    title: "Implement AWS Secrets Manager sync target"
+    branch: "feat/2.2-aws-secrets-manager-sync"
+    pr: 83
+    baseBranch: "feat/2.3-cli-output-components"
+    status: merged
+  - storyId: "2.4"
+    storyKey: "2-4-add-zopp-sync-aws-and-zopp-diff-aws-cli-commands"
+    title: "Add zopp sync aws and zopp diff aws CLI commands"
+    branch: "feat/2.4-sync-diff-aws-cli"
+    pr: 84
+    baseBranch: "feat/2.2-aws-secrets-manager-sync"
+    status: merged
+  - storyId: "2.5"
+    storyKey: "2-5-add-zopp-sync-status-command"
+    title: "Add zopp sync status command"
+    branch: "feat/2.5-sync-status-command"
+    pr: 80
+    baseBranch: "feat/2.4-sync-diff-aws-cli"
+    status: merged
+completedAt: "2026-03-11"

@@ -1,6 +1,6 @@
 # Story 2.4: Add zopp sync aws and zopp diff aws CLI commands
 
-Status: review
+Status: done
 
 ## Story
 
